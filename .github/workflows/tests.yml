@@ -25,7 +25,7 @@ jobs:
       - name: Install build and desktop dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsdl2-2.0-0 libxcb-cursor0
+          sudo apt-get install -y libsdl2-2.0-0 libegl1 libgl1 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 libxkbcommon-x11-0 xvfb
           python -m pip install -e '.[launcher,build]'
       - name: Build fixture and exercise actual APK and Qt tools
         shell: bash
@@ -38,6 +38,7 @@ jobs:
           python scripts/demo.py
           python scripts/package_linux.py
           QT_QPA_PLATFORM=offscreen dist/APK-Revival/APK-Revival --smoke --data "$PWD/build/package-smoke"
+          xvfb-run -a env QT_QPA_PLATFORM=xcb dist/APK-Revival/APK-Revival --smoke --data "$PWD/build/package-xcb-smoke"
       - uses: actions/upload-artifact@v4
         with:
           name: APK-Revival-v2-linux-x86_64

@@ -18,7 +18,8 @@ def install(source=None,home=None):
     exe=target/'APK-Revival'
     if not exe.is_file():raise RevivalError('The packaged APK-Revival executable is missing')
     exe.chmod(exe.stat().st_mode|0o111)
-    icon=target/'_internal/resources/apk-revival.svg'
+    icon=target/'_internal/resources/apk-revival-logo.png'
+    if not icon.exists():icon=target/'_internal/resources/apk-revival.svg'
     applications=home/'.local/share/applications';applications.mkdir(parents=True,exist_ok=True)
     desktop='[Desktop Entry]\nType=Application\nName=APK Revival\nComment=Your mobile games, back in play\nExec="'+desktop_escape(exe)+'" --fullscreen\nIcon='+str(icon)+'\nTerminal=false\nCategories=Game;\nStartupNotify=true\n'
     path=applications/'apk-revival.desktop';path.write_text(desktop);path.chmod(0o755)

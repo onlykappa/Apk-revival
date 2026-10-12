@@ -1,16 +1,55 @@
-# APK Revival V2
+<p align="center">
+  <img src="resources/apk-revival-logo.png" alt="APK Revival logo" width="128" />
+</p>
+<h1 align="center">APK Revival</h1>
+<p align="center"><strong>Your mobile games. Back in play.</strong></p>
+<p align="center">
+  <a href="https://github.com/onlykappa/Apk-revival/releases">Download for Linux</a> ·
+  <a href="CHANGELOG.md">Version history</a> ·
+  <a href="docs/INSTALL_V2.md">Steam Deck setup</a>
+</p>
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.2.0-9fe5c4?labelColor=16242b" alt="Version 0.2.0" />
+  <img src="https://img.shields.io/badge/Linux-x86__64-9fe5c4?labelColor=16242b" alt="Linux x86_64" />
+  <img src="https://img.shields.io/badge/status-preview-efce7d?labelColor=16242b" alt="Preview, hardware unverified" />
+  <img src="https://img.shields.io/badge/license-MIT-9fe5c4?labelColor=16242b" alt="MIT source license" />
+</p>
+
+![APK Revival V2 library, captured from the running application](docs/images/library.png)
 
 A small local Android-game launcher for Linux and Steam Deck: **Add Game → Prepare → Play**. V2 provides a native fullscreen library, setup, background preparation, launch management, saves and exports around the V1 restoration engine.
 
 ## Open the app
 
-Download the Linux x86_64 package supplied with V2, extract it in Desktop Mode and double-click **APK-Revival**. In **Setup**, choose **Install desktop shortcut**. No Python installation or terminal is needed for the launcher. This build requires glibc 2.39 or newer; actual Steam Deck hardware compatibility still needs testing.
+Download **APK-Revival-0.2.0-linux-x86_64.tar.gz** from [Releases](https://github.com/onlykappa/Apk-revival/releases), extract it in Desktop Mode and double-click **APK-Revival**. In **Setup**, choose **Install desktop shortcut**. No Python installation or terminal is needed for the launcher. This build requires glibc 2.39 or newer; actual Steam Deck hardware compatibility still needs testing.
 
 Choose **Try desktop demo**, then **Play** to try the included self-authored Tap Quest rebuild immediately. Collect coins and relaunch to see saved progress. It needs no Android runtime. It is a separate implementation, not proof that the original APK works offline.
 
 For APK games, use **Add Game**, attach available supporting files, and **Prepare**. Setup guides preparation tools and Waydroid connection. Waydroid itself must be configured for your SteamOS version. APK Revival never disables SteamOS protections or silently installs privileged packages.
 
 [Installation and adding to Steam](docs/INSTALL_V2.md) · [Observed test results](docs/TEST_RESULTS_V2.md) · [Contributor setup](docs/CONTRIBUTING_V2.md)
+
+## Inside the app
+
+These are screenshots of the running native application using the self-authored fixture. No commercial game restoration or Android gameplay is implied.
+
+<details>
+<summary>Home and first-run setup</summary>
+
+![Empty library home](docs/images/home.png)
+![Preparation tools and Android setup](docs/images/setup.png)
+
+</details>
+<details>
+<summary>Play, saves, exports and evidence</summary>
+
+![Separate desktop fixture gameplay](docs/images/playing.png)
+![Game options with save and export actions](docs/images/options.png)
+![Advanced evidence report](docs/images/advanced.png)
+
+</details>
+
+See [release history and update instructions](docs/RELEASES.md). V1 is archived as **v0.1.0**; V2 is **v0.2.0**. These are early previews while Android and Steam Deck hardware verification remains outstanding.
 
 ## What works
 

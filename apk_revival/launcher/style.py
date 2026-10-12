@@ -2,6 +2,7 @@ STYLE='''
 * { font-family: "DejaVu Sans"; font-size: 15px; color: #eaf2ef; }
 QMainWindow, QWidget#base { background: #0d151a; }
 QWidget#panel, QFrame#panel { background: #16242b; border-radius: 20px; }
+QFrame#welcome { background: #111f26; border: 1px dashed #36554d; border-radius: 20px; }
 QLabel { background: transparent; }
 QLabel#muted { color: #a2b5bb; }
 QLabel#heading { font-size: 32px; font-weight: 700; }

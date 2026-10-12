@@ -24,3 +24,5 @@ QT_QPA_PLATFORM=offscreen dist/APK-Revival/APK-Revival --smoke --data "$PWD/buil
 Linux packaging needs SDL2 and Qt's XCB dependencies on the build host. CI installs `libsdl2-2.0-0` and `libxcb-cursor0`; PyInstaller gathers shared libraries. An optional `APKR_PACKAGE_LIBS` directory supplies additional regular `libxcb-*.so.*` files when building without host package installation. Keep their copyright notices. Qt libraries remain external and replaceable for LGPL compliance. See `resources/THIRD_PARTY_LICENSES.md`.
 
 The CI package is attached to the native-launcher workflow run as an artifact. CI tests are not Android gameplay verification. Use the runtime-specific offline verifier on a compatible guest and record its evidence before claiming Verified Offline.
+
+Publishing uses the Release workflow; see [RELEASES.md](RELEASES.md). EGL and the full XCB dependency set must be present on the build host. The release runner checks actual XCB startup before publishing.

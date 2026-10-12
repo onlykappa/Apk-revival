@@ -4,7 +4,7 @@ Build date: 2026-10-12. Linux x86_64, Python 3.12, PySide6 6.8.3. No physical St
 
 ## Automated suite
 
-49 tests ran: 47 passed, 2 optional legacy Tk display tests skipped. Actual Android SDK signing/alignment integration and the three native Qt interface workflow tests were enabled. The V1 tests remain included.
+52 tests ran: 50 passed, 2 optional legacy Tk display tests skipped. Actual Android SDK signing/alignment integration and the three native Qt interface workflow tests were enabled. The V1 tests remain included. Release checks additionally enforce matching engine/project versions and a required changelog section.
 
 Real Qt widgets were exercised using QtTest: Add Game, analysis, signed offline preparation, honest missing-runtime status, path selection, separate rebuild preparation, Play, collect, Stop, relaunch, save backup, reversible restore and export. Modal file selection for backup/export was supplied by a test double; the operations, files and persistence were real. Controller confirm/back and spatial focus were dispatched programmatically, not through a physical controller.
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json,pathlib,sys,traceback
 from PySide6.QtCore import QEvent,QPoint,QRect,Qt,QThread,QTimer,Signal
-from PySide6.QtGui import QColor,QDesktopServices,QFont,QLinearGradient,QPainter,QPen
+from PySide6.QtGui import QColor,QDesktopServices,QFont,QLinearGradient,QPainter,QPen,QPixmap,QIcon
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import QApplication,QAbstractButton,QCheckBox,QComboBox,QDialog,QFileDialog,QFrame,QGridLayout,QHBoxLayout,QLabel,QLineEdit,QMainWindow,QMessageBox,QPlainTextEdit,QProgressBar,QPushButton,QScrollArea,QStackedWidget,QTabWidget,QVBoxLayout,QWidget
 from ..analysis import markdown
@@ -13,6 +13,9 @@ from .presentation import CONTROL_PROFILES,readiness
 from .service import Launcher
 from .style import STYLE
 from . import tools_setup
+
+def brand_asset():
+    return pathlib.Path(getattr(sys,'_MEIPASS',pathlib.Path(__file__).resolve().parents[2]))/'resources/apk-revival-logo.png'
 
 PATH_NAMES={'offline_patch':'Preserve the APK offline','local_backend':'Use a local backend','rebuild':'Create a separate rebuild'}
 
@@ -88,9 +91,9 @@ class GameView(QWidget):
 class Window(QMainWindow):
     def __init__(self,store=None,fullscreen=False):
         super().__init__();self.service=Launcher(store or Store());self.current=None;self.worker=None;self.monitor_worker=None;self.cards=[];self.last_job=None;self.rebuild_view=None;self.active_page='library';self.closing=False
-        self.setWindowTitle('APK Revival');self.resize(1280,800);self.setMinimumSize(1000,650);self.setAcceptDrops(True)
+        self.setWindowTitle('APK Revival');self.setWindowIcon(QIcon(str(brand_asset())));self.resize(1280,800);self.setMinimumSize(1000,650);self.setAcceptDrops(True)
         root=QWidget();root.setObjectName('base');self.setCentralWidget(root);outer=QVBoxLayout(root);outer.setContentsMargins(28,20,28,18);outer.setSpacing(16)
-        header=QHBoxLayout();header.addWidget(label('APK REVIVAL','brand'));header.addWidget(label('Your mobile games. Back in play.','muted'));header.addStretch()
+        header=QHBoxLayout();mark=QLabel();mark.setPixmap(QPixmap(str(brand_asset())).scaled(58,58,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));mark.setFixedSize(58,58);header.addWidget(mark);brand=QVBoxLayout();brand.setSpacing(1);brand.addWidget(label('APK REVIVAL','brand'));brand.addWidget(label('Mobile games. Back in play.','muted'));header.addLayout(brand);header.addStretch();from .. import __version__;header.addWidget(label('V'+__version__,'tag'))
         self.setup_button=button('Setup',self.show_setup);header.addWidget(self.setup_button);header.addWidget(button('Fullscreen',self.toggle_fullscreen,'quiet'));self.add_button=button('+ Add game',self.add_game,'primary');header.addWidget(self.add_button);outer.addLayout(header)
         self.stack=QStackedWidget();outer.addWidget(self.stack,1);self.library=self.library_page();self.stack.addWidget(self.library);self.setup=self.setup_page();self.stack.addWidget(self.setup)
         self.feedback=QFrame();self.feedback.setObjectName('panel');feedback=QHBoxLayout(self.feedback);feedback.setContentsMargins(18,10,18,10);self.message=label('Ready. Add a game or try the included desktop demo.','muted',True);feedback.addWidget(self.message,1);self.cancel_button=button('Cancel task',self.cancel,'quiet');feedback.addWidget(self.cancel_button);self.cancel_button.hide();outer.addWidget(self.feedback)
@@ -128,7 +131,10 @@ class Window(QMainWindow):
         for index,p in enumerate(filtered):
             card=GameCard(p,p['id']==self.current,lambda checked=False,game=p['id']:self.select(game));card.setProperty('game_id',p['id']);self.grid.addWidget(card,index//2,index%2);self.cards.append(card)
             if p['id']==focus_game:card.setFocus()
-        if not filtered:self.grid.addWidget(label('No matches.' if games else 'Drop an APK here, or choose Add game.\nTry the included desktop demo to explore the launcher.','muted',True),0,0,1,2)
+        if not filtered:
+            if games:self.grid.addWidget(label('No matches.','muted'),0,0,1,2)
+            else:
+                welcome=QFrame();welcome.setObjectName('welcome');welcome.setMinimumHeight(360);box=QVBoxLayout(welcome);box.setContentsMargins(28,28,28,28);box.addStretch();mark=QLabel();mark.setPixmap(QPixmap(str(brand_asset())).scaled(110,110,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));box.addWidget(mark,alignment=Qt.AlignmentFlag.AlignCenter);box.addWidget(label('Bring your games back.','heading'),alignment=Qt.AlignmentFlag.AlignCenter);copy=label('Drop an APK here to start your library.\nOr try Tap Quest, included and ready to explore.','muted',True);copy.setAlignment(Qt.AlignmentFlag.AlignCenter);box.addWidget(copy);box.addStretch();self.grid.addWidget(welcome,0,0,1,2)
         self.update_details();self.update_tools()
     def select(self,game):
         self.current=game
@@ -146,8 +152,8 @@ class Window(QMainWindow):
         self.play_button.setEnabled(bool(not busy and not active and (ready['play'] or (p['restoration'].get('artifact') and ready['label']=='Runtime setup needed'))));self.play_button.setText('Set up Android' if ready['label']=='Runtime setup needed' else 'Play');self.prepare_button.setEnabled(not busy and not active and ready['prepare']);self.stop_button.setEnabled(not busy and bool(active));self.options_button.setEnabled(not busy)
         control=CONTROL_PROFILES.get(p.get('adapter'),{'description':'Controls are unknown until this game is investigated.'});self.controls_label.setText('Controls: A / Enter collects. B / Esc returns.' if p['restoration']['path']=='rebuild' else 'Controls: touch or trackpad.' if p.get('adapter')=='tapquest-v1' else 'Controls need game-specific investigation.')
     def submit(self,title,operation,callback=None):
-        if self.worker and self.worker.isRunning():return
-        self.worker=Worker(self.service,title,operation,self);worker=self.worker;self.callback=callback;worker.update.connect(self.progress);worker.succeeded.connect(self.completed);worker.failed.connect(self.failed);worker.finished.connect(self.job_finished);self.bar.show();self.cancel_button.show();self.add_button.setEnabled(False);self.demo_button.setEnabled(False);worker.start();self.update_details()
+        if self.worker:return
+        self.worker=Worker(self.service,title,operation,self);worker=self.worker;self.callback=callback;worker.update.connect(self.progress);worker.succeeded.connect(self.completed);worker.failed.connect(self.failed);worker.finished.connect(lambda owned=worker:self.job_finished(owned));self.bar.show();self.cancel_button.show();self.add_button.setEnabled(False);self.demo_button.setEnabled(False);worker.start();self.update_details()
     def progress(self,job):
         self.last_job=job;step=job['steps'][-1]['label'] if job['steps'] else job['label'];self.message.setText(step+('...' if job['state']=='running' else ''))
     def completed(self,result):
@@ -157,7 +163,8 @@ class Window(QMainWindow):
     def failed(self,message):
         self.message.setText(message);self.refresh()
         if 'Preparation tools are missing' in message:self.show_setup()
-    def job_finished(self):
+    def job_finished(self,owned=None):
+        if owned is not None and self.worker is not owned:owned.deleteLater();return
         self.bar.hide();self.cancel_button.hide();self.add_button.setEnabled(True);self.demo_button.setEnabled(True);self.update_details();self.worker.deleteLater();self.worker=None
         if self.closing:QTimer.singleShot(0,self.close)
     def cancel(self):self.service.jobs.cancel();self.message.setText('Will cancel at the next safe stage. Finishing the current operation first.')
@@ -196,7 +203,7 @@ class Window(QMainWindow):
     def update_tools(self):
         h=tools_setup.health();missing=[n for n in ['java','keytool','zipalign','apksigner'] if not h[n]['ready']];self.tools_label.setText('Preparation tools found. Prepare checks their compatibility.' if not missing else 'Install the user-local tools needed to build and sign supported games.');self.install_tools_button.setText('Check / repair preparation tools' if not missing else 'Install preparation tools')
     def check_runtime(self):
-        if self.worker and self.worker.isRunning():return
+        if self.worker:return
         self.submit('Check Android setup',lambda ctx:(ctx.step('Checking Android setup'),self.service.runtime_manager.discover())[1],self.runtime_result)
     def runtime_result(self,info):
         self.devices.blockSignals(True);self.devices.clear();self.devices.addItem('Choose an Android environment',None)
