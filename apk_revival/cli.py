@@ -8,7 +8,8 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description='APK Revival local restoration workbench')
     parser.add_argument('--data',help='Private local data root (default ~/.local/share/apk-revival)')
     sub=parser.add_subparsers(dest='command')
-    sub.add_parser('gui');sub.add_parser('list')
+    sub.add_parser('gui');sub.add_parser('legacy-gui');sub.add_parser('list')
+    x=sub.add_parser('launcher');x.add_argument('--fullscreen',action='store_true')
     x=sub.add_parser('doctor');x.add_argument('--serial')
     x=sub.add_parser('import');x.add_argument('apk');x.add_argument('--support',nargs='*',default=[])
     for role in ['assets','logs','saves']:x.add_argument('--'+role,nargs='*',default=[])
@@ -29,7 +30,11 @@ def main(argv=None):
     args=parser.parse_args(argv);s=Store(args.data)
     try:
         c=args.command or 'gui';result=None
-        if c=='gui':
+        if c in ['gui','launcher']:
+            try:from .launcher.ui import run
+            except ImportError:raise RevivalError('V2 requires PySide6. Use the packaged Linux download, or install the launcher extra. V1 remains available through legacy-gui and the CLI.')
+            return run(s,getattr(args,'fullscreen',False))
+        if c=='legacy-gui':
             from .ui import run
             run(s);return
         if c=='list':result=[{'id':p['id'],'title':p['title'],'status':p['status'],'fixture':bool(p['analysis'] and p['analysis']['fixture'])} for p in s.games()]

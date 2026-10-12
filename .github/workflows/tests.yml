@@ -4,15 +4,15 @@ permissions:
   contents: read
 jobs:
   unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: python -m unittest discover -s tests -v
-  android-build:
-    runs-on: ubuntu-latest
+  native-launcher:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,14 +22,26 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Build fixture and exercise actual APK tools
+      - name: Install build and desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-2.0-0 libxcb-cursor0
+          python -m pip install -e '.[launcher,build]'
+      - name: Build fixture and exercise actual APK and Qt tools
         shell: bash
         run: |
           python scripts/bootstrap_tools.py --fixture
           source "$HOME/.cache/apk-revival/tools/env.sh"
           python scripts/build_fixture.py --android-jar "$HOME/.cache/apk-revival/tools/android-35/android.jar" --ecj "$HOME/.cache/apk-revival/tools/ecj.jar"
-          APKR_TEST_APK="$PWD/build/tapquest-original.apk" python -m unittest discover -s tests -v
+          cp build/tapquest-original.apk resources/tapquest-original.apk
+          QT_QPA_PLATFORM=offscreen APKR_V2_UI_TEST=1 APKR_TEST_APK="$PWD/build/tapquest-original.apk" python -m unittest discover -s tests -v
           python scripts/demo.py
+          python scripts/package_linux.py
+          QT_QPA_PLATFORM=offscreen dist/APK-Revival/APK-Revival --smoke --data "$PWD/build/package-smoke"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: APK-Revival-v2-linux-x86_64
+          path: dist/APK-Revival-v2-linux-x86_64.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: self-authored-fixture-exports-unverified

@@ -11,13 +11,16 @@ class Restorer:
         if p['analysis']['input_errors']:raise RevivalError('Resolve split input mismatches first')
         plan=adapter(p).plan(self.store,p,path)
         atomic_json(self.store.directory(game_id)/f'plan-{path}.json',plan);return plan
-    def prepare(self,game_id,path,plan_path=None):
+    def prepare(self,game_id,path,plan_path=None,progress=None):
+        progress=progress or (lambda _:None)
+        progress("Checking game files")
         p=self.store.load(game_id)
         if not p['analysis']:raise RevivalError('Analyze first')
         if path not in PATHS:raise RevivalError('Unsupported restoration path')
         plan=read_json(plan_path) if plan_path else self.plan(game_id,path)
         self._validate(p,plan,path)
         if path=='rebuild':
+            progress('Checking rebuild feasibility')
             feasible=adapter(p).feasibility(p)
             if not feasible.get('feasible'):raise RevivalError('Rebuild feasibility not established')
             p['rebuild']={'status':'Implemented fixture rebuild; GUI gameplay unverified','feasibility':feasible,'save_location':'saves/rebuild.json'}
@@ -26,6 +29,7 @@ class Restorer:
         work=self.store.directory(game_id)/'work'/uuid.uuid4().hex;work.mkdir(parents=True);decoded=work/'decoded'
         # Record a failed attempt without losing a previous working artifact.
         try:
+            progress('Preparing the client')
             assets_only=all(o['file'].startswith('assets/') for o in plan['operations'])
             if assets_only:
                 decoded.mkdir()
@@ -50,6 +54,7 @@ class Restorer:
                 reviews.append(''.join(difflib.unified_diff(old.splitlines(True),new.splitlines(True),fromfile=op['file'],tofile=op['file'])))
                 f.write_text(new,encoding='utf-8')
             (work/'changes.diff').write_text('\n'.join(reviews));atomic_json(work/'plan.json',plan)
+            progress('Building the APK')
             if assets_only:
                 changed={op['file'] for op in plan['operations']}
                 with zipfile.ZipFile(self.store.base(p)) as original, zipfile.ZipFile(work/'unsigned.apk','w') as rebuilt:
@@ -66,6 +71,7 @@ class Restorer:
                 result=manifest(z.read('AndroidManifest.xml'))
                 if result['package']!=p['analysis']['metadata']['package'] or result['version_code']!=p['apk_version']['code']:raise RevivalError('Rebuilt package/version changed unexpectedly')
             command([tool('zipalign'),'-f','-p','4',work/'unsigned.apk',work/'aligned.apk'])
+            progress('Signing and checking the APK')
             key,password=self._signing_identity()
             env=dict(os.environ);env['APKR_CURRENT_SIGN_PASS']=password
             command([tool('apksigner'),'sign','--ks',key,'--ks-pass','env:APKR_CURRENT_SIGN_PASS','--key-pass','env:APKR_CURRENT_SIGN_PASS','--out',work/'restored.apk',work/'aligned.apk'],env=env)

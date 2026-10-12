@@ -1,5 +1,5 @@
 from __future__ import annotations
-import hashlib, json, os, pathlib, shutil, subprocess, tempfile, time, zipfile
+import hashlib, json, os, pathlib, shutil, subprocess, sys, tempfile, time, zipfile
 
 class RevivalError(Exception):
     pass
@@ -48,7 +48,7 @@ def inspect_zip(path, max_total=4*1024**3):
 
 def command(args, timeout=90, env=None, input=None):
     try:
-        p = subprocess.run([str(x) for x in args], input=input, capture_output=True, text=True, timeout=timeout, env=env)
+        p = subprocess.run([str(x) for x in args], input=input, capture_output=True, text=True, timeout=timeout, env=external_env(env))
     except FileNotFoundError as e: raise RevivalError(f'Missing tool: {args[0]}. Run doctor for setup instructions.') from e
     except subprocess.TimeoutExpired as e: raise RevivalError(f'Command timed out after {timeout}s: {args[0]} '+ ' '.join(str(x) for x in args[1:4]) + '. Check runtime/tool status and retry.') from e
     if p.returncode:
@@ -75,3 +75,12 @@ def apktool(*args):
     jar=os.getenv('APKR_APKTOOL_JAR')
     if jar:return command([tool('java'),'-jar',jar,*args],timeout=180)
     return command([tool('apktool'),*args],timeout=180)
+
+
+def external_env(env=None):
+    clean=dict(os.environ if env is None else env)
+    if getattr(sys, "frozen", False):
+        if clean.get("LD_LIBRARY_PATH_ORIG"):
+            clean["LD_LIBRARY_PATH"]=clean["LD_LIBRARY_PATH_ORIG"]
+        else:clean.pop("LD_LIBRARY_PATH",None)
+    return clean
