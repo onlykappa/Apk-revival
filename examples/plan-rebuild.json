@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "adapter": "tapquest-v1",
+  "apk_sha256": "63d8309100223e4e9f45b24330f7ae24aabc1c3fd96eb1a9d3490b49a891ffd1",
+  "apk_version": {
+    "name": "1.0",
+    "code": "1"
+  },
+  "path": "rebuild",
+  "operations": [],
+  "assumptions": [],
+  "backend": null,
+  "save_locations": [],
+  "feasibility": {
+    "feasible": true,
+    "classification": "self-authored fixture",
+    "mechanics": [
+      "Collect one coin per tap",
+      "Level increases every 10 coins",
+      "Persistent progress"
+    ],
+    "recoverable_assets": [
+      "No proprietary assets; interface drawn with text/buttons"
+    ],
+    "needs_implementation": [
+      "Independent desktop user interface"
+    ],
+    "limitations": [
+      "Does not demonstrate recovery of any commercial game"
+    ],
+    "implemented": true
+  }
+}

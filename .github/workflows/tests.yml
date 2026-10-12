@@ -1,0 +1,36 @@
+name: tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tests -v
+  android-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build fixture and exercise actual APK tools
+        shell: bash
+        run: |
+          python scripts/bootstrap_tools.py --fixture
+          source "$HOME/.cache/apk-revival/tools/env.sh"
+          python scripts/build_fixture.py --android-jar "$HOME/.cache/apk-revival/tools/android-35/android.jar" --ecj "$HOME/.cache/apk-revival/tools/ecj.jar"
+          APKR_TEST_APK="$PWD/build/tapquest-original.apk" python -m unittest discover -s tests -v
+          python scripts/demo.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: self-authored-fixture-exports-unverified
+          path: build/demo-exports/

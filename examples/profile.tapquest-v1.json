@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "id": "63d8309100223e4e9f45b243",
+  "title": "tapquest-original",
+  "apk_sha256": "63d8309100223e4e9f45b24330f7ae24aabc1c3fd96eb1a9d3490b49a891ffd1",
+  "apk_version": {
+    "name": "1.0",
+    "code": "1"
+  },
+  "created_at": "2026-10-12T17:27:38Z",
+  "status": "Exported but Unverified",
+  "inputs": [
+    {
+      "name": "tapquest-original.apk",
+      "stored_name": "0000_tapquest-original.apk",
+      "role": "base_apk",
+      "sha256": "63d8309100223e4e9f45b24330f7ae24aabc1c3fd96eb1a9d3490b49a891ffd1",
+      "size": 16790
+    }
+  ],
+  "analysis": {
+    "generated_at": "2026-10-12T17:27:38Z",
+    "metadata": {
+      "package": "org.apkrevival.tapquest",
+      "version_name": "1.0",
+      "version_code": "1",
+      "split": null,
+      "min_sdk": "23",
+      "target_sdk": "28",
+      "permissions": [
+        "android.permission.INTERNET"
+      ],
+      "activities": [
+        ".MainActivity"
+      ],
+      "application": {
+        "theme": "@0x0103022e",
+        "label": "Tap Quest Revival Fixture",
+        "debuggable": "true",
+        "allowBackup": "true",
+        "usesCleartextTraffic": "true"
+      }
+    },
+    "abis": [],
+    "engine": "Android native (self-authored fixture)",
+    "fixture": true,
+    "assets": [
+      {
+        "path": "assets/revival.json",
+        "size": 88
+      }
+    ],
+    "native_libraries": [],
+    "splits": [],
+    "supporting_inventory": [],
+    "supplied_log_observations": [],
+    "endpoints": [
+      {
+        "url": "https://retired.tapquest.invalid",
+        "evidence": "assets/revival.json:byte@0",
+        "classification": "discovered reference, behavior unproven"
+      }
+    ],
+    "references": [
+      {
+        "category": "progression",
+        "excerpt": "/action",
+        "evidence": "classes.dex:byte@5021"
+      },
+      {
+        "category": "progression",
+        "excerpt": "/state",
+        "evidence": "classes.dex:byte@5030"
+      },
+      {
+        "category": "saves",
+        "excerpt": "Landroid/content/SharedPreferences$Editor;",
+        "evidence": "classes.dex:byte@5304"
+      },
+      {
+        "category": "saves",
+        "excerpt": "Landroid/content/SharedPreferences;",
+        "evidence": "classes.dex:byte@5348"
+      },
+      {
+        "category": "saves",
+        "excerpt": "getSharedPreferences",
+        "evidence": "classes.dex:byte@6827"
+      }
+    ],
+    "findings": [
+      {
+        "kind": "fixture",
+        "statement": "Self-authored Tap Quest adapter marker, not a commercial restoration",
+        "classification": "discovered",
+        "confidence": "high",
+        "evidence": [
+          "assets/revival.json"
+        ]
+      },
+      {
+        "kind": "network",
+        "statement": "Network endpoint references found. Request schemas and required responses are unknown without runtime/source evidence.",
+        "classification": "discovered",
+        "confidence": "high",
+        "evidence": [
+          "assets/revival.json:byte@0"
+        ]
+      },
+      {
+        "kind": "save",
+        "statement": "Local save API references exist; whether gameplay uses them needs runtime confirmation",
+        "classification": "inferred",
+        "confidence": "medium",
+        "evidence": [
+          "classes.dex:byte@5304",
+          "classes.dex:byte@5348",
+          "classes.dex:byte@6827"
+        ]
+      }
+    ],
+    "obstacles": [
+      "No runtime observation yet. Original gameplay and offline behavior remain unverified."
+    ],
+    "input_errors": [],
+    "recommended_path": "offline_patch",
+    "recommendation_confidence": "high",
+    "recommendation_reason": "Fixture has an explicit local-mode branch in included source.",
+    "alternatives": [
+      {
+        "path": "local_backend",
+        "reason": "Recover a documented local protocol and persistent progression."
+      },
+      {
+        "path": "rebuild",
+        "reason": "Last resort: independently implement recoverable mechanics and permitted assets."
+      }
+    ],
+    "next_steps": [
+      "Run doctor and configure one Waydroid ADB serial.",
+      "Capture a cold launch log and identify the first failing gameplay request.",
+      "Supply missing expansion/assets and known request/response samples.",
+      "Review an adapter plan before modifying any copy."
+    ]
+  },
+  "adapter": "tapquest-v1",
+  "restoration": {
+    "path": "rebuild",
+    "operations": [],
+    "artifact": null,
+    "plan": {
+      "schema_version": 1,
+      "adapter": "tapquest-v1",
+      "apk_sha256": "63d8309100223e4e9f45b24330f7ae24aabc1c3fd96eb1a9d3490b49a891ffd1",
+      "apk_version": {
+        "name": "1.0",
+        "code": "1"
+      },
+      "path": "rebuild",
+      "operations": [],
+      "assumptions": [],
+      "backend": null,
+      "save_locations": [],
+      "feasibility": {
+        "feasible": true,
+        "classification": "self-authored fixture",
+        "mechanics": [
+          "Collect one coin per tap",
+          "Level increases every 10 coins",
+          "Persistent progress"
+        ],
+        "recoverable_assets": [
+          "No proprietary assets; interface drawn with text/buttons"
+        ],
+        "needs_implementation": [
+          "Independent desktop user interface"
+        ],
+        "limitations": [
+          "Does not demonstrate recovery of any commercial game"
+        ],
+        "implemented": true
+      }
+    }
+  },
+  "runtime": {
+    "adapter": "waydroid",
+    "serial": null,
+    "backend_port": 18765
+  },
+  "verification": [],
+  "rebuild": {
+    "status": "Implemented fixture rebuild; GUI gameplay unverified",
+    "feasibility": {
+      "feasible": true,
+      "classification": "self-authored fixture",
+      "mechanics": [
+        "Collect one coin per tap",
+        "Level increases every 10 coins",
+        "Persistent progress"
+      ],
+      "recoverable_assets": [
+        "No proprietary assets; interface drawn with text/buttons"
+      ],
+      "needs_implementation": [
+        "Independent desktop user interface"
+      ],
+      "limitations": [
+        "Does not demonstrate recovery of any commercial game"
+      ],
+      "implemented": true
+    },
+    "save_location": "saves/rebuild.json"
+  },
+  "logs": [],
+  "updated_at": "2026-10-12T17:27:41Z",
+  "revision": 8
+}

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "adapter": "tapquest-v1",
+  "apk_sha256": "63d8309100223e4e9f45b24330f7ae24aabc1c3fd96eb1a9d3490b49a891ffd1",
+  "apk_version": {
+    "name": "1.0",
+    "code": "1"
+  },
+  "path": "offline_patch",
+  "operations": [
+    {
+      "type": "replace_text_file",
+      "file": "assets/revival.json",
+      "expected_sha256": "7b86b2152329ba4fd25317669fd7108125ef896aecf1d881e35090cbb23d9c7f",
+      "content": "{\n  \"fixture\": \"tapquest-v1\",\n  \"mode\": \"offline\",\n  \"endpoint\": \"\"\n}\n",
+      "reason": "Select the existing local gameplay branch."
+    }
+  ],
+  "assumptions": [],
+  "backend": null,
+  "save_locations": [
+    "SharedPreferences: tapquest.xml"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "fixture": "self-authored executable Android APK",
+  "original_sha256": "63d8309100223e4e9f45b24330f7ae24aabc1c3fd96eb1a9d3490b49a891ffd1",
+  "game_id": "63d8309100223e4e9f45b243",
+  "exports": [
+    {
+      "file": "offline_patch.zip",
+      "sha256": "bab3830f90baa22f39babdc125158a1a01aa8b0d3d329004d6f2f45ec7c7f0de",
+      "status": "Exported but Unverified",
+      "path": "offline_patch"
+    },
+    {
+      "file": "local_backend.zip",
+      "sha256": "862ec2f8e2a78ec458cb4b7e92b868934fe2bc7a0bc5960a0ef25cff6151e50e",
+      "status": "Exported but Unverified",
+      "path": "local_backend"
+    },
+    {
+      "file": "rebuild.zip",
+      "sha256": "229df0143e779dd954a484a78ca7a8f515d33ab6f39398d2bd00010cb2177249",
+      "status": "Exported but Unverified",
+      "path": "rebuild"
+    }
+  ],
+  "tested": [
+    "Real binary APK import and AXML/DEX inspection",
+    "Reviewed config patch, rebuild, alignment and signature verification",
+    "Host local backend progression, restart persistence and save backup/restore",
+    "Independent fixture rebuild packaging",
+    "Export hashes and private-file exclusions",
+    "Native Tk library/report/plan interaction and separate rebuild coin/save/relaunch, exercised on Xvfb"
+  ],
+  "unverified": [
+    "Android cold launch and meaningful gameplay",
+    "Android-to-host backend reachability",
+    "Guest egress enforcement",
+    "Android save/relaunch and backend failure recovery"
+  ],
+  "status": "Exported but Unverified",
+  "android_attempt": {
+    "runtime": "Headless Android Emulator 37.2.12, AOSP API 29 x86_64, software acceleration",
+    "boot": "Completed",
+    "verification": "Failed before gameplay; ADB timed out",
+    "external_network_blocked": false,
+    "passed": false
+  }
+}

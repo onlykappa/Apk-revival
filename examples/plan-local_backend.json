@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "adapter": "tapquest-v1",
+  "apk_sha256": "63d8309100223e4e9f45b24330f7ae24aabc1c3fd96eb1a9d3490b49a891ffd1",
+  "apk_version": {
+    "name": "1.0",
+    "code": "1"
+  },
+  "path": "local_backend",
+  "operations": [
+    {
+      "type": "replace_text_file",
+      "file": "assets/revival.json",
+      "expected_sha256": "7b86b2152329ba4fd25317669fd7108125ef896aecf1d881e35090cbb23d9c7f",
+      "content": "{\n  \"fixture\": \"tapquest-v1\",\n  \"mode\": \"remote\",\n  \"endpoint\": \"http://127.0.0.1:18765\"\n}\n",
+      "reason": "Route documented fixture protocol through verified ADB reverse forwarding."
+    }
+  ],
+  "assumptions": [],
+  "backend": {
+    "protocol": "tapquest-v1",
+    "evidence": "fixtures/android/src/org/apkrevival/tapquest/MainActivity.java and docs/FIXTURE.md",
+    "endpoints": [
+      "GET /health",
+      "GET /state",
+      "POST /action {action:collect}"
+    ],
+    "assumptions": [
+      "Single-player local progression only. No accounts, purchases or multiplayer."
+    ]
+  },
+  "save_locations": [
+    "host saves/tapquest.json"
+  ]
+}
