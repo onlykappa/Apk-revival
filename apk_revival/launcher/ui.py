@@ -150,7 +150,7 @@ class Window(QMainWindow):
         p=self.profile();ready=readiness(p,self.service.runtime_manager.last.get('ready',False));self.game_title.setText(p['title'] if len(p['title'])<26 else p['title'][:24]+'...');self.game_title.setToolTip(p['title']);self.hero.title=p['title'];self.hero.seed=p['id'];self.hero.update();self.game_kind.setText('INDEPENDENT REBUILD' if p['restoration']['path']=='rebuild' else 'ANDROID GAME'+('  /  SELF-AUTHORED FIXTURE' if p['analysis'] and p['analysis']['fixture'] else ''));self.readiness_label.setText(ready['label']);self.description.setText(ready['detail'])
         busy=bool(self.worker and self.worker.isRunning());active=self.service.active
         self.play_button.setEnabled(bool(not busy and not active and (ready['play'] or (p['restoration'].get('artifact') and ready['label']=='Runtime setup needed'))));self.play_button.setText('Set up Android' if ready['label']=='Runtime setup needed' else 'Play');self.prepare_button.setEnabled(not busy and not active and ready['prepare']);self.stop_button.setEnabled(not busy and bool(active));self.options_button.setEnabled(not busy)
-        control=CONTROL_PROFILES.get(p.get('adapter'),{'description':'Controls are unknown until this game is investigated.'});self.controls_label.setText('Controls: A / Enter collects. B / Esc returns.' if p['restoration']['path']=='rebuild' else 'Controls: touch or trackpad.' if p.get('adapter')=='tapquest-v1' else 'Controls need game-specific investigation.')
+        control=CONTROL_PROFILES.get(p.get('adapter'),{'description':'Controls are unknown until this game is investigated.'});self.controls_label.setText('Controls: A / Enter collects. B / Esc returns.' if p['restoration']['path']=='rebuild' else 'Controls: touch or trackpad.' if p.get('adapter') in {'tapquest-v1','meego-1.32'} else 'Controls need game-specific investigation.')
     def submit(self,title,operation,callback=None):
         if self.worker:return
         self.worker=Worker(self.service,title,operation,self);worker=self.worker;self.callback=callback;worker.update.connect(self.progress);worker.succeeded.connect(self.completed);worker.failed.connect(self.failed);worker.finished.connect(lambda owned=worker:self.job_finished(owned));self.bar.show();self.cancel_button.show();self.add_button.setEnabled(False);self.demo_button.setEnabled(False);worker.start();self.update_details()
@@ -260,7 +260,10 @@ class Window(QMainWindow):
         actions.addWidget(button('Backup save',lambda:start('Backup save',lambda ctx:self.service.backup(p['id'],ctx))),0,0);actions.addWidget(button('Restore save',restore),0,1);actions.addWidget(button('Add supporting files',attach),1,0);actions.addWidget(button('Export game',export),1,1);actions.addWidget(button('Export diagnostics',diagnostics),2,0);actions.addWidget(button('Advanced',lambda:(dialog.accept(),self.advanced())),2,1)
         box.addWidget(label('Preparation path','muted'));choice=QComboBox()
         for key,value in PATH_NAMES.items():choice.addItem(value,key)
-        preferred=p.get('launcher',{}).get('preferred_path') or p['restoration']['path'] or (p['analysis']['recommended_path'] if p['analysis'] else 'offline_patch');choice.setCurrentIndex(choice.findData(preferred));choice.setEnabled(bool(p.get('adapter')));box.addWidget(choice)
+        preferred=p.get('launcher',{}).get('preferred_path') or p['restoration']['path'] or (p['analysis']['recommended_path'] if p['analysis'] else 'offline_patch');choice.setCurrentIndex(choice.findData(preferred));choice.setEnabled(bool(p.get('adapter')));
+        if p.get('adapter')=='meego-1.32':
+            for i in range(choice.count()):choice.model().item(i).setEnabled(choice.itemData(i)=='local_backend')
+        box.addWidget(choice)
         box.addWidget(label('A rebuild is a separate implementation. Prefer preserving the original APK when supported.','muted',True));box.addStretch()
         def save():
             current=self.service.store.load(p['id']);current.setdefault('launcher',{})['preferred_path']=choice.currentData();self.service.store.save(current);dialog.accept();self.message.setText('Path selected. Prepare applies it to a separate working copy.')
@@ -270,7 +273,16 @@ class Window(QMainWindow):
         values=[('Evidence',markdown(p) if p['analysis'] else 'Not analyzed.'),('Profile',json.dumps(p,indent=2)),('Verification',json.dumps(p['verification'],indent=2)),('Activity',json.dumps(self.last_job or {},indent=2)),('Backend',json.dumps(p['restoration'].get('plan',{}).get('backend'),indent=2))]
         for title,text in values:w=QPlainTextEdit(text);w.setReadOnly(True);tabs.addTab(w,title)
         check=QCheckBox('Attempt offline gameplay verification after preparation');check.setChecked(self.service.settings.get('verify_after_prepare',True));check.toggled.connect(lambda value:(self.service.settings.update(verify_after_prepare=value),self.service.save_settings()));box.addWidget(check)
-        bottom=QHBoxLayout();bottom.addWidget(button('Test offline now',lambda:(dialog.accept(),self.submit('Verify offline',lambda ctx:self.service.verify(p['id'],ctx),lambda result:self.message.setText('Verified Offline' if result['passed'] else 'Offline verification incomplete: '+result.get('error','Checks did not pass.'))))));bottom.addStretch();bottom.addWidget(button('Close',dialog.accept));box.addLayout(bottom);dialog.exec()
+        bottom=QHBoxLayout();bottom.addWidget(button('Test offline now',lambda:(dialog.accept(),self.test_offline())));bottom.addStretch();bottom.addWidget(button('Close',dialog.accept));box.addLayout(bottom);dialog.exec()
+    def test_offline(self):
+        if self.profile().get('adapter')=='meego-1.32':
+            from .meego_test import MeegoTestDialog
+            dialog=MeegoTestDialog(self);self.meego_test_dialog=dialog
+            try:dialog.exec()
+            finally:self.meego_test_dialog=None
+            self.refresh()
+            if self.closing:QTimer.singleShot(0,self.close)
+        else:self.submit('Verify offline',lambda ctx:self.service.verify(self.current,ctx),lambda result:self.message.setText('Verified Offline' if result['passed'] else 'Offline verification incomplete: '+result.get('error','Checks did not pass.')))
     def toggle_fullscreen(self):
         if self.isFullScreen():self.showNormal()
         else:self.showFullScreen()
@@ -298,6 +310,8 @@ class Window(QMainWindow):
         if self.monitor_worker:self.monitor_worker.deleteLater();self.monitor_worker=None
         if self.closing:QTimer.singleShot(0,self.close)
     def closeEvent(self,event):
+        guided=getattr(self,"meego_test_dialog",None)
+        if guided and not guided.test.finished:self.closing=True;event.ignore();guided.reject();return
         if (self.worker and self.worker.isRunning()) or (self.monitor_worker and self.monitor_worker.isRunning()):
             self.closing=True;self.service.jobs.cancel();self.message.setText('Finishing the current operation before closing. Cancelling at a safe stage.');event.ignore();return
         if self.service.android:

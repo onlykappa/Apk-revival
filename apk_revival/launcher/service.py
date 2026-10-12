@@ -21,6 +21,7 @@ class Launcher:
         ctx.step('Checking game files');p=self.store.import_game(apk,support);ctx.step('Analyzing dependencies');p=analyze(self.store,p['id'])
         title=p['analysis']['metadata']['application'].get('label')
         if p['analysis']['fixture']:p['title']='Tap Quest'
+        elif p.get('adapter')=='meego-1.32':p['title']='The Meego'
         elif title and not title.startswith('@'):p['title']=title[:100]
         p.setdefault('launcher',{}).setdefault('launch_checks',[]);self.store.save(p);return p
     def attach(self,game,support,ctx):
@@ -42,6 +43,7 @@ class Launcher:
             ctx.skipped('Testing offline play','Android is not connected. The APK is prepared; complete runtime setup to test it.');return self.store.load(game)
         serial=self.runtime_manager.ensure(self.settings.get('serial'));p['runtime']['serial']=serial;self.store.save(p)
         self.runtime_factory(serial).compatible(p)
+        if p.get('adapter')=='meego-1.32':ctx.skipped('Testing offline play','Meego requires a guided Android gameplay test. Signing and host service tests do not certify the game.');return self.store.load(game)
         if self.settings.get('verify_after_prepare',True):
             ctx.step('Testing offline play');result=verify(self.store,game)
             if not result['passed']:ctx.skipped('Offline verification incomplete',result.get('error','Some gameplay checks did not pass.'))

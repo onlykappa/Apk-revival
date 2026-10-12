@@ -2,6 +2,21 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.0] - 2026-10-12
+
+### Added
+
+* Exact-hash adapter for the supplied The Meego v1.32 APK, preserving the native game and preparing a separate Android installation.
+* Reviewable bounded native/compiled-resource patches and local service routing through checked ADB reverse communication.
+* Reviewed self-authored Meego service integrated into Play/Stop, persistent village saves, reversible backups and portable exports.
+* Rules extracted from the user-owned APK into private working data; proprietary APKs/assets are excluded from source and release packages.
+* Optional explicit village-save import, preserving an existing launcher save.
+* Guided real-Android offline test: guest IPv4/IPv6 restrictions, village/menu observations, building action evidence, save/relaunch and local-service failure/recovery.
+
+### Verification scope
+
+Actual Meego import/preparation/signing, HTTP actions, persistence, backups and exports were exercised locally. Android gameplay was not run here: this environment lacks Binder/Wayland and container privileges. Earlier user-reported Deck gameplay belongs to the earlier Meego release, not this newly signed client. Guided Android checks remain unverified until executed on a compatible guest. Unsupported quests/social behavior and original balance remain incomplete.
+
 ## [0.2.0] - 2026-10-12
 
 ### Added
@@ -38,3 +53,5 @@ The local V2 suite exercised real Qt workflows, actual APK signing, private tool
 
 [0.2.0]: https://github.com/onlykappa/Apk-revival/releases/tag/v0.2.0
 [0.1.0]: https://github.com/onlykappa/Apk-revival/tree/7458887bf687eaaf8cf29242ba40be518e761abf
+
+[0.3.0]: https://github.com/onlykappa/Apk-revival/releases/tag/v0.3.0

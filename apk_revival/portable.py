@@ -17,15 +17,20 @@ def main():
         if b['path']=='rebuild':
             from .rebuild_game import run
             run(root/'saves/rebuild.json');return
-        r=WaydroidRuntime(args.serial);r.compatible(p);r.package=p['analysis']['metadata']['package']
+        r=WaydroidRuntime(args.serial);r.compatible(p);r.package=p['restoration'].get('client_package',p['analysis']['metadata']['package'])
         try:
             r.adb('install','-r',root/'restored.apk',timeout=180)
             for i in b['supporting']:
                 if i['role']=='obb':
                     dest='/sdcard/Android/obb/'+r.package;r.shell('mkdir','-p',dest);r.adb('push',root/i['file'],dest+'/'+i['name'],timeout=180)
             if b['path']=='local_backend':
-                if not b['fixture'] or p['adapter']!='tapquest-v1':raise RevivalError('Unsupported backend adapter')
-                port=b['backend_port'];r.backend=Backend(root/'saves/tapquest.json',port).start();r.adb('reverse','--no-rebind',f'tcp:{port}',f'tcp:{port}');r.forward_port=port;r.probe_backend()
+                port=b['backend_port']
+                if p['adapter']=='tapquest-v1':r.backend=Backend(root/'saves/tapquest.json',port).start()
+                elif p['adapter']=='meego-1.32':
+                    from .meego.backend import MeegoBackend
+                    r.backend=MeegoBackend(root/'portable-data',root/'backend-data',port).start()
+                else:raise RevivalError('Unsupported backend adapter')
+                r.adb('reverse','--no-rebind',f'tcp:{port}',f'tcp:{port}');r.forward_port=port;r.probe_backend()
             r.launch(p);print('Game started. Keep this window open. Ctrl+C stops it.')
             while True:time.sleep(.5)
         except KeyboardInterrupt:pass

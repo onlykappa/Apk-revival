@@ -35,6 +35,9 @@ def export_game(store,game_id,output):
                 if dest.exists():raise RevivalError('Supporting asset destination collision: '+rel)
                 dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(store.directory(game_id)/'originals'/i['stored_name'],dest)
                 supporting.append({'role':i['role'],'file':'support/'+rel,'name':i['name']})
+        if p.get('adapter')=='meego-1.32' and path=='local_backend':
+            from .meego.backend import config_path
+            config=config_path(store,p);shutil.copytree(config,root/'backend-data');profile['restoration']['backend_data']['directory']='backend-data'
         atomic_json(root/'profile.json',profile)
         if p['analysis']:
             from .analysis import markdown

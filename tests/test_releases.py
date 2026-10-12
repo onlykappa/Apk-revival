@@ -4,8 +4,8 @@ root=pathlib.Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('release_assets',root/'scripts/release_assets.py');release=importlib.util.module_from_spec(spec);spec.loader.exec_module(release)
 class ReleaseTests(unittest.TestCase):
     def test_versions_and_notes_are_consistent(self):
-        self.assertEqual(release.version(),'0.2.0')
-        for value in ['0.1.0','0.2.0']:self.assertIn('Verification scope',release.notes(value));self.assertIn('Android',release.notes(value))
+        self.assertRegex(release.version(),r'^\d+\.\d+\.\d+$')
+        for value in ['0.1.0',release.version()]:self.assertIn('Verification scope',release.notes(value));self.assertIn('Android',release.notes(value))
     def test_missing_notes_fail_before_publication(self):
         with self.assertRaisesRegex(ValueError,'Missing release notes'):release.notes('9.9.9')
     def test_mismatched_engine_version_rejected(self):

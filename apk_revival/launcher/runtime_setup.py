@@ -77,7 +77,7 @@ class RuntimeManager:
 
 class ManagedAndroid(WaydroidRuntime):
     def install(self,store,p,original=False):
-        self.compatible(p);self.package=p['analysis']['metadata']['package']
+        self.compatible(p);self.package=p['analysis']['metadata']['package'] if original else p['restoration'].get('client_package',p['analysis']['metadata']['package'])
         apk=store.base(p) if original else self.artifact(store,p)
         from ..util import digest
         sha=digest(apk);installed=None

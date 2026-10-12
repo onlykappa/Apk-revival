@@ -42,7 +42,7 @@ class WaydroidRuntime:
         if d.resolve() not in path.parents or digest(path)!=p['restoration']['artifact_sha256']:raise RevivalError('Restored artifact missing, changed or outside its working directory. Prepare again.')
         return path
     def install(self,store,p,original=False):
-        self.compatible(p);self.package=p['analysis']['metadata']['package']
+        self.compatible(p);self.package=p['analysis']['metadata']['package'] if original else p['restoration'].get('client_package',p['analysis']['metadata']['package'])
         apk=store.base(p) if original else self.artifact(store,p)
         split=[store.directory(p['id'])/'originals'/i['stored_name'] for i in p['inputs'] if i['role']=='split_apk']
         self.adb('install-multiple' if split else 'install','-r',apk,*split,timeout=180)
@@ -60,15 +60,18 @@ class WaydroidRuntime:
         except Exception:
             self.stop();raise
     def launch(self,p):
-        package=p['analysis']['metadata']['package'];self.package=package
+        package=p['restoration'].get('client_package',p['analysis']['metadata']['package']);self.package=package
         # Resolve the actual launcher instead of picking an arbitrary manifest activity.
         component=self.shell('cmd','package','resolve-activity','--brief',package).strip().splitlines()[-1]
         if '/' not in component or ' ' in component:raise RevivalError('No launchable activity resolved; inspect manifest and logs')
         self.shell('am','start','-W','-n',component)
     def start_backend(self,store,p):
-        if p.get('adapter')!='tapquest-v1':raise RevivalError('No implemented backend adapter')
         port=p['runtime']['backend_port']
-        self.backend=Backend(store.directory(p['id'])/'saves/tapquest.json',port).start()
+        if p.get('adapter')=='tapquest-v1':self.backend=Backend(store.directory(p['id'])/'saves/tapquest.json',port).start()
+        elif p.get('adapter')=='meego-1.32':
+            from .meego.backend import MeegoBackend,config_path
+            self.backend=MeegoBackend(store.directory(p['id']),config_path(store,p),port).start()
+        else:raise RevivalError('No implemented backend adapter')
         try:
             self.adb('reverse','--no-rebind',f'tcp:{port}',f'tcp:{port}');self.forward_port=port
             self.probe_backend()

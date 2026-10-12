@@ -40,3 +40,7 @@ OmniPC was inspected read-only. Its MIT license permits adaptation and is retain
 ## Adding a game adapter
 
 Start with [ADAPTERS.md](ADAPTERS.md). Supply exact APK/version evidence, explicit reversible operations, backend contracts or rebuild feasibility, asset placement and save locations. Add meaningful gameplay verification, not only endpoint replacements. V2 consumes these services through the orchestration layer; game-specific logic belongs in adapters and the engine. All three fixture workflows are implemented; none implies automatic restoration of unknown games.
+
+## Meego adapter in 0.3.0
+
+Meego adds a bounded binary-operation type restricted to reviewed native/compiled targets for the exact original APK hash. Backend code is trusted source; rule tables are extracted from user-owned assets into private working copies. Prepared client package metadata is separate from original metadata so prior installs stay intact. Saves, runtime lifecycle and native/source exports support this local-backend adapter. Its guided verifier records explicit user observations plus Android/network/service evidence and refuses a passing claim without the required checks.

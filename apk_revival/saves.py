@@ -8,11 +8,11 @@ class Saves:
     def __init__(self,store):self.store=store
     def backup(self,game_id,output=None):
         p=self.store.load(game_id);d=self.store.directory(game_id)
-        if p.get('adapter')!='tapquest-v1':raise RevivalError('Save locations unknown. Add a game-specific adapter before backup/restore.')
+        if p.get('adapter') not in {'tapquest-v1','meego-1.32'}:raise RevivalError('Save locations unknown. Add a game-specific adapter before backup/restore.')
         path=p['restoration']['path'];target=pathlib.Path(output) if output else d/'backups'/f'{uuid.uuid4().hex}.zip';target.parent.mkdir(parents=True,exist_ok=True)
         data=None
         if path in ['local_backend','rebuild']:
-            source=d/('saves/tapquest.json' if path=='local_backend' else 'saves/rebuild.json')
+            source=d/('saves/village.json' if p.get('adapter')=='meego-1.32' else 'saves/tapquest.json' if path=='local_backend' else 'saves/rebuild.json')
             if not source.exists():raise RevivalError('No saved progress exists yet')
             data=source.read_bytes();filename='progress.json'
         elif path=='offline_patch':
@@ -39,6 +39,8 @@ class Saves:
         except RevivalError:prior=None
         if path in ['local_backend','rebuild']:
             state=json.loads(data)
+            if p.get('adapter')=='meego-1.32':
+                validate_meego_save(state);atomic_json(d/'saves/village.json',state);return {'restored':True,'previous_backup':prior}
             if set(state)!={'coins','level'} or type(state['coins']) is not int or state['coins']<0 or state['level']!=1+state['coins']//10:raise RevivalError('Invalid save state')
             atomic_json(d/('saves/tapquest.json' if path=='local_backend' else 'saves/rebuild.json'),state)
         elif path=='offline_patch':
@@ -50,3 +52,10 @@ class Saves:
             r.adb('shell',f'run-as {shlex.quote(package)} sh -c '+shlex.quote('mkdir -p shared_prefs && cat > shared_prefs/tapquest.xml'),input=data.decode())
         else:raise RevivalError('Unsupported save restore')
         return {'restored':True,'previous_backup':prior}
+
+
+def validate_meego_save(value):
+    if not isinstance(value,dict) or value.get("format_version")!=1 or not isinstance(value.get("game_user"),dict) or not isinstance(value.get("game_state"),dict):raise RevivalError("Invalid Meego save. Existing progress was not replaced.")
+    state=value["game_state"]
+    for field in ["buildings","all_villagers","resources","global_state"]:
+        if not isinstance(state.get(field),dict):raise RevivalError("Invalid Meego save field: "+field)

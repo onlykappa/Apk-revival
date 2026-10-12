@@ -1,0 +1,304 @@
+{
+  "host_ip_address": "192.168.240.1",
+  "media_domain": "192.168.240.1:8770",
+  "access_token": "local-test-token",
+  "refresh_token": "local-test-refresh",
+  "mac_key": "bG9jYWwtbWVlZ28tdGVzdA==",
+  "server_time": 0,
+  "config": {
+    "app_store_enabled": true,
+    "game_state_ping": 60,
+    "villager_baby_age": 2,
+    "villager_death_age": 100,
+    "hours_per_villager_age": 1,
+    "villager_elder_age": 65,
+    "villager_child_age": 10,
+    "building_finish_seconds_per_point_cost": 60,
+    "parenting_seconds_per_point_cost": 600,
+    "child_aging_seconds_per_point_cost": 600,
+    "free_resurrection_enabled": true,
+    "challenge_leaderboard_enabled": false,
+    "resurrection_points_cost": 0,
+    "relogin_connection_timeout": 30,
+    "resume_connection_timeout": 30,
+    "map_state_check": {},
+    "questing_villager_limit": {},
+    "commercial_buildings_limit": {},
+    "commercial_building_ids": {},
+    "minimum_job_update_interval": 5,
+    "mood_productivity_multiplier": {},
+    "moderator_achievement_id": 0,
+    "twitch_doctor_building_id": 0,
+    "post_office_building_id": 0,
+    "is_it_christmas": false,
+    "ignore_mood_jobs": [],
+    "confirm_skull_use_threshold": 0,
+    "partial_acceleration_enabled": false,
+    "notifications_delay_before_ask1": 0,
+    "notifications_delay_before_ask2": 0,
+    "notifications_delay_before_ask3": 0,
+    "terms_of_use_url_path": "",
+    "chat_ping_rate": 3600,
+    "notices_ping_rate": 60,
+    "private_message_ping_rate": 3600,
+    "dungeon_notices_ping_rate": 3600,
+    "dungeon_chat_ping_rate": 3600,
+    "dungeon_list_ping_rate": 3600,
+    "dungeon_list_sort_order": 0,
+    "first_default_local_notification_interval": 0,
+    "default_local_notification_num_days": 0,
+    "local_notification_time_threshold": 0,
+    "traveler_returned_notification_combine_level": 0,
+    "traveler_returned_notification_combine_interval": 0,
+    "boost_recharged_notification_combine_interval": 0,
+    "meego_system_user_id": 1,
+    "reward_system_user_id": 1
+  },
+  "extra_information": {
+    "notices_last_viewed_id": 0,
+    "status_message": "Local prototype"
+  },
+  "techtree": {},
+  "techtree_version": 2.94,
+  "resource_patch_info": {
+    "killswitch": false,
+    "patch_needed": false,
+    "latest_version": 1.75
+  },
+  "game_user": {
+    "game_id": 5,
+    "user_id": 1,
+    "username": "New Village",
+    "avatar_id": 1,
+    "avatar_type": 1,
+    "facebook_id": "",
+    "guest_slots": 0,
+    "guest_count": 0,
+    "village_level": 1,
+    "affluence": 0,
+    "commercial_buildings": [],
+    "status_message": "",
+    "group_id": 0,
+    "group_name": ""
+  },
+  "game_state": {
+    "name": "village",
+    "all_villagers": {
+      "1": {
+        "villager_id": 1,
+        "name": "Miko",
+        "gender": 1,
+        "user_id": 1,
+        "location_type": 0,
+        "location_id": 1,
+        "birthday": 1791741960,
+        "deathday": 1792101960,
+        "last_update": 1791813960.1757517,
+        "job": {
+          "job_id": 0,
+          "job_state": 0,
+          "target_id": 0,
+          "source_id": 0,
+          "destination_id": 0,
+          "resource_id": 0,
+          "build_rate": 0,
+          "gather_rate": 0,
+          "gather_time": 0,
+          "trip_time": 0,
+          "update_interval": 60,
+          "job_start_date": 1791813960,
+          "last_update": 1791813960.1757517
+        },
+        "items": {},
+        "effects": [],
+        "appearance_items": [
+          {
+            "item_id": 313,
+            "count": 1,
+            "layer": 1,
+            "cooldown": 0,
+            "last_update": 1791813960.1757517
+          },
+          {
+            "item_id": 317,
+            "count": 1,
+            "layer": 1,
+            "cooldown": 0,
+            "last_update": 1791813960.1757517
+          },
+          {
+            "item_id": 322,
+            "count": 1,
+            "layer": 1,
+            "cooldown": 0,
+            "last_update": 1791813960.1757517
+          },
+          {
+            "item_id": 329,
+            "count": 1,
+            "layer": 1,
+            "cooldown": 0,
+            "last_update": 1791813960.1757517
+          },
+          {
+            "item_id": 339,
+            "count": 1,
+            "layer": 1,
+            "cooldown": 0,
+            "last_update": 1791813960.1757517
+          }
+        ],
+        "available_actions": {},
+        "stats": {
+          "strength": 10,
+          "intelligence": 10,
+          "charisma": 10,
+          "birthsigns": [
+            1
+          ]
+        }
+      },
+      "2": {
+        "villager_id": 2,
+        "name": "Luma",
+        "gender": 0,
+        "user_id": 1,
+        "location_type": 0,
+        "location_id": 1,
+        "birthday": 1791741960,
+        "deathday": 1792101960,
+        "last_update": 1791813960.1757517,
+        "job": {
+          "job_id": 0,
+          "job_state": 0,
+          "target_id": 0,
+          "source_id": 0,
+          "destination_id": 0,
+          "resource_id": 0,
+          "build_rate": 0,
+          "gather_rate": 0,
+          "gather_time": 0,
+          "trip_time": 0,
+          "update_interval": 60,
+          "job_start_date": 1791813960,
+          "last_update": 1791813960.1757517
+        },
+        "items": {},
+        "effects": [],
+        "appearance_items": [
+          {
+            "item_id": 335,
+            "count": 1,
+            "layer": 1,
+            "cooldown": 0,
+            "last_update": 1791813960.1757517
+          },
+          {
+            "item_id": 343,
+            "count": 1,
+            "layer": 1,
+            "cooldown": 0,
+            "last_update": 1791813960.1757517
+          },
+          {
+            "item_id": 347,
+            "count": 1,
+            "layer": 1,
+            "cooldown": 0,
+            "last_update": 1791813960.1757517
+          },
+          {
+            "item_id": 351,
+            "count": 1,
+            "layer": 1,
+            "cooldown": 0,
+            "last_update": 1791813960.1757517
+          },
+          {
+            "item_id": 355,
+            "count": 1,
+            "layer": 1,
+            "cooldown": 0,
+            "last_update": 1791813960.1757517
+          }
+        ],
+        "available_actions": {},
+        "stats": {
+          "strength": 10,
+          "intelligence": 10,
+          "charisma": 10,
+          "birthsigns": [
+            1
+          ]
+        }
+      }
+    },
+    "buildings": {
+      "1": {
+        "building_id": 1,
+        "building_type": 1,
+        "state": 1,
+        "location": 0,
+        "orientation": 0,
+        "progress": 0,
+        "count": 1,
+        "items": {},
+        "destination": 0,
+        "expire_date": 0,
+        "last_update": 0
+      }
+    },
+    "resources": {
+      "1": {
+        "resource_id": 1,
+        "count": 500,
+        "last_update": 0
+      },
+      "2": {
+        "resource_id": 2,
+        "count": 500,
+        "last_update": 0
+      },
+      "3": {
+        "resource_id": 3,
+        "count": 500,
+        "last_update": 0
+      },
+      "4": {
+        "resource_id": 4,
+        "count": 0,
+        "last_update": 0
+      },
+      "5": {
+        "resource_id": 5,
+        "count": 50,
+        "last_update": 0
+      }
+    },
+    "items": {},
+    "achievements": {},
+    "gifts": {},
+    "points": 25,
+    "village_information": {
+      "village_level": 1,
+      "affluence": 0,
+      "next_level_affluence": 100,
+      "current_level_affluence": 0
+    },
+    "unlock_information": {
+      "unlocked_item_cursors": [],
+      "job_attempts": {},
+      "change_building_attempts": {},
+      "birthsign_collections": {}
+    },
+    "global_state": {
+      "food_consumption_rate": 0,
+      "mood_state": 0,
+      "effects": [],
+      "productivity_boost": {}
+    },
+    "group_info": {},
+    "dungeon_info": {},
+    "app_store_deal": {}
+  }
+}

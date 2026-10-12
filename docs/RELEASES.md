@@ -3,6 +3,7 @@
 Download the Linux app from [GitHub Releases](https://github.com/onlykappa/Apk-revival/releases). Published versions have a tag, notes, source archive, Linux installer package and SHA-256 checksums. The repository is private, so sign in with repository access to download.
 
 * **V1 engine / software 0.1.0**: historical source milestone at [the original V1 commit](https://github.com/onlykappa/Apk-revival/tree/7458887bf687eaaf8cf29242ba40be518e761abf). A separate v0.1.0 GitHub release tag was not published.
+* **v0.3.0 / Meego adapter**: original-game preparation and a guided Android test, with no inherited offline verification claim.
 * **v0.2.0 / V2 launcher**: initial branded native Linux app preview. Android and physical Steam Deck gameplay remain unverified.
 
 The [changelog](../CHANGELOG.md) records product changes. The app header shows the installed software version. Product milestones V1 and V2 are separate from semantic software versions 0.1.0 and 0.2.0.

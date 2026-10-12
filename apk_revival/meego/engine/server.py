@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+"""Experimental local responder for the original Meego client.
+Response fields are recovered where noted, defaults are provisional.
+No claim of complete gameplay compatibility. No upstream network requests.
+"""
+import argparse, copy, datetime, ipaddress, json, os, tempfile, threading, time, signal
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import urlsplit, parse_qs
+from .local_game import migrate, ActionError, integer
+from .simulation import advance, mutate
+
+HERE = Path(__file__).resolve().parent
+PACKAGE = 'ata.apkrv.meego'
+SENSITIVE = ('token', 'secret', 'authorization', 'mac_key', 'password', 'facebook')
+
+def atomic_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix='.save-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(value, f, indent=2); f.flush(); os.fsync(f.fileno())
+        os.replace(tmp, path)
+        directory = os.open(path.parent, os.O_DIRECTORY)
+        try: os.fsync(directory)
+        finally: os.close(directory)
+    finally:
+        if os.path.exists(tmp): os.unlink(tmp)
+
+def redact(params):
+    return {k: '[redacted]' if any(s in k.lower() for s in SENSITIVE) else v
+            for k, v in params.items()}
+
+class State:
+    def __init__(self, directory, seed=None):
+        self.directory = Path(directory).expanduser()
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.save = self.directory / 'saves' / 'village.json'
+        self.lock = threading.RLock()
+        self.logfile = self.directory / 'logs' / 'requests.jsonl'
+        self.logfile.parent.mkdir(parents=True, exist_ok=True)
+        # Preserve the old retry storm without adding it to every diagnostic ZIP.
+        if self.logfile.exists() and self.logfile.stat().st_size > 5 * 1024 * 1024:
+            self.logfile.rename(self.logfile.with_name(f'requests-before-{time.time_ns()}.jsonl.bak'))
+        self.seed = copy.deepcopy(seed) if seed is not None else json.loads((HERE / 'starter-packet.json').read_text())
+        if self.save.exists():
+            # A malformed save is reported, never silently replaced.
+            self.data = json.loads(self.save.read_text())
+            if self.data.get('format_version') != 1:
+                raise ValueError('Unsupported save format. Existing save was not changed.')
+        else:
+            self.data = {'format_version': 1, 'created_at': time.time(), 'last_simulated_at': time.time(),
+                         'game_user': self.seed['game_user'], 'game_state': self.seed['game_state']}
+            fresh_now = time.time()
+            for person in self.data['game_state']['all_villagers'].values():
+                person.update(birthday=int(fresh_now-20*3600), deathday=int(fresh_now+80*3600), last_update=fresh_now)
+                person['job'].update(job_start_date=int(fresh_now), last_update=fresh_now)
+            atomic_json(self.save, self.data)
+        if self.data['game_user'].get('avatar_type')==0:
+            new = copy.deepcopy(self.data)
+            new['game_user']['avatar_type']=self.seed['game_user']['avatar_type']
+            self.persist(new)
+        buildings = self.data['game_state'].get('buildings', {})
+        if not any(isinstance(b,dict) and b.get('building_type')==1 for b in buildings.values()):
+            new = copy.deepcopy(self.data)
+            next_id = max([int(k) for k in buildings if str(k).isdigit()]+[0])+1
+            temple = copy.deepcopy(self.seed['game_state']['buildings']['1'])
+            temple['building_id'] = next_id
+            new['game_state'].setdefault('buildings', {})[str(next_id)] = temple
+            self.persist(new)
+            print('Backed up and repaired the test scaffold: added required level-one temple.', flush=True)
+        migrated = migrate(self.data)
+        if migrated is not None:
+            self.persist(migrated)
+            print('Backed up and added starter population, balances and temple unlocks.', flush=True)
+    def record(self, route, params, status):
+        record = {'time': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                  'route': route, 'parameters': redact(params), 'status': status}
+        with self.lock, self.logfile.open('a') as f: f.write(json.dumps(record) + '\n')
+        print(route, status, flush=True)
+    def persist(self, new):
+        if self.save.exists():
+            backups = self.directory / 'backups'; backups.mkdir(exist_ok=True)
+            old = json.loads(self.save.read_text())
+            atomic_json(backups / f'village-{time.time_ns()}.json', old)
+            for p in sorted(backups.glob('village-*.json'))[:-20]: p.unlink()
+        atomic_json(self.save, new)
+        self.data = new
+    def packet(self):
+        with self.lock:
+            result = copy.deepcopy(self.seed)
+            result.update(game_user=copy.deepcopy(self.data['game_user']),
+                          game_state=copy.deepcopy(self.data['game_state']),
+                          server_time=time.time(), host_ip_address='127.0.0.1')
+            return result
+    def handle(self, route, params):
+        route = route.strip('/')
+        with self.lock:
+            current = advance(self.data)
+            if current != self.data:
+                self.persist(current)
+            try:
+                new = mutate(self.data, route, params)
+                if new is not None:
+                    if new != self.data:
+                        self.persist(new)
+                    if route == 'game/village/check_breeding_compatibility':
+                        return {'token': self.data['response_token'], 'game_state': copy.deepcopy(self.data['game_state'])}, 'local-breeding-token'
+                    if route == 'game/village/change_villager_name':
+                        ident = str(integer(params, 'villager_id', low=1))
+                        return copy.deepcopy(self.data['game_state']['all_villagers'][ident]), 'saved-local-action'
+                    return copy.deepcopy(self.data['game_state']), 'saved-local-action'
+            except ActionError as e:
+                return {'exception': {'type': 6, 'title': 'Local Village', 'message': str(e), 'reason': 'local_action_rejected', 'endpoint': route}}, 'rejected-local-action'
+            if route == 'game/village/get_treasure_mini_game':
+                now = time.time()
+                try:
+                    kind = integer(params, 'minigame_type', default=1, low=1, high=10)
+                except ActionError:
+                    kind = 1
+                return dict(new_session=False, token='local-treasure-deferred',
+                            minigame_type=kind, level=1, start_date=now,
+                            next_poll_date=now+3600, expire_date=now+3600), 'treasure-deferred'
+            if route == 'game/village/consume_food':
+                # Native callback extracts game_state and rate separately.
+                return {'game_state': copy.deepcopy(self.data['game_state']),
+                        'rate': self.data['game_state']['global_state'].get('food_consumption_rate', 0)}, 'local-food-rate'
+            if route in ('game/relationship/get_friends', 'game/relationship/get_followers',
+                         'game/relationship/get_followed', 'game/privacy/get_blocked_users',
+                         'game/village/get_neighbour_list', 'game/message/get_comments',
+                         'game/message/get_private_message_preview', 'game/task_list/get_tasks',
+                         'game/village/get_quests'):
+                return [], 'empty-offline-list'
+            if route == 'game/message/get_private_message_unread_count':
+                return {'count': 0}, 'no-private-messages'
+            if route in ('game/gcm/enable_gcm','game/gcm/disable_gcm'):
+                return {}, 'no-push-notifications'
+            if route == 'game/user/get_user':
+                return copy.deepcopy(self.data['game_user']), 'local-profile'
+            if route == 'game/village/get_villager':
+                try:
+                    ident = str(integer(params, 'villager_id', low=1))
+                    person = self.data['game_state']['all_villagers'].get(ident)
+                    if person is None: raise ActionError('Villager does not exist.')
+                    return copy.deepcopy(person), 'local-villager'
+                except ActionError as e:
+                    return {'exception': {'type': 6, 'title': 'Local Village', 'message': str(e), 'reason': 'local_action_rejected'}}, 'rejected-local-action'
+            if route in ('game/login/oauth', 'game/login/resume_connection'):
+                return self.packet(), 'experimental-login'
+            if route == 'game/registration/oauth/create_game_user':
+                new = copy.deepcopy(self.data)
+                username = params.get('username', ['Local Village'])[0]
+                new['game_user']['username'] = username[:40]
+                self.persist(new)
+                return self.packet(), 'saved-local-profile'
+            if route == 'game/village/get_village':
+                return copy.deepcopy(self.data['game_state']), 'local-village'
+            if route == 'game/village/get_resources':
+                return copy.deepcopy(self.data['game_state']), 'local-state'
+            if route == 'game/poll/notices':
+                return {'game_state': self.packet()['game_state'], 'notices': []}, 'empty-local-notices'
+            if route == 'game/gplay/get_products':
+                # The native callback binds the entire JSON root to an array.
+                # A dictionary creates bogus products and enters StoreKit initialization.
+                return [], 'empty-local-product-list'
+            if route == 'game/poll/chat':
+                return {'global_messages': [], 'global_topics': [], 'group_chat': []}, 'no-online-chat'
+            if route in ('game/registration/report_install', 'game/metrics/android/event',
+                         'game/message/set_notices_last_viewed_id', 'game/logout'):
+                return {}, 'local-noop'
+            if route == 'game/registration/get_username_recommendation':
+                return {'valid': True, 'username': 'Local Village', 'suggestions': ['Local Village']}, 'experimental-registration'
+            # Do not pretend an unsupported gameplay action succeeded.
+            return {'exception': {'type': 6, 'title': 'Local Village', 'message': 'Local prototype: this action is not implemented.',
+                                  'reason': 'offline_prototype_unimplemented', 'endpoint': route}}, 'unsupported'
+
+class Handler(BaseHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
+    def log_message(self, *_): pass
+    def reply(self, code, value):
+        body = json.dumps(value, separators=(',', ':')).encode()
+        self.send_response(code); self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body))); self.send_header('Connection', 'close')
+        self.end_headers(); self.wfile.write(body); self.close_connection = True
+    def dispatch(self):
+        peer = ipaddress.ip_address(self.client_address[0])
+        if not (peer.is_loopback or peer in ipaddress.ip_network('192.168.240.0/24')):
+            self.reply(403, {'error': 'Only local Waydroid clients are accepted.'}); return
+        parsed = urlsplit(self.path)
+        if parsed.path == '/health':
+            self.reply(200, {'status': 'experimental', 'package': PACKAGE,
+                             'save_exists': self.server.state.save.exists(), 'pid': os.getpid(), 'version': '0.2.0-rc1'}); return
+        params = parse_qs(parsed.query, keep_blank_values=True)
+        length = int(self.headers.get('Content-Length', '0'))
+        if length < 0 or length > 1024 * 1024:
+            self.reply(413, {'error': 'Request too large'}); return
+        if length:
+            body = self.rfile.read(length)
+            if 'application/json' in self.headers.get('Content-Type', ''):
+                try: values = json.loads(body)
+                except (ValueError, UnicodeError): self.reply(400, {'error': 'Invalid JSON'}); return
+                if not isinstance(values, dict): self.reply(400, {'error': 'Expected JSON object'}); return
+                params.update({k: v if isinstance(v, list) else [str(v)] for k, v in values.items()})
+            else: params.update(parse_qs(body.decode('utf-8', 'replace'), keep_blank_values=True))
+        value, status = self.server.state.handle(parsed.path, params)
+        self.server.state.record(parsed.path, params, status)
+        self.reply(200, value)
+    do_GET = dispatch
+    do_POST = dispatch
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--bind', default='192.168.240.1')
+    parser.add_argument('--port', type=int, default=8770)
+    parser.add_argument('--data-dir', default=str(Path.home() / 'MeegoOfflineRelease'))
+    args = parser.parse_args()
+    if args.bind not in ('192.168.240.1', '127.0.0.1'):
+        parser.error('Bind only to the Waydroid bridge or loopback.')
+    def stop_requested(_signum, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, stop_requested)
+    state = State(args.data_dir)
+    server = ThreadingHTTPServer((args.bind, args.port), Handler); server.state = state
+    print(f'EXPERIMENTAL local Meego responder: http://{args.bind}:{args.port}', flush=True)
+    print(f'Save: {state.save}\nRequest log: {state.logfile}', flush=True)
+    try: server.serve_forever()
+    except KeyboardInterrupt: pass
+    finally: server.server_close()
+
+if __name__ == '__main__': main()

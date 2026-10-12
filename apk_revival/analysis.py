@@ -90,7 +90,16 @@ def analyze(store,game_id):
         if fixture:
             p['adapter']='tapquest-v1';engine='Android native (self-authored fixture)'
             finding('fixture','Self-authored Tap Quest adapter marker, not a commercial restoration',['assets/revival.json'],'high','discovered')
-        else:p['adapter']=None
+        else:
+            from .meego.adapter import ORIGINAL_SHA
+            p['adapter']='meego-1.32' if p['apk_sha256']==ORIGINAL_SHA else None
+            if p['adapter']:
+                finding('meego_adapter','Exact reviewed The Meego v1.32 APK; experimental local responder available',['APK SHA256','assets/TechTree.plist','assets/Info.plist','lib/armeabi/libverde.so'],'high','discovered')
+                import plistlib
+                info=plistlib.loads(z.read('assets/Info.plist'))
+                for key in ['ServerURL','SecureServerURL','MediaURL']:
+                    endpoints.append({'url':str(info.get(key,'')),'evidence':'assets/Info.plist:'+key,'classification':'discovered configured endpoint; server behavior unproven'})
+                finding('meego_scope','Earlier Deck gameplay was reported; this launcher, new package/signature and reverse transport still require Android verification',['docs/MEEGO.md'],'medium','inferred')
         for name in names:
             if name.endswith('.dex'):
                 candidates=dex_strings(z.read(name))
@@ -129,11 +138,11 @@ def analyze(store,game_id):
         if not assets:finding('assets','No assets/ or res/raw/ entries. This does not prove assets are missing.',['ZIP inventory'],'low')
         if any(x['category']=='downloads' for x in references) and not any(x['role']=='obb' for x in p['inputs']):finding('assets','Download/expansion references may indicate required external content. No OBB was supplied.',[x['evidence'] for x in references if x['category']=='downloads'][:12],'low')
         if abis and not any(a in abis for a in ['x86','x86_64']):finding('compatibility','Native libraries lack x86 variants. Steam Deck Waydroid may require separately configured ARM translation.',libs,'high','discovered')
-    recommendation='offline_patch' if fixture else ('local_backend' if endpoints else 'offline_patch')
-    obstacles=errors+(['No game-specific restoration adapter. Analysis cannot reconstruct a server automatically.'] if not fixture else [])
+    recommendation='local_backend' if p.get('adapter')=='meego-1.32' else 'offline_patch' if fixture else ('local_backend' if endpoints else 'offline_patch')
+    obstacles=errors+(['No game-specific restoration adapter. Analysis cannot reconstruct a server automatically.'] if not p.get('adapter') else [])
     obstacles += ['No runtime observation yet. Original gameplay and offline behavior remain unverified.']
-    report={'generated_at':now(),'metadata':meta,'abis':abis,'engine':engine,'fixture':fixture,'assets':assets,'native_libraries':libs,'splits':splits,'supporting_inventory':supporting_inventory,'supplied_log_observations':supplied_log_observations,'endpoints':endpoints,'references':references,'findings':findings,'obstacles':obstacles,'input_errors':errors,'recommended_path':recommendation,'recommendation_confidence':'high' if fixture else 'low','recommendation_reason':'Fixture has an explicit local-mode branch in included source.' if fixture else 'Provisional triage from references only; collect runtime evidence before choosing a repair.','alternatives':[{'path':x,'reason':'Preserve gameplay with the smallest evidence-supported change.' if x=='offline_patch' else 'Recover a documented local protocol and persistent progression.' if x=='local_backend' else 'Last resort: independently implement recoverable mechanics and permitted assets.'} for x in ['offline_patch','local_backend','rebuild'] if x!=recommendation],'next_steps':['Run doctor and configure one Waydroid ADB serial.','Capture a cold launch log and identify the first failing gameplay request.','Supply missing expansion/assets and known request/response samples.','Review an adapter plan before modifying any copy.']}
-    p['analysis']=report;p['apk_version']={'name':meta['version_name'],'code':meta['version_code']};p['status']='Analyzed' if fixture else 'Needs Evidence';p['verification']=[];store.save(p)
+    report={'generated_at':now(),'metadata':meta,'abis':abis,'engine':engine,'fixture':fixture,'assets':assets,'native_libraries':libs,'splits':splits,'supporting_inventory':supporting_inventory,'supplied_log_observations':supplied_log_observations,'endpoints':endpoints,'references':references,'findings':findings,'obstacles':obstacles,'input_errors':errors,'recommended_path':recommendation,'recommendation_confidence':'high' if fixture else 'medium' if p.get('adapter') else 'low','recommendation_reason':'Fixture has an explicit local-mode branch in included source.' if fixture else 'Reviewed Meego local responder preserves the native game, with provisional simulation and limited features.' if p.get('adapter') else 'Provisional triage from references only; collect runtime evidence before choosing a repair.','alternatives':[{'path':x,'reason':'Preserve gameplay with the smallest evidence-supported change.' if x=='offline_patch' else 'Recover a documented local protocol and persistent progression.' if x=='local_backend' else 'Last resort: independently implement recoverable mechanics and permitted assets.'} for x in ['offline_patch','local_backend','rebuild'] if x!=recommendation],'next_steps':['Run doctor and configure one Waydroid ADB serial.','Capture a cold launch log and identify the first failing gameplay request.','Supply missing expansion/assets and known request/response samples.','Review an adapter plan before modifying any copy.']}
+    p['analysis']=report;p['apk_version']={'name':meta['version_name'],'code':meta['version_code']};p['status']='Analyzed' if p.get('adapter') else 'Needs Evidence';p['verification']=[];store.save(p)
     d=store.directory(game_id);from .util import atomic_json
     atomic_json(d/'analysis.json',report);(d/'analysis.md').write_text(markdown(p),encoding='utf-8');return p
 

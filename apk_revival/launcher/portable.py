@@ -22,7 +22,7 @@ class PortableSession:
         self.save_root=pathlib.Path.home()/'.local/share/apk-revival/portable-saves'/self.p['id']/self.bundle['path'];self.save_root.mkdir(parents=True,exist_ok=True)
     def play(self,ctx):
         if self.bundle['path']=='rebuild':return {'kind':'rebuild','save':str(self.save_root/'rebuild.json')}
-        ctx.step('Connecting Android');serial=self.runtime_manager.ensure();r=WaydroidRuntime(serial);r.compatible(self.p);self.android=r;r.package=self.p['analysis']['metadata']['package']
+        ctx.step('Connecting Android');serial=self.runtime_manager.ensure();r=WaydroidRuntime(serial);r.compatible(self.p);self.android=r;r.package=self.p['restoration'].get('client_package',self.p['analysis']['metadata']['package'])
         try:
             ctx.step('Checking the prepared client');installed=None
             try:
@@ -33,8 +33,13 @@ class PortableSession:
                 if i['role']=='obb':
                     dest='/sdcard/Android/obb/'+r.package;r.shell('mkdir','-p',dest);r.adb('push',self.root/i['file'],dest+'/'+i['name'],timeout=180)
             if self.bundle['path']=='local_backend':
-                if self.p.get('adapter')!='tapquest-v1':raise RevivalError('Unsupported local backend')
-                ctx.step('Starting and checking local services');port=self.bundle['backend_port'];r.backend=Backend(self.save_root/'tapquest.json',port).start();r.adb('reverse','--no-rebind',f'tcp:{port}',f'tcp:{port}');r.forward_port=port;r.probe_backend()
+                ctx.step('Starting and checking local services');port=self.bundle['backend_port']
+                if self.p.get('adapter')=='tapquest-v1':r.backend=Backend(self.save_root/'tapquest.json',port).start()
+                elif self.p.get('adapter')=='meego-1.32':
+                    from ..meego.backend import MeegoBackend
+                    r.backend=MeegoBackend(self.save_root,self.root/'backend-data',port).start()
+                else:raise RevivalError('Unsupported local backend')
+                r.adb('reverse','--no-rebind',f'tcp:{port}',f'tcp:{port}');r.forward_port=port;r.probe_backend()
             ctx.step('Launching Android');r.launch(self.p);return {'kind':'android'}
         except Exception:self.stop();raise
     def stop(self):

@@ -1,6 +1,6 @@
 # Game adapters
 
-V1 intentionally implements **one trusted adapter**, `tapquest-v1`. Unknown APKs receive analysis and diagnostics, not fabricated repairs. Imported APKs, supporting JSON, profiles or bundles never install plugins into the workbench.
+The engine implements the self-authored `tapquest-v1` fixture and the exact-hash `meego-1.32` local-backend adapter. See [MEEGO.md](MEEGO.md) for real-game scope and evidence. Unknown APKs receive analysis and diagnostics, not fabricated repairs. Imported APKs, supporting JSON, profiles or bundles never install plugins into the workbench.
 
 ## Adding a supported game
 

@@ -9,7 +9,7 @@
   <a href="docs/INSTALL_V2.md">Steam Deck setup</a>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.2.0-9fe5c4?labelColor=16242b" alt="Version 0.2.0" />
+  <img src="https://img.shields.io/badge/version-0.3.0-9fe5c4?labelColor=16242b" alt="Version 0.3.0" />
   <img src="https://img.shields.io/badge/Linux-x86__64-9fe5c4?labelColor=16242b" alt="Linux x86_64" />
   <img src="https://img.shields.io/badge/status-preview-efce7d?labelColor=16242b" alt="Preview, hardware unverified" />
   <img src="https://img.shields.io/badge/license-MIT-9fe5c4?labelColor=16242b" alt="MIT source license" />
@@ -21,13 +21,21 @@ A small local Android-game launcher for Linux and Steam Deck: **Add Game → Pre
 
 ## Open the app
 
-Download **APK-Revival-0.2.0-linux-x86_64.tar.gz** from [Releases](https://github.com/onlykappa/Apk-revival/releases), extract it in Desktop Mode and double-click **APK-Revival**. In **Setup**, choose **Install desktop shortcut**. No Python installation or terminal is needed for the launcher. This build requires glibc 2.39 or newer; actual Steam Deck hardware compatibility still needs testing.
+Download **APK-Revival-0.3.0-linux-x86_64.tar.gz** from [Releases](https://github.com/onlykappa/Apk-revival/releases), extract it in Desktop Mode and double-click **APK-Revival**. In **Setup**, choose **Install desktop shortcut**. No Python installation or terminal is needed for the launcher. This build requires glibc 2.39 or newer; actual Steam Deck hardware compatibility still needs testing.
 
 Choose **Try desktop demo**, then **Play** to try the included self-authored Tap Quest rebuild immediately. Collect coins and relaunch to see saved progress. It needs no Android runtime. It is a separate implementation, not proof that the original APK works offline.
 
 For APK games, use **Add Game**, attach available supporting files, and **Prepare**. Setup guides preparation tools and Waydroid connection. Waydroid itself must be configured for your SteamOS version. APK Revival never disables SteamOS protections or silently installs privileged packages.
 
 [Installation and adding to Steam](docs/INSTALL_V2.md) · [Observed test results](docs/TEST_RESULTS_V2.md) · [Contributor setup](docs/CONTRIBUTING_V2.md)
+
+## The Meego real-game test
+
+Version 0.3.0 adds the exact reviewed **The Meego v1.32** APK as the first real-game adapter. It reuses the earlier self-authored local service and preserves the original native game. Import your original APK, Prepare, then connect Waydroid and Play. A separate Android package keeps earlier working installs intact.
+
+The local signing, service, saves and export pipeline has been tested with the actual APK. The newly prepared client still needs the [guided Android test](docs/MEEGO.md). Earlier Deck gameplay is not inherited as Verified Offline. The repository and app download contain no Meego APK or proprietary game assets.
+
+![The Meego prepared in APK Revival; Android testing still needed](docs/images/meego-library.png)
 
 ## Inside the app
 
@@ -49,7 +57,7 @@ These are screenshots of the running native application using the self-authored 
 
 </details>
 
-See [release history and update instructions](docs/RELEASES.md). V1’s **0.1.0** milestone remains in the changelog and original commit; the published V2 release is **v0.2.0**. These are early previews while Android and Steam Deck hardware verification remains outstanding.
+See [release history and update instructions](docs/RELEASES.md). V1’s **0.1.0** milestone remains in the changelog and original commit; V2 releases are **v0.2.0** (initial launcher) and **v0.3.0** (Meego adapter). These are early previews while Android and Steam Deck hardware verification remains outstanding.
 
 ## What works
 
