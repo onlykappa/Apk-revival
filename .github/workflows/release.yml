@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: [pyproject.toml, CHANGELOG.md, '.github/workflows/release.yml']
+    paths: [pyproject.toml, CHANGELOG.md, scripts/publish_release.py, '.github/workflows/release.yml']
   workflow_dispatch:
 permissions:
   contents: write
