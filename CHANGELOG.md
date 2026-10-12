@@ -2,6 +2,22 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.1] - 2026-10-12
+
+### Fixed
+
+* Bundle portable certificate authorities and use verified HTTPS for every preparation-tool, Java and update download. Fix certificate verification failures in frozen Steam Deck builds without disabling TLS checks.
+* Validate application installs before replacing an existing app and restore the previous app if the directory swap fails.
+
+### Added
+
+* Setup: Check for updates, download/checksum/compatibility validation, automatic installation and restart with the prior app preserved. Games and saves remain separate.
+* Session-only read-only GitHub access for private releases, plus Open releases and Install downloaded update for browser-authenticated downloads without manual extraction.
+
+### Verification scope
+
+HTTPS trust, release selection, credential redirect handling, unsafe archive rejection, checksum failures, update compatibility and installation rollback are tested. Full Android gameplay remains unverified on this build until tested on the Deck.
+
 ## [0.3.0] - 2026-10-12
 
 ### Added
@@ -55,3 +71,4 @@ The local V2 suite exercised real Qt workflows, actual APK signing, private tool
 [0.1.0]: https://github.com/onlykappa/Apk-revival/tree/7458887bf687eaaf8cf29242ba40be518e761abf
 
 [0.3.0]: https://github.com/onlykappa/Apk-revival/releases/tag/v0.3.0
+

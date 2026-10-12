@@ -1,6 +1,6 @@
 APK REVIVAL V2: START HERE
 
-1. Download from GitHub Releases, then extract APK-Revival-0.3.0-linux-x86_64.tar.gz in Steam Deck Desktop Mode.
+1. Download from GitHub Releases, then extract APK-Revival-0.3.1-linux-x86_64.tar.gz in Steam Deck Desktop Mode.
 2. Open the extracted APK-Revival folder and double-click APK-Revival.
 3. Select Setup > Install desktop shortcut to install it in your home folder.
 4. Open APK Revival from the application menu. Add an APK, Prepare, then Play.
@@ -66,3 +66,19 @@ Our original V1 Android attempt timed out; this release does not inherit a
 passing gameplay claim. See the V2 test report for exactly what was exercised.
 
 This package is unsigned. Source: https://github.com/onlykappa/Apk-revival
+
+
+UPDATES
+Setup > Check for updates checks the official GitHub releases. Accept an update
+to download, validate SHA-256, stage, check compatibility, install and restart.
+The previous app is retained; games and saves remain in the separate data folder.
+Private releases require Setup > GitHub access: provide a read-only repository
+token for this session only. It is never persisted or included in diagnostics.
+Alternatively choose Open releases, download the official Linux tar.gz while
+signed in to GitHub, then Install downloaded update. No manual extraction.
+This first certificate-fix release must be installed once from the release
+download because older versions do not yet contain the updater.
+
+HTTPS CERTIFICATES
+Portable CA certificates are included. HTTPS verification stays enabled. If
+verification still fails, check your Deck clock and captive network sign-in.

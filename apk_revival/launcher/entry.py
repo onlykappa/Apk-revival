@@ -2,7 +2,25 @@
 import argparse,fcntl,os,pathlib,sys,signal
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--fullscreen',action='store_true');parser.add_argument('--data');parser.add_argument('--install',action='store_true');parser.add_argument('--smoke',action='store_true');parser.add_argument('--smoke-service',help=argparse.SUPPRESS);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--fullscreen',action='store_true');parser.add_argument('--data');parser.add_argument('--install',action='store_true');parser.add_argument('--smoke',action='store_true');parser.add_argument('--update-probe',action='store_true');parser.add_argument('--apply-update',help=argparse.SUPPRESS);parser.add_argument('--wait-pid',type=int,help=argparse.SUPPRESS);parser.add_argument('--smoke-service',help=argparse.SUPPRESS);args=parser.parse_args()
+    if args.update_probe:
+        import json
+        from .. import __version__
+        from .network import tls_context
+        print(json.dumps({'version':__version__,'certificates':bool(tls_context().get_ca_certs())}))
+        return 0
+    if args.apply_update:
+        from .updater import apply_update
+        try:
+            if not args.wait_pid or args.wait_pid<=1:raise ValueError('Missing update process identity')
+            return apply_update(args.apply_update,args.wait_pid,args.fullscreen,args.data)
+        except Exception as error:
+            log=pathlib.Path.home()/'.cache/apk-revival/updates/last-error.txt'
+            log.parent.mkdir(parents=True,exist_ok=True);log.write_text(str(error))
+            from PySide6.QtWidgets import QApplication,QMessageBox
+            app=QApplication.instance() or QApplication(sys.argv)
+            QMessageBox.critical(None,'Update failed',str(error)+'\nYour games and saves were not changed. Reopen APK Revival.')
+            return 1
     if args.install:
         from .install import install_dialog
         return install_dialog()
@@ -39,3 +57,4 @@ def main():
     window.show()
     if args.smoke:QTimer.singleShot(1800,window.close);QTimer.singleShot(5000,app.quit)
     return app.exec()
+

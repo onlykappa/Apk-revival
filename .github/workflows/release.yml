@@ -51,6 +51,7 @@ jobs:
           cp build/tapquest-original.apk resources/tapquest-original.apk
           QT_QPA_PLATFORM=offscreen APKR_V2_UI_TEST=1 APKR_TEST_APK="$PWD/build/tapquest-original.apk" python -m unittest discover -s tests -v
           python scripts/package_linux.py
+          SSL_CERT_FILE=/nonexistent SSL_CERT_DIR=/nonexistent dist/APK-Revival/APK-Revival --update-probe
           QT_QPA_PLATFORM=offscreen dist/APK-Revival/APK-Revival --smoke --data "$PWD/build/package-smoke"
           xvfb-run -a env QT_QPA_PLATFORM=xcb dist/APK-Revival/APK-Revival --smoke --data "$PWD/build/package-xcb-smoke"
           python scripts/release_assets.py
@@ -65,3 +66,4 @@ jobs:
       - name: Publish versioned release
         if: steps.version.outputs.exists != 'true'
         run: python scripts/publish_release.py "$GITHUB_SHA"
+

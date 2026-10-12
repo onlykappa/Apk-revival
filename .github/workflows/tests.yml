@@ -10,6 +10,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - run: python -m pip install -e .
       - run: python -m unittest discover -s tests -v
   native-launcher:
     runs-on: ubuntu-24.04
@@ -37,6 +38,7 @@ jobs:
           QT_QPA_PLATFORM=offscreen APKR_V2_UI_TEST=1 APKR_TEST_APK="$PWD/build/tapquest-original.apk" python -m unittest discover -s tests -v
           python scripts/demo.py
           python scripts/package_linux.py
+          SSL_CERT_FILE=/nonexistent SSL_CERT_DIR=/nonexistent dist/APK-Revival/APK-Revival --update-probe
           QT_QPA_PLATFORM=offscreen dist/APK-Revival/APK-Revival --smoke --data "$PWD/build/package-smoke"
           xvfb-run -a env QT_QPA_PLATFORM=xcb dist/APK-Revival/APK-Revival --smoke --data "$PWD/build/package-xcb-smoke"
       - uses: actions/upload-artifact@v4
@@ -47,3 +49,4 @@ jobs:
         with:
           name: self-authored-fixture-exports-unverified
           path: build/demo-exports/
+

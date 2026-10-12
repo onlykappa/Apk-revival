@@ -3,7 +3,7 @@ import json,pathlib,sys,traceback
 from PySide6.QtCore import QEvent,QPoint,QRect,Qt,QThread,QTimer,Signal
 from PySide6.QtGui import QColor,QDesktopServices,QFont,QLinearGradient,QPainter,QPen,QPixmap,QIcon
 from PySide6.QtCore import QUrl
-from PySide6.QtWidgets import QApplication,QAbstractButton,QCheckBox,QComboBox,QDialog,QFileDialog,QFrame,QGridLayout,QHBoxLayout,QLabel,QLineEdit,QMainWindow,QMessageBox,QPlainTextEdit,QProgressBar,QPushButton,QScrollArea,QStackedWidget,QTabWidget,QVBoxLayout,QWidget
+from PySide6.QtWidgets import QApplication,QAbstractButton,QCheckBox,QComboBox,QDialog,QFileDialog,QFrame,QGridLayout,QHBoxLayout,QLabel,QLineEdit,QMainWindow,QMessageBox,QInputDialog,QPlainTextEdit,QProgressBar,QPushButton,QScrollArea,QStackedWidget,QTabWidget,QVBoxLayout,QWidget
 from ..analysis import markdown
 from ..backend import Progress
 from ..store import Store
@@ -118,6 +118,10 @@ class Window(QMainWindow):
         android_panel=QFrame();android_panel.setObjectName('panel');ab=QVBoxLayout(android_panel);ab.setContentsMargins(24,20,24,20);ab.addWidget(label('2   Android environment','readiness'));self.runtime_label=label('Check for an existing Waydroid installation.','muted',True);ab.addWidget(self.runtime_label);self.devices=QComboBox();self.devices.setAccessibleName('Android device');self.devices.currentIndexChanged.connect(self.device_selected);ab.addWidget(self.devices)
         controls=QHBoxLayout();controls.addWidget(button('Check again',self.check_runtime));controls.addWidget(button('Start Android',self.start_android));controls.addWidget(button('Start container',self.start_container));controls.addWidget(button('Installation guide',self.installation_guide,'quiet'));ab.addLayout(controls)
         manual=QHBoxLayout();self.address=QLineEdit();self.address.setPlaceholderText('Optional: Android guest IP');manual.addWidget(self.address);manual.addWidget(button('Connect',self.manual_connect));ab.addLayout(manual);box.addWidget(android_panel)
+        from .updater import Updater
+        self.updater=Updater();self.pending_update=None
+        updates=QHBoxLayout();updates.addWidget(button('Check for updates',self.check_updates));updates.addWidget(button('GitHub access',self.github_access,'quiet'));updates.addWidget(button('Open releases',lambda:QDesktopServices.openUrl(QUrl(self.updater_url())),'quiet'));updates.addWidget(button('Install downloaded update',self.install_downloaded_update,'quiet'));box.addLayout(updates)
+        self.update_label=label('Updates install automatically and preserve games and saves.','muted',True);box.addWidget(self.update_label)
         install_row=QHBoxLayout();install_row.addWidget(button('Install desktop shortcut',self.install_shortcut));install_row.addWidget(button('Add to Steam',self.steam_help,'quiet'));install_row.addStretch();box.addLayout(install_row);box.addStretch();box.addWidget(label('SteamOS needs a compatible kernel and Wayland setup. Host installation is guided; system protections are not changed automatically.','muted',True));return page
     def refresh(self,*_):
         old_focus=QApplication.focusWidget();focus_game=old_focus.property('game_id') if old_focus else None
@@ -226,6 +230,36 @@ class Window(QMainWindow):
         QMessageBox.information(self,'Add APK Revival to Steam','Install the desktop shortcut first. Then open Steam in Desktop Mode and choose Games > Add a Non-Steam Game. Select APK Revival, or browse to:\n\n'+str(path)+'\n\nLaunch the shortcut from Gaming Mode. Its desktop entry enables fullscreen automatically.')
     def device_selected(self,index):
         self.service.settings['serial']=self.devices.itemData(index);self.service.save_settings()
+    def updater_url(self):
+        from .updater import RELEASES
+        return RELEASES
+    def github_access(self):
+        token,ok=QInputDialog.getText(self,'Private GitHub releases','Optional read-only GitHub token with access to onlykappa/Apk-revival. Kept in memory until you close the app. Never included in diagnostics.',QLineEdit.EchoMode.Password)
+        if ok:self.updater.token=token.strip() or None;self.update_label.setText('GitHub access set for this session.' if token.strip() else 'GitHub access cleared.')
+    def check_updates(self):
+        self.submit('Check for updates',lambda ctx:self.updater.check(ctx.step),self.update_checked)
+    def update_checked(self,result):
+        if not result['available']:self.update_label.setText('APK Revival '+result['version']+' is up to date.');return
+        self.update_label.setText('APK Revival '+result['version']+' is available.')
+        if self.service.active:self.message.setText('Stop the game before installing an update.');return
+        answer=QMessageBox.question(self,'Update available','Download and install APK Revival '+result['version']+'? The app will restart. Games and saves stay in their separate data folder. The previous app is preserved.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+        if answer==QMessageBox.StandardButton.Yes:QTimer.singleShot(0,self.download_update)
+    def download_update(self):
+        if self.worker:QTimer.singleShot(100,self.download_update);return
+        if not getattr(sys,'frozen',False):self.message.setText('Use the packaged Linux app to install updates.');return
+        if self.service.active:self.message.setText('Stop the game before updating.');return
+        self.submit('Download update',lambda ctx:self.updater.stage(ctx.step),self.update_staged)
+    def install_downloaded_update(self):
+        if self.service.active:self.message.setText('Stop the game before updating.');return
+        if not getattr(sys,'frozen',False):self.message.setText('Use the packaged Linux app to install updates.');return
+        path,_=QFileDialog.getOpenFileName(self,'Choose the official GitHub Linux update','','Linux update (*.tar.gz)')
+        if not path:return
+        answer=QMessageBox.question(self,'Install downloaded update','Install this package from the official APK Revival GitHub releases? Local packages must come from a source you trust. The app checks compatibility, installs it and restarts.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+        if answer!=QMessageBox.StandardButton.Yes:return
+        from .updater import stage_archive
+        self.submit('Stage downloaded update',lambda ctx:stage_archive(path,ctx.step),self.update_staged)
+    def update_staged(self,result):
+        self.pending_update=result;self.closing=True;self.message.setText('Update ready. Closing cleanly and restarting...');self.close()
     def install_tools(self):
         answer=QMessageBox.question(self,'Install preparation tools','Download Android SDK tools, apktool and Java when needed into your user cache? No administrator access is required. Upstream licenses apply. The operation needs internet access during setup.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
         if answer==QMessageBox.StandardButton.Yes:self.submit('Install preparation tools',lambda ctx:tools_setup.install(ctx.step),lambda _:self.update_tools())
@@ -319,7 +353,13 @@ class Window(QMainWindow):
         self.monitor_timer.stop();self.controller.close();QApplication.instance().removeEventFilter(self)
         try:self.service.shutdown()
         except Exception as e:print('Shutdown cleanup: '+str(e),file=sys.stderr)
+        if self.pending_update:
+            from .updater import restart_with_update
+            try:restart_with_update(self.pending_update)
+            except Exception as error:
+                self.pending_update=None;self.closing=False;event.ignore();QMessageBox.critical(self,'Update failed',str(error));return
         event.accept()
 
 def run(store=None,fullscreen=False):
     app=QApplication.instance() or QApplication(sys.argv);app.setApplicationName('APK Revival');app.setStyle('Fusion');app.setStyleSheet(STYLE);window=Window(store,fullscreen);window.show();return app.exec()
+

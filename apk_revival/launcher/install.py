@@ -7,14 +7,19 @@ def desktop_escape(value):return str(value).replace('\\','\\\\').replace('"','\\
 
 def install(source=None,home=None):
     source=pathlib.Path(source or pathlib.Path(sys.executable).resolve().parent)
+    if not (source/'APK-Revival').is_file():raise RevivalError('The update executable is missing; installed application was not changed')
     home=pathlib.Path(home or pathlib.Path.home());target=home/'.local/share/apk-revival-app'
+    target.parent.mkdir(parents=True,exist_ok=True)
     if source.resolve()!=target.resolve():
         staged=target.with_name('apk-revival-app.new');prior=target.with_name('apk-revival-app.previous')
         if staged.exists():shutil.rmtree(staged)
         shutil.copytree(source,staged)
         if prior.exists():shutil.rmtree(prior)
         if target.exists():target.rename(prior)
-        staged.rename(target)
+        try:staged.rename(target)
+        except Exception:
+            if prior.exists() and not target.exists():prior.rename(target)
+            raise
     exe=target/'APK-Revival'
     if not exe.is_file():raise RevivalError('The packaged APK-Revival executable is missing')
     exe.chmod(exe.stat().st_mode|0o111)
@@ -34,3 +39,4 @@ def install_dialog():
     try:
         result=install();QMessageBox.information(None,'APK Revival installed','Open APK Revival from your application menu.\n\nFor Steam: choose Games > Add a Non-Steam Game, select APK Revival, and add --fullscreen to its launch options.');return 0
     except Exception as e:QMessageBox.critical(None,'Installation failed',str(e));return 1
+
