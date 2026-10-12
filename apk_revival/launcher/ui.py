@@ -3,7 +3,7 @@ import json,pathlib,sys,traceback
 from PySide6.QtCore import QEvent,QPoint,QRect,Qt,QThread,QTimer,Signal
 from PySide6.QtGui import QColor,QDesktopServices,QFont,QLinearGradient,QPainter,QPen,QPixmap,QIcon
 from PySide6.QtCore import QUrl
-from PySide6.QtWidgets import QApplication,QAbstractButton,QCheckBox,QComboBox,QDialog,QFileDialog,QFrame,QGridLayout,QHBoxLayout,QLabel,QLineEdit,QMainWindow,QMessageBox,QInputDialog,QPlainTextEdit,QProgressBar,QPushButton,QScrollArea,QStackedWidget,QTabWidget,QVBoxLayout,QWidget
+from PySide6.QtWidgets import QApplication,QAbstractButton,QCheckBox,QComboBox,QDialog,QFileDialog,QFrame,QGridLayout,QHBoxLayout,QLabel,QLineEdit,QLayout,QSizePolicy,QMainWindow,QMessageBox,QInputDialog,QPlainTextEdit,QProgressBar,QPushButton,QScrollArea,QStackedWidget,QTabWidget,QVBoxLayout,QWidget
 from ..analysis import markdown
 from ..backend import Progress
 from ..store import Store
@@ -94,7 +94,7 @@ class Window(QMainWindow):
         self.setWindowTitle('APK Revival');self.setWindowIcon(QIcon(str(brand_asset())));self.resize(1280,800);self.setMinimumSize(1000,650);self.setAcceptDrops(True)
         root=QWidget();root.setObjectName('base');self.setCentralWidget(root);outer=QVBoxLayout(root);outer.setContentsMargins(28,20,28,18);outer.setSpacing(16)
         header=QHBoxLayout();mark=QLabel();mark.setPixmap(QPixmap(str(brand_asset())).scaled(58,58,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));mark.setFixedSize(58,58);header.addWidget(mark);brand=QVBoxLayout();brand.setSpacing(1);brand.addWidget(label('APK REVIVAL','brand'));brand.addWidget(label('Mobile games. Back in play.','muted'));header.addLayout(brand);header.addStretch();from .. import __version__;header.addWidget(label('V'+__version__,'tag'))
-        self.setup_button=button('Setup',self.show_setup);header.addWidget(self.setup_button);header.addWidget(button('Fullscreen',self.toggle_fullscreen,'quiet'));self.add_button=button('+ Add game',self.add_game,'primary');header.addWidget(self.add_button);outer.addLayout(header)
+        self.setup_button=button('Setup',self.show_setup);header.addWidget(self.setup_button);self.updates_button=button('Updates',self.show_updates);header.addWidget(self.updates_button);header.addWidget(button('Fullscreen',self.toggle_fullscreen,'quiet'));self.add_button=button('+ Add game',self.add_game,'primary');header.addWidget(self.add_button);outer.addLayout(header)
         self.stack=QStackedWidget();outer.addWidget(self.stack,1);self.library=self.library_page();self.stack.addWidget(self.library);self.setup=self.setup_page();self.stack.addWidget(self.setup)
         self.feedback=QFrame();self.feedback.setObjectName('panel');feedback=QHBoxLayout(self.feedback);feedback.setContentsMargins(18,10,18,10);self.message=label('Ready. Add a game or try the included desktop demo.','muted',True);feedback.addWidget(self.message,1);self.cancel_button=button('Cancel task',self.cancel,'quiet');feedback.addWidget(self.cancel_button);self.cancel_button.hide();outer.addWidget(self.feedback)
         self.bar=QProgressBar();self.bar.setRange(0,0);self.bar.hide();outer.addWidget(self.bar)
@@ -113,16 +113,19 @@ class Window(QMainWindow):
         self.readiness_label=label('Start with an APK','readiness',True);right.addWidget(self.readiness_label);self.description=label('Choose a game file. APK Revival checks what it needs and keeps the original untouched.','muted',True);right.addWidget(self.description)
         self.play_button=button('Play',self.play,'play');self.play_button.setMinimumHeight(48);right.addWidget(self.play_button);actions=QHBoxLayout();self.prepare_button=button('Prepare',self.prepare);actions.addWidget(self.prepare_button);self.stop_button=button('Stop',self.stop);actions.addWidget(self.stop_button);self.options_button=button('Game options',self.options,'quiet');actions.addWidget(self.options_button);right.addLayout(actions);right.addStretch();self.controls_label=label('Touch, trackpad and controller-aware browsing.','muted',True);right.addWidget(self.controls_label);layout.addWidget(self.details,2);return page
     def setup_page(self):
-        page=QWidget();box=QVBoxLayout(page);box.setContentsMargins(8,0,8,10);row=QHBoxLayout();row.addWidget(button('Back',self.back));row.addStretch();box.addLayout(row);box.addWidget(label('Make it ready to play','heading'));box.addWidget(label('Preparation tools and the Android environment are managed separately.','muted'))
+        page=QWidget();page.setObjectName('grid_host');box=QVBoxLayout(page);box.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize);box.setSpacing(16);box.setContentsMargins(8,0,14,16);row=QHBoxLayout();row.addWidget(button('Back',self.back));row.addStretch();box.addLayout(row);box.addWidget(label('Make it ready to play','heading'));box.addWidget(label('Preparation tools and the Android environment are managed separately.','muted',True))
         tools_panel=QFrame();tools_panel.setObjectName('panel');tb=QVBoxLayout(tools_panel);tb.setContentsMargins(24,20,24,20);tb.addWidget(label('1   Preparation tools','readiness'));self.tools_label=label('Checking tools...','muted',True);tb.addWidget(self.tools_label);self.install_tools_button=button('Install preparation tools',self.install_tools,'primary');tb.addWidget(self.install_tools_button);box.addWidget(tools_panel)
         android_panel=QFrame();android_panel.setObjectName('panel');ab=QVBoxLayout(android_panel);ab.setContentsMargins(24,20,24,20);ab.addWidget(label('2   Android environment','readiness'));self.runtime_label=label('Check for an existing Waydroid installation.','muted',True);ab.addWidget(self.runtime_label);self.devices=QComboBox();self.devices.setAccessibleName('Android device');self.devices.currentIndexChanged.connect(self.device_selected);ab.addWidget(self.devices)
-        controls=QHBoxLayout();controls.addWidget(button('Check again',self.check_runtime));controls.addWidget(button('Start Android',self.start_android));controls.addWidget(button('Start container',self.start_container));controls.addWidget(button('Installation guide',self.installation_guide,'quiet'));ab.addLayout(controls)
+        controls=QGridLayout();controls.setSpacing(12);controls.addWidget(button('Check again',self.check_runtime),0,0);controls.addWidget(button('Start Android',self.start_android),0,1);controls.addWidget(button('Start container',self.start_container),1,0);controls.addWidget(button('Installation guide',self.installation_guide,'quiet'),1,1);ab.addLayout(controls)
         manual=QHBoxLayout();self.address=QLineEdit();self.address.setPlaceholderText('Optional: Android guest IP');manual.addWidget(self.address);manual.addWidget(button('Connect',self.manual_connect));ab.addLayout(manual);box.addWidget(android_panel)
         from .updater import Updater
         self.updater=Updater();self.pending_update=None
-        updates=QHBoxLayout();updates.addWidget(button('Check for updates',self.check_updates));updates.addWidget(button('GitHub access',self.github_access,'quiet'));updates.addWidget(button('Open releases',lambda:QDesktopServices.openUrl(QUrl(self.updater_url())),'quiet'));updates.addWidget(button('Install downloaded update',self.install_downloaded_update,'quiet'));box.addLayout(updates)
+        updates=QGridLayout();updates.setSpacing(12);updates.addWidget(button('Check for updates',self.check_updates),0,0);updates.addWidget(button('GitHub access',self.github_access,'quiet'),0,1);updates.addWidget(button('Open releases',lambda:QDesktopServices.openUrl(QUrl(self.updater_url())),'quiet'),1,0);updates.addWidget(button('Install downloaded update',self.install_downloaded_update,'quiet'),1,1);box.addLayout(updates)
         self.update_label=label('Updates install automatically and preserve games and saves.','muted',True);box.addWidget(self.update_label)
-        install_row=QHBoxLayout();install_row.addWidget(button('Install desktop shortcut',self.install_shortcut));install_row.addWidget(button('Add to Steam',self.steam_help,'quiet'));install_row.addStretch();box.addLayout(install_row);box.addStretch();box.addWidget(label('SteamOS needs a compatible kernel and Wayland setup. Host installation is guided; system protections are not changed automatically.','muted',True));return page
+        install_row=QHBoxLayout();install_row.addWidget(button('Install desktop shortcut',self.install_shortcut));install_row.addWidget(button('Add to Steam',self.steam_help,'quiet'));install_row.addStretch();box.addLayout(install_row);box.addStretch();box.addWidget(label('SteamOS needs a compatible kernel and Wayland setup. Host installation is guided; system protections are not changed automatically.','muted',True))
+        for panel in (tools_panel,android_panel):
+            panel.layout().setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize);panel.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Minimum)
+        self.setup_scroll=QScrollArea();self.setup_scroll.setWidgetResizable(True);self.setup_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff);self.setup_scroll.setWidget(page);return self.setup_scroll
     def refresh(self,*_):
         old_focus=QApplication.focusWidget();focus_game=old_focus.property('game_id') if old_focus else None
         self.cards=[]
@@ -167,6 +170,8 @@ class Window(QMainWindow):
     def failed(self,message):
         self.message.setText(message);self.refresh()
         if 'Preparation tools are missing' in message:self.show_setup()
+        elif 'java: not found' in message or 'Missing tool:' in message and 'java' in message:
+            self.message.setText('Java could not start. Open Setup and choose Check / repair preparation tools, then retry Prepare.')
     def job_finished(self,owned=None):
         if owned is not None and self.worker is not owned:owned.deleteLater();return
         self.bar.hide();self.cancel_button.hide();self.add_button.setEnabled(True);self.demo_button.setEnabled(True);self.update_details();self.worker.deleteLater();self.worker=None
@@ -230,6 +235,10 @@ class Window(QMainWindow):
         QMessageBox.information(self,'Add APK Revival to Steam','Install the desktop shortcut first. Then open Steam in Desktop Mode and choose Games > Add a Non-Steam Game. Select APK Revival, or browse to:\n\n'+str(path)+'\n\nLaunch the shortcut from Gaming Mode. Its desktop entry enables fullscreen automatically.')
     def device_selected(self,index):
         self.service.settings['serial']=self.devices.itemData(index);self.service.save_settings()
+    def show_updates(self):
+        self.stack.setCurrentWidget(self.setup);self.active_page='setup';self.update_tools()
+        target=next(b for b in self.setup.findChildren(QPushButton) if b.text()=='Check for updates');target.setFocus();self.setup_scroll.ensureWidgetVisible(target,16,24)
+        self.message.setText('Check for updates, or install an official downloaded package here.')
     def updater_url(self):
         from .updater import RELEASES
         return RELEASES
@@ -322,6 +331,8 @@ class Window(QMainWindow):
         else:self.showFullScreen()
         self.service.settings['fullscreen']=self.isFullScreen();self.service.save_settings()
     def eventFilter(self,obj,event):
+        if event.type()==QEvent.Type.FocusIn and isinstance(obj,QWidget) and getattr(self,'setup_scroll',None) and self.setup_scroll.widget().isAncestorOf(obj):
+            self.setup_scroll.ensureWidgetVisible(obj,16,24)
         if event.type()==QEvent.Type.KeyPress and self.isActiveWindow():
             key=event.key();focus=QApplication.focusWidget()
             if key==Qt.Key.Key_F11:self.toggle_fullscreen();return True

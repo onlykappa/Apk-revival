@@ -2,6 +2,19 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.2] - 2026-10-12
+
+### Fixed
+
+* Private Java is added to the process PATH and JAVA_HOME so Android SDK signing scripts can run it without a system Java installation. Cached private runtimes are configured before tool repair.
+* A visible Updates button in the main header opens and scrolls directly to the update controls.
+* Setup scrolls vertically on Steam Deck instead of compressing and overlapping Android controls.
+* Android and update buttons use two columns with consistent spacing. Keyboard/controller focus scrolls the selected control into view.
+
+### Verification scope
+
+Real Qt layout geometry and focus scrolling are checked at 1280 x 800 and 1000 x 650. Android gameplay is unchanged and remains subject to device testing.
+
 ## [0.3.1] - 2026-10-12
 
 ### Fixed

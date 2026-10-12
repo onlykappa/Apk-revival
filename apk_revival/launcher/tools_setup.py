@@ -16,11 +16,18 @@ def configure(root=None):
     values={'APKR_ADB':root/'platform-tools/adb','APKR_APKSIGNER':root/'android-15/apksigner','APKR_ZIPALIGN':root/'android-15/zipalign','APKR_APKTOOL_JAR':root/'apktool.jar','APKR_JAVA':root/'jre/bin/java','APKR_KEYTOOL':root/'jre/bin/keytool'}
     for key,path in values.items():
         if key not in os.environ and path.is_file():os.environ[key]=str(path)
-    if (root/'jre/bin/java').is_file():os.environ['JAVA_HOME']=str(root/'jre')
+    # SDK launch scripts invoke bare java, not APKR_JAVA. Give subprocesses
+    # the same private runtime used by the Python preparation code.
+    java=pathlib.Path(os.environ.get('APKR_JAVA',root/'jre/bin/java'))
+    if java.is_file():
+        bindir=java.resolve().parent
+        os.environ['JAVA_HOME']=str(bindir.parent)
+        paths=os.environ.get('PATH','').split(os.pathsep)
+        os.environ['PATH']=os.pathsep.join([str(bindir)]+[p for p in paths if p!=str(bindir)])
     return values
 
-def health():
-    configure();report={}
+def health(root=None):
+    configure(root);report={}
     for name in ['adb','java','keytool','zipalign','apksigner']:
         try:report[name]={'ready':True,'path':tool(name)}
         except RevivalError:report[name]={'ready':False,'path':None}
@@ -38,7 +45,8 @@ def download(url,target,expected):
         if temp.exists():temp.unlink()
 
 def install(progress=lambda _:None,root=None):
-    root=pathlib.Path(root or cache_root());root.mkdir(parents=True,exist_ok=True)
+    root=pathlib.Path(root or cache_root()).expanduser().resolve();root.mkdir(parents=True,exist_ok=True)
+    configure(root)
     import platform
     if platform.system()!='Linux' or platform.machine() not in {'x86_64','amd64'}:raise RevivalError('The preparation-tool installer currently supports Linux x86_64. Configure tools manually for another architecture.')
     for name,(url,sha) in DOWNLOADS.items():
@@ -89,5 +97,5 @@ def install(progress=lambda _:None,root=None):
         atomic_json(root/'java-download.json',{'origin':link,'sha256':checksum})
     configure(root);progress('Checking installed tools')
     command([tool('java'),'-version'],timeout=15);command([tool('apksigner'),'version'],timeout=15)
-    return health()
+    return health(root)
 

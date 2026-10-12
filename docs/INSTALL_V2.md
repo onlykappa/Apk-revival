@@ -1,6 +1,6 @@
 APK REVIVAL V2: START HERE
 
-1. Download from GitHub Releases, then extract APK-Revival-0.3.1-linux-x86_64.tar.gz in Steam Deck Desktop Mode.
+1. Download from GitHub Releases, then extract APK-Revival-0.3.2-linux-x86_64.tar.gz in Steam Deck Desktop Mode.
 2. Open the extracted APK-Revival folder and double-click APK-Revival.
 3. Select Setup > Install desktop shortcut to install it in your home folder.
 4. Open APK Revival from the application menu. Add an APK, Prepare, then Play.
