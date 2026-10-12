@@ -34,7 +34,7 @@ The local V2 suite exercised real Qt workflows, actual APK signing, private tool
 
 ### Verification scope
 
-35 local V1 tests passed with actual APK tools and the Tk display enabled. The Android emulator attempt timed out before gameplay checks. This historical release is source-only and does not include the V2 native launcher. Its tag points to the original V1 commit.
+35 local V1 tests passed with actual APK tools and the Tk display enabled. The Android emulator attempt timed out before gameplay checks. This historical release is source-only and does not include the V2 native launcher. Its source remains at the original V1 commit; the historical release tag backfill was blocked by GitHub permissions.
 
 [0.2.0]: https://github.com/onlykappa/Apk-revival/releases/tag/v0.2.0
-[0.1.0]: https://github.com/onlykappa/Apk-revival/releases/tag/v0.1.0
+[0.1.0]: https://github.com/onlykappa/Apk-revival/tree/7458887bf687eaaf8cf29242ba40be518e761abf

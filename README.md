@@ -49,7 +49,7 @@ These are screenshots of the running native application using the self-authored 
 
 </details>
 
-See [release history and update instructions](docs/RELEASES.md). V1 is archived as **v0.1.0**; V2 is **v0.2.0**. These are early previews while Android and Steam Deck hardware verification remains outstanding.
+See [release history and update instructions](docs/RELEASES.md). V1’s **0.1.0** milestone remains in the changelog and original commit; the published V2 release is **v0.2.0**. These are early previews while Android and Steam Deck hardware verification remains outstanding.
 
 ## What works
 

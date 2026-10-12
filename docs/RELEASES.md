@@ -1,8 +1,8 @@
 # Releases and version history
 
-Download the Linux app from [GitHub Releases](https://github.com/onlykappa/Apk-revival/releases). Each version has its own tag, notes, source archive and, from V2 onward, Linux installer package and SHA-256 checksums. The repository is private, so sign in with repository access to download.
+Download the Linux app from [GitHub Releases](https://github.com/onlykappa/Apk-revival/releases). Published versions have a tag, notes, source archive, Linux installer package and SHA-256 checksums. The repository is private, so sign in with repository access to download.
 
-* **v0.1.0 / V1 engine**: historical source-only release at the original V1 commit.
+* **V1 engine / software 0.1.0**: historical source milestone at [the original V1 commit](https://github.com/onlykappa/Apk-revival/tree/7458887bf687eaaf8cf29242ba40be518e761abf). A separate v0.1.0 GitHub release tag was not published.
 * **v0.2.0 / V2 launcher**: initial branded native Linux app preview. Android and physical Steam Deck gameplay remain unverified.
 
 The [changelog](../CHANGELOG.md) records product changes. The app header shows the installed software version. Product milestones V1 and V2 are separate from semantic software versions 0.1.0 and 0.2.0.
@@ -16,3 +16,7 @@ The [changelog](../CHANGELOG.md) records product changes. The app header shows t
 An existing published version is never overwritten. Publish a new version for changed binaries. The workflow can also be run from Actions > Release > Run workflow, or by pushing a matching version tag. It uses GitHub's temporary repository token with `contents: write`; no personal token or signing secret is required. Repository policies must allow GitHub Actions and this permission.
 
 Downloads are unsigned application packages. SHA-256 checksums detect corruption and identify exact files; they do not replace a publisher signature. Automatic in-app updating is not implemented. Install a newer package through Setup > Install desktop shortcut to preserve game data and keep a copy of the prior application.
+
+## Historical V1 tag
+
+The historical V1 release backfill returned HTTP 403 because GitHub Actions cannot tag an older commit whose workflow files differ from the default branch with its default token. This does not affect current release downloads. V1 history remains in CHANGELOG and the original commit. Backfilling that tag requires a repository owner using GitHub or a separately authorized maintainer tool. Never move the V1 tag to V2 code to avoid this restriction.
