@@ -56,7 +56,8 @@ class V2GUI(unittest.TestCase):
         self.assertTrue(artifact.is_file());artifact.unlink()
         self.w.update_details();self.assertEqual(self.w.readiness_label.text(),'Preparation needs repair')
         self.assertTrue(self.w.prepare_button.isVisible());self.assertFalse(self.w.play_button.isVisible())
-        self.w.prepare_button.click();self.wait();self.assertTrue(artifact.is_file())
+        self.w.prepare_button.click();self.wait();repaired=self.w.profile()
+        self.assertTrue((self.w.service.store.directory(game)/repaired['restoration']['artifact']).is_file())
         self.assertTrue(self.w.play_button.isVisible());self.assertFalse(self.w.prepare_button.isVisible())
 
     def test_focus_navigation_and_controller_action(self):
