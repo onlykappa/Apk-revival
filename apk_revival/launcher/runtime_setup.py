@@ -5,7 +5,7 @@ from ..runtime import WaydroidRuntime
 from ..util import RevivalError,command,tool
 
 class RuntimeManager:
-    def __init__(self):self.session_process=None;self.compositor_process=None;self.session_log=None;self.last_start_note=None;self.last={'ready':False,'devices':[],'waydroid':False}
+    def __init__(self):self.session_process=None;self.compositor_process=None;self.session_log=None;self.bundle_process=None;self.bundle_log=None;self.bundle_mode=None;self.last_start_note=None;self.last={'ready':False,'devices':[],'waydroid':False}
     def environment(self):
         env=dict(os.environ)
         # Gaming Mode can advertise a real Gamescope Wayland socket separately.
@@ -67,21 +67,93 @@ class RuntimeManager:
         try:ipaddress.ip_address(host);n=int(port);assert 1<=n<=65535
         except (ValueError,AssertionError):raise RevivalError('Enter the Android guest IP address, optionally followed by its port.')
         command([tool('adb'),'connect',value],timeout=12);return self.discover(connect=False)
+    def steam_bundle_launcher(self):
+        """Use the installed main-profile launcher, never a fresh Waydroid init.
+
+        The SteamOS bundle mounts ~/Android_Waydroid/waydroid.img before starting
+        its container. Calling generic Waydroid while it is unmounted can
+        incorrectly report that Android is not initialized.
+        """
+        base=pathlib.Path.home()/'Android_Waydroid'
+        launcher=base/'Android_Waydroid_Cage.sh'
+        image=base/'waydroid.img'
+        if image.is_file() and launcher.is_file() and os.access(launcher,os.X_OK):
+            return launcher
+        return None
+
+    def start_steam_bundle(self):
+        """Launch the existing main Android image using its own Cage wrapper.
+
+        Never run `waydroid init` or ask sudo to run the whole graphical
+        launcher. A valid sudo timestamp allows hands-free startup; otherwise
+        Konsole displays the ordinary administrator password prompt.
+        """
+        launcher=self.steam_bundle_launcher()
+        if launcher is None:raise RevivalError('The SteamOS Waydroid launcher or image is missing. Repair the existing Waydroid bundle first, without reinitializing Android.')
+        if self.bundle_process and self.bundle_process.poll() is None:
+            return
+        env=self.environment()
+        try:
+            command([tool('sudo'),'-n','-v'],timeout=5,env=env)
+            authorized=True
+        except RevivalError:
+            authorized=False
+        if authorized:
+            args=[str(launcher)]
+            self.bundle_mode='direct'
+            self.last_start_note='Starting your existing SteamOS Android image.'
+        else:
+            try:terminal=tool('konsole')
+            except RevivalError as error:
+                raise RevivalError('Android needs administrator authorization. Open SteamOS Konsole and run ~/Android_Waydroid/Android_Waydroid_Cage.sh, then return to Play.') from error
+            args=[terminal,'--separate','-e',str(launcher)]
+            self.bundle_mode='terminal'
+            self.last_start_note='SteamOS Konsole may request your administrator password to mount the existing Android image.'
+        if self.bundle_log:self.bundle_log.close()
+        self.bundle_log=tempfile.TemporaryFile(mode='w+b')
+        try:
+            self.bundle_process=subprocess.Popen(args,cwd=str(launcher.parent),
+                env=env,stdin=subprocess.DEVNULL,stdout=self.bundle_log,
+                stderr=subprocess.STDOUT,start_new_session=True)
+        except OSError as error:
+            self.bundle_process=None
+            raise RevivalError('Could not open the existing SteamOS Waydroid launcher: '+str(error)+'. Launch it in SteamOS Konsole, then retry Play.') from error
+
     def ensure(self,serial=None):
         info=self.discover()
         if not info['ready'] and info['waydroid']:
-            if info.get('service')!='active' and info['container'] not in {'RUNNING','FROZEN'}:raise RevivalError('Android container is stopped. In Setup, review and start the Waydroid container with administrator authorization.')
-            if info.get('session')!='RUNNING':self.ensure_display()
-            if info.get('session')!='RUNNING' and (not self.session_process or self.session_process.poll() is not None):
-                self.session_log=tempfile.TemporaryFile(mode='w+b')
-                self.session_process=subprocess.Popen([tool('waydroid'),'session','start'],env=self.environment(),stdout=self.session_log,stderr=subprocess.STDOUT)
-            deadline=time.monotonic()+30
-            while time.monotonic()<deadline:
-                time.sleep(.5);info=self.discover()
-                if info['ready']:break
-                if self.session_process and self.session_process.poll() not in (None,0):
-                    self.session_log.seek(0);detail=self.session_log.read()[-2500:].decode(errors='replace')
-                    raise RevivalError('Waydroid session failed to start: '+detail)
+            bundle=self.steam_bundle_launcher()
+            # Never start another Cage instance over an already-running session.
+            if bundle and info.get('session')!='RUNNING':
+                self.start_steam_bundle()
+                deadline=time.monotonic()+110
+                while time.monotonic()<deadline:
+                    time.sleep(1)
+                    info=self.discover()
+                    if info['ready']:break
+                    process=self.bundle_process
+                    if process and process.poll() not in (None,0):
+                        detail=''
+                        if self.bundle_log:
+                            self.bundle_log.seek(0)
+                            detail=self.bundle_log.read()[-1400:].decode(errors='replace').strip()
+                        raise RevivalError('SteamOS Waydroid launcher exited before Android connected. '+
+                            (detail or 'Open ~/Android_Waydroid/Android_Waydroid_Cage.sh in SteamOS Konsole to see the startup error.'))
+                if not info['ready']:
+                    raise RevivalError('The SteamOS Android launcher started but ADB did not connect. Approve any Android debugging prompt, or open ~/Android_Waydroid/Android_Waydroid_Cage.sh in Konsole for diagnostics. No data was reset.')
+            else:
+                if info.get('service')!='active' and info['container'] not in {'RUNNING','FROZEN'}:raise RevivalError('Android container is stopped. In Setup, review and start the Waydroid container with administrator authorization.')
+                if info.get('session')!='RUNNING':self.ensure_display()
+                if info.get('session')!='RUNNING' and (not self.session_process or self.session_process.poll() is not None):
+                    self.session_log=tempfile.TemporaryFile(mode='w+b')
+                    self.session_process=subprocess.Popen([tool('waydroid'),'session','start'],env=self.environment(),stdout=self.session_log,stderr=subprocess.STDOUT)
+                deadline=time.monotonic()+30
+                while time.monotonic()<deadline:
+                    time.sleep(.5);info=self.discover()
+                    if info['ready']:break
+                    if self.session_process and self.session_process.poll() not in (None,0):
+                        self.session_log.seek(0);detail=self.session_log.read()[-2500:].decode(errors='replace')
+                        raise RevivalError('Waydroid session failed to start: '+detail)
         ready=[d['serial'] for d in info['devices'] if d['state']=='device']
         if serial in ready:return serial
         if len(ready)==1:return ready[0]
@@ -104,6 +176,11 @@ class RuntimeManager:
             time.sleep(.2)
         raise RevivalError('The local Weston display could not start. Open your existing Waydroid launcher, then retry Check again.')
     def start_container_authorized(self):
+        if self.steam_bundle_launcher():
+            # For this installation the container cannot be started in
+            # isolation: the persistent image must be mounted first.
+            self.ensure()
+            return self.last
         info=self.discover(connect=False)
         if info.get('service')=='active':
             self.last_start_note='Waydroid container service is already running. Choose Start Android to start the user session.'
