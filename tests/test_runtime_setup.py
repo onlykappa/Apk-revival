@@ -105,6 +105,17 @@ class RuntimeSetupTests(unittest.TestCase):
         with patch('apk_revival.launcher.runtime_setup.tool',side_effect=lambda n:'/usr/bin/'+n),patch('apk_revival.launcher.runtime_setup.command') as call:manager.start_container_authorized()
         self.assertEqual(call.call_args.args[0],['/usr/bin/konsole','--separate','-e','/usr/bin/sudo','/usr/bin/systemctl','start','waydroid-container.service'])
         self.assertIn('started',manager.last_start_note)
+    def test_failed_konsole_reports_manual_recovery_without_modifying_container(self):
+        manager=RuntimeManager()
+        manager.discover=lambda **kw:{'steam_os':True,'service':'inactive','container':'unknown'}
+        with patch('apk_revival.launcher.runtime_setup.tool',side_effect=lambda n:'/usr/bin/'+n),patch(
+            'apk_revival.launcher.runtime_setup.command',side_effect=RevivalError('/usr/bin/konsole failed (-6)')
+        ) as cmd:
+            with self.assertRaisesRegex(RevivalError,'sudo systemctl start waydroid-container.service'):
+                manager.start_container_authorized()
+        cmd.assert_called_once()
+        self.assertIn('konsole',cmd.call_args.args[0][0])
+
     def test_failed_authorization_does_not_report_success(self):
         manager=RuntimeManager();manager.discover=lambda **kw:{'steam_os':False,'service':'inactive','container':'unknown'}
         with patch('apk_revival.launcher.runtime_setup.tool',side_effect=lambda n:n),patch('apk_revival.launcher.runtime_setup.command'):
