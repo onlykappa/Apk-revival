@@ -103,4 +103,22 @@ def external_env(env=None):
         if safe:clean['LD_LIBRARY_PATH']=os.pathsep.join(safe)
         else:clean.pop('LD_LIBRARY_PATH',None)
         clean.pop('LD_LIBRARY_PATH_ORIG',None)
+        # PyInstaller/PySide6 also points Qt at the app's private plugin tree.
+        # Konsole (and other SteamOS Qt apps) must use their *own* platform
+        # plugin and fonts. Otherwise their Qt initialization may abort (-6)
+        # even though LD_LIBRARY_PATH has already been fixed.
+        for key in ('QT_QPA_PLATFORM_PLUGIN_PATH','QT_PLUGIN_PATH',
+                    'QT_QPA_FONTDIR','QML2_IMPORT_PATH','QML_IMPORT_PATH',
+                    'QTWEBENGINEPROCESS_PATH','QTWEBENGINE_RESOURCES_PATH',
+                    'QTWEBENGINE_LOCALES_PATH'):
+            current=clean.get(key)
+            if current:
+                safe_paths=[item for item in current.split(os.pathsep)
+                            if item and not _bundled_loader_directory(item)]
+                if safe_paths:clean[key]=os.pathsep.join(safe_paths)
+                else:clean.pop(key,None)
+        # Headless/offscreen settings belong to APK Revival's UI test or
+        # embedded runtime, not to the host's graphical Konsole process.
+        if clean.get('QT_QPA_PLATFORM','').lower() in ('offscreen','minimal','minimalegl'):
+            clean.pop('QT_QPA_PLATFORM',None)
     return clean
