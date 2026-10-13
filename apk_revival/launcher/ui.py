@@ -249,8 +249,9 @@ class Window(QMainWindow):
         self.devices.blockSignals(False)
         self.devices.setEnabled(bool(ready))
         self.runtime_label.setText('Android connected. Select the intended environment.' if ready else 'Waydroid is installed, but Android is not connected. Start Android or check its container.' if info['waydroid'] else 'Waydroid is not installed. Open the installation guide, then return and select Check again. The desktop demo works without Android.')
+        if not ready and self.service.runtime_manager.steam_bundle_launcher():self.runtime_label.setText('SteamOS Waydroid bundle found. Open Library and press Play: APK Revival will start your preserved Android image and reconnect ADB automatically. A password prompt may appear.')
         self.connection_label.setText('Android: connected' if ready else 'Android: setup needed')
-        if not ready and info.get('service')=='active':self.runtime_label.setText('Container service is running. Start Android to boot the user session, then Check again.')
+        if not ready and info.get('service')=='active' and not self.service.runtime_manager.steam_bundle_launcher():self.runtime_label.setText('Container service is running. Start Android to boot the user session, then Check again.')
         if not ready and info.get('session')=='RUNNING':self.runtime_label.setText('Android session is running, but ADB is not connected. '+('Guest IP: '+str(info['ip'])+'. Use Connect below. ' if info.get('ip') else '')+'Check the connection details below.')
         if not ready and any(d['state']=='unauthorized' for d in info['devices']):self.runtime_label.setText('Authorization needed. Choose Open Android and approve Allow USB debugging. Select Always allow from this computer, then Check again.')
         self.message.setText(self.service.runtime_manager.last_start_note or ('; '.join(info.get('errors',[])[-2:]) if not ready and info.get('errors') else 'Setup check complete.'));self.service.runtime_manager.last_start_note=None;self.update_details()
@@ -304,9 +305,13 @@ class Window(QMainWindow):
     def open_android_ui(self):
         self.submit('Open Android',lambda ctx:(ctx.step('Opening the Android desktop'),self.service.runtime_manager.open_android_ui())[1],self.runtime_result)
     def start_android(self):
-        def run(ctx):ctx.step('Starting the Android session');self.service.runtime_manager.ensure(self.service.settings.get('serial'));return self.service.runtime_manager.last
+        def run(ctx):ctx.step('Starting your existing Android environment and connecting ADB');self.service.runtime_manager.ensure(self.service.settings.get('serial'));return self.service.runtime_manager.last
         self.submit('Start Android',run,self.runtime_result)
     def start_container(self):
+        if self.service.runtime_manager.steam_bundle_launcher():
+            answer=QMessageBox.question(self,'Start existing SteamOS Android','Start your existing SteamOS Waydroid image and reconnect Android? A Konsole password prompt may appear to mount the image. Your data is preserved; no Android reinitialization or package installation will occur.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+            if answer==QMessageBox.StandardButton.Yes:self.submit('Start existing Android',lambda ctx:(ctx.step('Starting the preserved SteamOS Waydroid image'),self.service.runtime_manager.start_container_authorized())[1],self.runtime_result)
+            return
         answer=QMessageBox.question(self,'Start Waydroid container','This starts the existing waydroid-container.service using administrator authorization. On SteamOS, a Konsole password prompt may open. Enter your Deck administrator password there. This starts the service only; it does not install packages or change SteamOS protections. Continue?',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
         if answer==QMessageBox.StandardButton.Yes:self.submit('Start Android container',lambda ctx:(ctx.step('Starting the existing Android container'),self.service.runtime_manager.start_container_authorized())[1],self.runtime_result)
     def installation_guide(self):QDesktopServices.openUrl(QUrl('https://docs.waydro.id/usage/install-on-desktops' if not self.service.runtime_manager.last.get('steam_os') else 'https://github.com/pjohno/steamos-waydroid-bundle'))

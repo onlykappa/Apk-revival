@@ -87,6 +87,67 @@ class RuntimeSetupTests(unittest.TestCase):
         self.assertEqual(env['WAYLAND_DISPLAY'],'wayland-1')
         self.assertEqual(env['DISPLAY'],':0')
 
+    def test_play_starts_existing_steamos_bundle_and_waits_for_adb(self):
+        with tempfile.TemporaryDirectory() as temp,patch('pathlib.Path.home',return_value=pathlib.Path(temp)):
+            base=pathlib.Path(temp)/'Android_Waydroid';base.mkdir()
+            (base/'waydroid.img').write_bytes(b'existing image')
+            launcher=base/'Android_Waydroid_Cage.sh';launcher.write_text('#!/bin/bash\\n');launcher.chmod(0o755)
+            manager=RuntimeManager()
+            states=iter([
+                {'ready':False,'waydroid':True,'session':'STOPPED','service':'inactive','container':'unknown','devices':[]},
+                {'ready':False,'waydroid':True,'session':'RUNNING','service':'active','container':'RUNNING','devices':[]},
+                {'ready':True,'waydroid':True,'session':'RUNNING','service':'active','container':'RUNNING','devices':[{'serial':'192.168.240.112:5555','state':'device'}]},
+            ])
+            manager.discover=lambda **kwargs:next(states)
+            with patch.object(manager,'start_steam_bundle') as start,patch('apk_revival.launcher.runtime_setup.time.sleep'):
+                self.assertEqual(manager.ensure(),'192.168.240.112:5555')
+            start.assert_called_once()
+            self.assertTrue((base/'waydroid.img').is_file())
+
+    def test_connected_android_never_restarts_cage_or_prepares_again(self):
+        manager=RuntimeManager()
+        manager.discover=lambda **kw:{'ready':True,'waydroid':True,'session':'RUNNING','devices':[{'state':'device','serial':'192.168.240.112:5555'}]}
+        with patch.object(manager,'start_steam_bundle') as start:
+            self.assertEqual(manager.ensure('192.168.240.112:5555'),'192.168.240.112:5555')
+        start.assert_not_called()
+
+    def test_steamos_bundle_uses_konsole_only_if_sudo_prompt_required(self):
+        with tempfile.TemporaryDirectory() as temp,patch('pathlib.Path.home',return_value=pathlib.Path(temp)):
+            base=pathlib.Path(temp)/'Android_Waydroid';base.mkdir()
+            (base/'waydroid.img').write_bytes(b'preserve')
+            launcher=base/'Android_Waydroid_Cage.sh';launcher.write_text('#!/bin/bash\\n');launcher.chmod(0o755)
+            manager=RuntimeManager()
+            with patch('apk_revival.launcher.runtime_setup.command',side_effect=RevivalError('sudo authorization needed')),patch(
+                'apk_revival.launcher.runtime_setup.tool',side_effect=lambda name:'/usr/bin/'+name
+            ),patch('apk_revival.launcher.runtime_setup.subprocess.Popen') as opened:
+                manager.start_steam_bundle()
+            cmd=opened.call_args.args[0]
+            self.assertEqual(cmd,['/usr/bin/konsole','--separate','-e',str(launcher)])
+            self.assertEqual(opened.call_args.kwargs['cwd'],str(base))
+            self.assertIn('password',manager.last_start_note)
+            self.assertEqual((base/'waydroid.img').read_bytes(),b'preserve')
+
+    def test_cached_authorization_starts_bundle_without_terminal(self):
+        with tempfile.TemporaryDirectory() as temp,patch('pathlib.Path.home',return_value=pathlib.Path(temp)):
+            base=pathlib.Path(temp)/'Android_Waydroid';base.mkdir()
+            (base/'waydroid.img').write_bytes(b'preserve')
+            launcher=base/'Android_Waydroid_Cage.sh';launcher.write_text('#!/bin/bash\\n');launcher.chmod(0o755)
+            manager=RuntimeManager()
+            with patch('apk_revival.launcher.runtime_setup.command',return_value='') as check,patch(
+                'apk_revival.launcher.runtime_setup.tool',return_value='/usr/bin/sudo'
+            ),patch('apk_revival.launcher.runtime_setup.subprocess.Popen') as opened:
+                manager.start_steam_bundle()
+            self.assertEqual(opened.call_args.args[0],[str(launcher)])
+            self.assertEqual(check.call_args.args[0],['/usr/bin/sudo','-n','-v'])
+
+    def test_start_container_reuses_bundle_not_raw_systemctl(self):
+        manager=RuntimeManager()
+        with patch.object(manager,'steam_bundle_launcher',return_value=pathlib.Path('/home/deck/Android_Waydroid/Android_Waydroid_Cage.sh')),patch.object(manager,'ensure') as connect,patch.object(manager,'discover') as discover:
+            result=manager.start_container_authorized()
+        connect.assert_called_once()
+        discover.assert_not_called()
+        self.assertEqual(result,manager.last)
+
     def run_command(self,args,**kwargs):
         if args[-1]=='status':return 'Session:        STOPPED\nVendor type:    MAINLINE\n'
         if '--property=ActiveState' in args:return 'active\n'
