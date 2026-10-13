@@ -28,6 +28,43 @@ class V2ServiceTests(unittest.TestCase):
         with zipfile.ZipFile(diag) as z:
             self.assertEqual(set(z.namelist()),{'diagnostics.json','README.txt'});self.assertNotIn(str(self.store.root),z.read('diagnostics.json').decode())
         self.assertNotEqual(self.store.load(game)['status'],'Verified Offline')
+    def test_prepared_game_is_playable_without_a_connected_android_session(self):
+        p=self.import_fixture();game=p['id']
+        artifact=self.store.directory(game)/'restored.apk';artifact.write_bytes(b'prepared test client')
+        p['restoration'].update(path='offline_patch',artifact='restored.apk',artifact_sha256=digest(artifact))
+        self.store.save(p)
+        from_disk=self.store.load(game)
+        state=readiness(from_disk,False)
+        self.assertEqual(state['label'],'Prepared')
+        self.assertTrue(state['play'])
+        self.assertFalse(state['prepare'])
+        # Play validates the prepared artifact before attempting any Android action.
+        artifact.unlink()
+        with self.assertRaisesRegex(RevivalError,'missing or changed'):
+            self.job('play',lambda ctx:self.s.play(game,ctx))
+
+    def test_preparation_survives_launcher_restart_and_does_not_rebuild(self):
+        p=self.import_fixture();game=p['id']
+        first=self.job('prepare',lambda ctx:self.s.prepare(game,'rebuild',ctx))
+        revision=first['revision']
+        restarted=Launcher(self.store)
+        try:
+            ready=readiness(restarted.store.load(game),False)
+            self.assertTrue(ready['play'])
+            self.assertFalse(ready['prepare'])
+            second=restarted.jobs.run('prepare again',lambda ctx:restarted.prepare(game,'rebuild',ctx))
+            self.assertEqual(second['revision'],revision)
+            self.assertEqual(readiness(second,False)['label'],'Separate rebuild ready')
+        finally:restarted.shutdown()
+
+    def test_changed_preparation_method_requires_preparing_again(self):
+        p=self.import_fixture();game=p['id']
+        p['restoration'].update(path='offline_patch',artifact='restored.apk',artifact_sha256='0'*64)
+        p.setdefault('launcher',{})['preferred_path']='rebuild'
+        state=readiness(p,False)
+        self.assertTrue(state['prepare'])
+        self.assertFalse(state['play'])
+
     def test_actual_job_steps_and_failure(self):
         jobs=Jobs();snapshots=[]
         def work(ctx):ctx.step('One');ctx.step('Two');raise RevivalError('Actionable failure')
