@@ -50,6 +50,15 @@ class V2GUI(unittest.TestCase):
         with patch.object(QFileDialog,'getSaveFileName',return_value=(str(out),'ZIP')):self.w.options_button.click()
         self.wait();self.assertTrue(out.exists())
         with zipfile.ZipFile(out) as z:self.assertIn('run.py',z.namelist());self.assertFalse(any('/saves/' in n for n in z.namelist()))
+    def test_missing_prepared_client_offers_repair_not_dead_play(self):
+        game=self.import_ui();self.w.prepare_button.click();self.wait()
+        p=self.w.profile();artifact=self.w.service.store.directory(game)/p['restoration']['artifact']
+        self.assertTrue(artifact.is_file());artifact.unlink()
+        self.w.update_details();self.assertEqual(self.w.readiness_label.text(),'Preparation needs repair')
+        self.assertTrue(self.w.prepare_button.isVisible());self.assertFalse(self.w.play_button.isVisible())
+        self.w.prepare_button.click();self.wait();self.assertTrue(artifact.is_file())
+        self.assertTrue(self.w.play_button.isVisible());self.assertFalse(self.w.prepare_button.isVisible())
+
     def test_focus_navigation_and_controller_action(self):
         self.import_ui();self.w.show();self.w.activateWindow();self.app.processEvents();self.w.prepare_button.setFocus();self.w.controller.dispatch('down');self.assertIsNot(self.app.focusWidget(),self.w.prepare_button)
         self.w.demo_button.setFocus();self.w.controller.dispatch('confirm');self.wait();self.assertEqual(self.w.profile()['restoration']['path'],'rebuild')
