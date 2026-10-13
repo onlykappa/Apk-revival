@@ -13,7 +13,7 @@ Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2
 
 ### Verification scope
 
-* Automated checks cover inherited loader variables and external host subprocess boundaries. Real Steam Deck Waydroid connection and Meego gameplay still require a device test; passing host process checks does not establish offline gameplay.
+* Automated checks cover inherited loader variables and external host subprocess boundaries. Real Steam Deck Android/Waydroid connection and Meego gameplay still require a device test; passing host process checks does not establish offline gameplay.
 
 ## [0.3.4] - 2026-10-13
 
