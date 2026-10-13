@@ -90,7 +90,7 @@ class GameView(QWidget):
 
 class Window(QMainWindow):
     def __init__(self,store=None,fullscreen=False):
-        super().__init__();self.service=Launcher(store or Store());self.current=None;self.worker=None;self.monitor_worker=None;self.cards=[];self.last_job=None;self.rebuild_view=None;self.active_page='library';self.closing=False
+        super().__init__();self.service=Launcher(store or Store());self.current=None;self.worker=None;self.monitor_worker=None;self.cards=[];self.last_job=None;self.rebuild_view=None;self.active_page='library';self.closing=False;self.repair_games=set();self.focus_play_after_prepare=False
         self.setWindowTitle('APK Revival');self.setWindowIcon(QIcon(str(brand_asset())));self.resize(1280,800);self.setMinimumSize(1000,650);self.setAcceptDrops(True)
         root=QWidget();root.setObjectName('base');self.setCentralWidget(root);outer=QVBoxLayout(root);outer.setContentsMargins(28,20,28,18);outer.setSpacing(16)
         header=QHBoxLayout();mark=QLabel();mark.setPixmap(QPixmap(str(brand_asset())).scaled(58,58,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));mark.setFixedSize(58,58);header.addWidget(mark);brand=QVBoxLayout();brand.setSpacing(1);brand.addWidget(label('APK REVIVAL','brand'));brand.addWidget(label('Mobile games. Back in play.','muted'));header.addLayout(brand);header.addStretch();from .. import __version__;header.addWidget(label('V'+__version__,'tag'))
@@ -111,7 +111,7 @@ class Window(QMainWindow):
         self.details=QFrame();self.details.setObjectName('panel');self.details.setMinimumWidth(390);self.details.setMaximumWidth(480);right=QVBoxLayout(self.details);right.setContentsMargins(24,20,24,20);right.setSpacing(9)
         self.hero=Poster('ADD A GAME','demo');self.hero.setFixedHeight(132);right.addWidget(self.hero);self.game_title=label('Your next revival','heading');self.game_title.setStyleSheet('font-size: 26px; font-weight: 700');right.addWidget(self.game_title);self.game_kind=label('LOCAL LIBRARY','tag');right.addWidget(self.game_kind)
         self.readiness_label=label('Start with an APK','readiness',True);right.addWidget(self.readiness_label);self.description=label('Choose a game file. APK Revival checks what it needs and keeps the original untouched.','muted',True);right.addWidget(self.description)
-        self.play_button=button('Play',self.play,'play');self.play_button.setMinimumHeight(48);right.addWidget(self.play_button);actions=QHBoxLayout();self.prepare_button=button('Prepare',self.prepare);actions.addWidget(self.prepare_button);self.stop_button=button('Stop',self.stop);actions.addWidget(self.stop_button);self.options_button=button('Game options',self.options,'quiet');actions.addWidget(self.options_button);right.addLayout(actions);right.addStretch();self.controls_label=label('Touch, trackpad and controller-aware browsing.','muted',True);right.addWidget(self.controls_label);layout.addWidget(self.details,2);return page
+        self.prepare_button=button('Prepare game',self.prepare,'play');self.prepare_button.setMinimumHeight(54);right.addWidget(self.prepare_button);self.play_button=button('Play',self.play,'play');self.play_button.setMinimumHeight(54);right.addWidget(self.play_button);self.stop_button=button('Stop game',self.stop,'play');self.stop_button.setMinimumHeight(54);right.addWidget(self.stop_button);actions=QHBoxLayout();self.options_button=button('Game options',self.options,'quiet');actions.addWidget(self.options_button);actions.addStretch();right.addLayout(actions);right.addStretch();self.controls_label=label('Touch, trackpad and controller-aware browsing.','muted',True);right.addWidget(self.controls_label);layout.addWidget(self.details,2);return page
     def setup_page(self):
         page=QWidget();page.setObjectName('grid_host');box=QVBoxLayout(page);box.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize);box.setSpacing(16);box.setContentsMargins(8,0,14,16);row=QHBoxLayout();row.addWidget(button('Back',self.back));row.addStretch();box.addLayout(row);box.addWidget(label('Make it ready to play','heading'));box.addWidget(label('Preparation tools and the Android environment are managed separately.','muted',True))
         tools_panel=QFrame();tools_panel.setObjectName('panel');tb=QVBoxLayout(tools_panel);tb.setContentsMargins(24,20,24,20);tb.addWidget(label('1   Preparation tools','readiness'));self.tools_label=label('Checking tools...','muted',True);tb.addWidget(self.tools_label);self.install_tools_button=button('Install preparation tools',self.install_tools,'primary');tb.addWidget(self.install_tools_button);box.addWidget(tools_panel)
@@ -152,11 +152,26 @@ class Window(QMainWindow):
         return self.service.store.load(self.current,check=False)
     def update_details(self):
         if not self.current:
-            for w in [self.play_button,self.prepare_button,self.stop_button,self.options_button]:w.setEnabled(False)
+            for w in [self.play_button,self.prepare_button,self.stop_button]:w.hide();w.setEnabled(False)
+            self.options_button.setEnabled(False)
             return
-        p=self.profile();ready=readiness(p,self.service.runtime_manager.last.get('ready',False));self.game_title.setText(p['title'] if len(p['title'])<26 else p['title'][:24]+'...');self.game_title.setToolTip(p['title']);self.hero.title=p['title'];self.hero.seed=p['id'];self.hero.update();self.game_kind.setText('INDEPENDENT REBUILD' if p['restoration']['path']=='rebuild' else 'ANDROID GAME'+('  /  SELF-AUTHORED FIXTURE' if p['analysis'] and p['analysis']['fixture'] else ''));self.readiness_label.setText(ready['label']);self.description.setText(ready['detail'])
+        p=self.profile();ready=readiness(p,self.service.runtime_manager.last.get('ready',False))
+        artifact=p.get('restoration',{}).get('artifact')
+        missing=bool(artifact and not (self.service.store.directory(p['id'])/artifact).is_file())
+        if missing or p['id'] in self.repair_games:
+            ready={'label':'Preparation needs repair','detail':'The prepared file is missing or damaged. Select Prepare game to repair it. Your saves are preserved.','prepare':True,'play':False}
+        self.game_title.setText(p['title'] if len(p['title'])<26 else p['title'][:24]+'...');self.game_title.setToolTip(p['title']);self.hero.title=p['title'];self.hero.seed=p['id'];self.hero.update();self.game_kind.setText('INDEPENDENT REBUILD' if p['restoration']['path']=='rebuild' else 'ANDROID GAME'+('  /  SELF-AUTHORED FIXTURE' if p['analysis'] and p['analysis']['fixture'] else ''));self.readiness_label.setText(ready['label']);self.description.setText(ready['detail'])
         busy=bool(self.worker and self.worker.isRunning());active=self.service.active
-        self.play_button.setEnabled(bool(not busy and not active and (ready['play'] or (p['restoration'].get('artifact') and ready['label']=='Runtime setup needed'))));self.play_button.setText('Set up Android' if ready['label']=='Runtime setup needed' else 'Play');self.prepare_button.setEnabled(not busy and not active and ready['prepare']);self.stop_button.setEnabled(not busy and bool(active));self.options_button.setEnabled(not busy)
+        # Exactly one main action is visible. Preparation state lives in the saved
+        # profile, not in the current Android connection or launcher UI session.
+        playing_here=bool(active and active['game']==p['id'])
+        self.prepare_button.setVisible(bool(ready['prepare'] and not active))
+        self.play_button.setVisible(bool(ready['play'] and not active))
+        self.stop_button.setVisible(playing_here)
+        self.prepare_button.setEnabled(bool(not busy and not active and ready['prepare']))
+        self.play_button.setEnabled(bool(not busy and not active and ready['play']))
+        self.stop_button.setEnabled(bool(not busy and playing_here))
+        self.options_button.setEnabled(bool(not busy and not active))
         control=CONTROL_PROFILES.get(p.get('adapter'),{'description':'Controls are unknown until this game is investigated.'});self.controls_label.setText('Controls: A / Enter collects. B / Esc returns.' if p['restoration']['path']=='rebuild' else 'Controls: touch or trackpad.' if p.get('adapter') in {'tapquest-v1','meego-1.32'} else 'Controls need game-specific investigation.')
     def submit(self,title,operation,callback=None):
         if self.worker:return
@@ -168,6 +183,7 @@ class Window(QMainWindow):
         if self.active_page=='game' and not self.service.active:self.return_to_library()
         if self.callback:self.callback(result)
     def failed(self,message):
+        if 'prepared game file is missing or changed' in message and self.current:self.repair_games.add(self.current)
         self.message.setText(message);self.refresh()
         if self.last_job and self.last_job.get('label') in {'Start Android container','Start Android'}:QMessageBox.warning(self,'Android startup failed',message)
         if 'Preparation tools are missing' in message:self.show_setup()
@@ -175,7 +191,11 @@ class Window(QMainWindow):
             self.message.setText('Java could not start. Open Setup and choose Check / repair preparation tools, then retry Prepare.')
     def job_finished(self,owned=None):
         if owned is not None and self.worker is not owned:owned.deleteLater();return
-        self.bar.hide();self.cancel_button.hide();self.add_button.setEnabled(True);self.demo_button.setEnabled(True);self.update_details();self.worker.deleteLater();self.worker=None
+        self.bar.hide();self.cancel_button.hide();self.add_button.setEnabled(True);self.demo_button.setEnabled(True);finished=self.worker;self.worker=None
+        if finished:finished.deleteLater()
+        self.update_details()
+        if self.focus_play_after_prepare and self.play_button.isVisible() and self.play_button.isEnabled():self.play_button.setFocus()
+        self.focus_play_after_prepare=False
         if self.closing:QTimer.singleShot(0,self.close)
     def cancel(self):self.service.jobs.cancel();self.message.setText('Will cancel at the next safe stage. Finishing the current operation first.')
     def add_game(self,checked=False,apk=None):
@@ -185,16 +205,19 @@ class Window(QMainWindow):
         if not path:self.message.setText('Choose a base APK first.');return
         self.submit('Add game',lambda ctx:self.service.import_game(path,dialog.support,ctx),lambda p:(self.select(p['id']),self.refresh(),self.message.setText('Added '+p['title']+'. '+readiness(p)['detail'])))
     def demo(self):
+        self.focus_play_after_prepare=True
         resource=pathlib.Path(getattr(sys,'_MEIPASS',pathlib.Path(__file__).resolve().parents[2]))/'resources/tapquest-original.apk'
         if not resource.exists():self.message.setText('Demo APK not bundled. Build the fixture or use the packaged download.');return
         def run(ctx):
             p=self.service.import_game(resource,[],ctx);return self.service.prepare(p['id'],'rebuild',ctx)
         self.submit('Prepare independent desktop demo',run,lambda p:(self.select(p['id']),self.refresh(),self.message.setText('Desktop demo prepared. It is a separate rebuild of the fixture. Select Play.')))
     def prepare(self):
-        p=self.profile();game=p['id'];path=p.get('launcher',{}).get('preferred_path') or p['analysis']['recommended_path'];self.submit('Prepare '+p['title'],lambda ctx:self.service.prepare(game,path,ctx),lambda p:self.message.setText('Prepared. '+readiness(p,self.service.runtime_manager.last.get('ready',False))['detail']))
+        self.focus_play_after_prepare=True
+        p=self.profile();game=p['id'];path=p.get('launcher',{}).get('preferred_path') or p['analysis']['recommended_path'];self.submit('Prepare '+p['title'],lambda ctx:self.service.prepare(game,path,ctx),lambda p:(self.repair_games.discard(game),self.refresh(),self.message.setText('Prepared successfully. Select Play to launch.')))
     def play(self):
         p=self.profile()
-        if readiness(p,self.service.runtime_manager.last.get('ready',False))['label']=='Runtime setup needed':self.show_setup();return
+        # Play owns Android discovery/startup, saved APK deployment, and backend
+        # startup. Do not force the user through Setup on each application restart.
         self.submit('Play '+p['title'],lambda ctx:self.service.play(p['id'],ctx),self.open_game)
     def open_game(self,session):
         if session['kind']=='rebuild':
@@ -317,7 +340,7 @@ class Window(QMainWindow):
         box.addWidget(choice)
         box.addWidget(label('A rebuild is a separate implementation. Prefer preserving the original APK when supported.','muted',True));box.addStretch()
         def save():
-            current=self.service.store.load(p['id']);current.setdefault('launcher',{})['preferred_path']=choice.currentData();self.service.store.save(current);dialog.accept();self.message.setText('Path selected. Prepare applies it to a separate working copy.')
+            current=self.service.store.load(p['id']);current.setdefault('launcher',{})['preferred_path']=choice.currentData();self.service.store.save(current);dialog.accept();self.update_details();self.message.setText('Preparation method saved. Prepare once if this method is new.')
         bottom=QHBoxLayout();bottom.addWidget(button('Close',dialog.reject));bottom.addStretch();bottom.addWidget(button('Save options',save,'primary'));box.addLayout(bottom);dialog.exec()
     def advanced(self):
         p=self.profile();dialog=QDialog(self);dialog.resize(940,650);dialog.setWindowTitle('Advanced');box=QVBoxLayout(dialog);box.addWidget(label('Advanced: '+p['title'],'heading'));tabs=QTabWidget();box.addWidget(tabs,1)

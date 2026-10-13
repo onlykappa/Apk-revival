@@ -33,6 +33,17 @@ class Launcher:
         if not p['analysis']:ctx.step('Analyzing dependencies');p=analyze(self.store,game)
         if not p.get('adapter'):raise RevivalError('This game needs a game-specific restoration adapter. Export Diagnostics to share its evidence report.')
         path=path or p['analysis']['recommended_path']
+        # Prepare is idempotent. A valid saved artifact (or completed independent
+        # rebuild) is reused on every restart, without re-signing or touching saves.
+        previous=p.get('restoration',{})
+        if previous.get('path')==path:
+            if path=='rebuild' and p.get('rebuild',{}).get('feasibility'):
+                ctx.step('Using the already prepared rebuild');return p
+            artifact=previous.get('artifact')
+            if artifact:
+                prepared=self.store.directory(game)/artifact
+                if prepared.is_file() and digest(prepared)==previous.get('artifact_sha256'):
+                    ctx.step('Using the already prepared game');return p
         if path!='rebuild' and not health()['preparation_ready']:raise RevivalError('Preparation tools are missing. Open Setup and select Install preparation tools.')
         ctx.step('Reviewing restoration plan');Restorer(self.store).plan(game,path);p=Restorer(self.store).prepare(game,path,progress=ctx.step)
         p.setdefault('launcher',{})['prepared_at']=now();self.store.save(p)
@@ -55,6 +66,12 @@ class Launcher:
         if p['restoration']['path']=='rebuild':
             if not p['rebuild'].get('feasibility'):raise RevivalError('Prepare the rebuild first.')
             self.active={'game':game,'kind':'rebuild','started_at':now()};return self.active
+        artifact=p.get('restoration',{}).get('artifact')
+        expected=p.get('restoration',{}).get('artifact_sha256')
+        if not artifact or not expected:raise RevivalError('This game is not prepared. Choose Prepare game first.')
+        prepared=self.store.directory(game)/artifact
+        if not prepared.is_file() or digest(prepared)!=expected:
+            raise RevivalError('The prepared game file is missing or changed. Choose Prepare game to repair it. Your saves are preserved.')
         ctx.step('Connecting Android');serial=self.runtime_manager.ensure(self.settings.get('serial'));p['runtime']['serial']=serial;self.store.save(p)
         ctx.step('Checking game compatibility');runtime=self.runtime_factory(serial);runtime.compatible(p);self.android=runtime
         try:

@@ -37,8 +37,8 @@ class V2GUI(unittest.TestCase):
         QTimer.singleShot(50,fill);self.w.add_button.click();self.wait();self.assertEqual(len(self.w.cards),1);self.assertEqual(self.w.profile()['title'],'Tap Quest')
         return self.w.current
     def test_complete_add_prepare_play_save_restore_export_interface(self):
-        game=self.import_ui();self.w.prepare_button.click();self.wait();p=self.w.profile();self.assertTrue(p['restoration']['signature_verified']);self.assertEqual(self.w.readiness_label.text(),'Runtime setup needed');self.assertNotEqual(p['status'],'Verified Offline')
-        self.click_modal('Save options',lambda d:d.findChild(QComboBox).setCurrentIndex(2));self.w.options_button.click();self.w.prepare_button.click();self.wait();self.assertEqual(self.w.readiness_label.text(),'Separate rebuild ready')
+        game=self.import_ui();self.w.prepare_button.click();self.wait();p=self.w.profile();self.assertTrue(p['restoration']['signature_verified']);self.assertEqual(self.w.readiness_label.text(),'Prepared');self.assertTrue(self.w.play_button.isVisible());self.assertFalse(self.w.prepare_button.isVisible());self.assertTrue(self.w.play_button.isEnabled());self.assertNotEqual(p['status'],'Verified Offline')
+        self.click_modal('Save options',lambda d:d.findChild(QComboBox).setCurrentIndex(2));self.w.options_button.click();self.assertTrue(self.w.prepare_button.isVisible());self.assertFalse(self.w.play_button.isVisible());self.w.prepare_button.click();self.wait();self.assertEqual(self.w.readiness_label.text(),'Separate rebuild ready');self.assertTrue(self.w.play_button.isVisible());self.assertFalse(self.w.prepare_button.isVisible())
         self.w.play_button.click();self.wait();self.assertEqual(self.w.active_page,'game');QTest.mouseClick(self.w.rebuild_view.collect,Qt.MouseButton.LeftButton);self.assertEqual(self.w.rebuild_view.progress.get()['coins'],1)
         self.w.controller.dispatch('back');self.wait();self.assertEqual(self.w.active_page,'library');self.w.play_button.click();self.wait();self.assertEqual(self.w.rebuild_view.progress.get()['coins'],1);self.w.stop();self.wait()
         self.click_modal('Backup save');self.w.options_button.click();self.wait();backups=list((self.w.service.store.directory(game)/'backups').glob('*.zip'));self.assertEqual(len(backups),1)
@@ -50,8 +50,18 @@ class V2GUI(unittest.TestCase):
         with patch.object(QFileDialog,'getSaveFileName',return_value=(str(out),'ZIP')):self.w.options_button.click()
         self.wait();self.assertTrue(out.exists())
         with zipfile.ZipFile(out) as z:self.assertIn('run.py',z.namelist());self.assertFalse(any('/saves/' in n for n in z.namelist()))
+    def test_missing_prepared_client_offers_repair_not_dead_play(self):
+        game=self.import_ui();self.w.prepare_button.click();self.wait()
+        p=self.w.profile();artifact=self.w.service.store.directory(game)/p['restoration']['artifact']
+        self.assertTrue(artifact.is_file());artifact.unlink()
+        self.w.update_details();self.assertEqual(self.w.readiness_label.text(),'Preparation needs repair')
+        self.assertTrue(self.w.prepare_button.isVisible());self.assertFalse(self.w.play_button.isVisible())
+        self.w.prepare_button.click();self.wait();repaired=self.w.profile()
+        self.assertTrue((self.w.service.store.directory(game)/repaired['restoration']['artifact']).is_file())
+        self.assertTrue(self.w.play_button.isVisible());self.assertFalse(self.w.prepare_button.isVisible())
+
     def test_focus_navigation_and_controller_action(self):
-        self.import_ui();self.w.show();self.w.activateWindow();self.app.processEvents();self.w.prepare_button.setFocus();self.w.controller.dispatch('right');self.assertIsNot(self.app.focusWidget(),self.w.prepare_button)
+        self.import_ui();self.w.show();self.w.activateWindow();self.app.processEvents();self.w.prepare_button.setFocus();self.w.controller.dispatch('down');self.assertIsNot(self.app.focusWidget(),self.w.prepare_button)
         self.w.demo_button.setFocus();self.w.controller.dispatch('confirm');self.wait();self.assertEqual(self.w.profile()['restoration']['path'],'rebuild')
         self.w.play_button.setFocus();self.w.controller.dispatch('confirm');self.wait();self.w.rebuild_view.collect.setFocus();self.w.controller.dispatch('confirm');self.assertEqual(self.w.rebuild_view.progress.get()['coins'],1);self.w.controller.dispatch('back');self.wait()
     def test_fixture_demo_no_android_and_unsupported_drop(self):
