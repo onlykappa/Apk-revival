@@ -51,7 +51,7 @@ class V2GUI(unittest.TestCase):
         self.wait();self.assertTrue(out.exists())
         with zipfile.ZipFile(out) as z:self.assertIn('run.py',z.namelist());self.assertFalse(any('/saves/' in n for n in z.namelist()))
     def test_focus_navigation_and_controller_action(self):
-        self.import_ui();self.w.show();self.w.activateWindow();self.app.processEvents();self.w.prepare_button.setFocus();self.w.controller.dispatch('right');self.assertIsNot(self.app.focusWidget(),self.w.prepare_button)
+        self.import_ui();self.w.show();self.w.activateWindow();self.app.processEvents();self.w.prepare_button.setFocus();self.w.controller.dispatch('down');self.assertIsNot(self.app.focusWidget(),self.w.prepare_button)
         self.w.demo_button.setFocus();self.w.controller.dispatch('confirm');self.wait();self.assertEqual(self.w.profile()['restoration']['path'],'rebuild')
         self.w.play_button.setFocus();self.w.controller.dispatch('confirm');self.wait();self.w.rebuild_view.collect.setFocus();self.w.controller.dispatch('confirm');self.assertEqual(self.w.rebuild_view.progress.get()['coins'],1);self.w.controller.dispatch('back');self.wait()
     def test_fixture_demo_no_android_and_unsupported_drop(self):
