@@ -90,7 +90,7 @@ class GameView(QWidget):
 
 class Window(QMainWindow):
     def __init__(self,store=None,fullscreen=False):
-        super().__init__();self.service=Launcher(store or Store());self.current=None;self.worker=None;self.monitor_worker=None;self.cards=[];self.last_job=None;self.rebuild_view=None;self.active_page='library';self.closing=False
+        super().__init__();self.service=Launcher(store or Store());self.current=None;self.worker=None;self.monitor_worker=None;self.cards=[];self.last_job=None;self.rebuild_view=None;self.active_page='library';self.closing=False;self.repair_games=set()
         self.setWindowTitle('APK Revival');self.setWindowIcon(QIcon(str(brand_asset())));self.resize(1280,800);self.setMinimumSize(1000,650);self.setAcceptDrops(True)
         root=QWidget();root.setObjectName('base');self.setCentralWidget(root);outer=QVBoxLayout(root);outer.setContentsMargins(28,20,28,18);outer.setSpacing(16)
         header=QHBoxLayout();mark=QLabel();mark.setPixmap(QPixmap(str(brand_asset())).scaled(58,58,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));mark.setFixedSize(58,58);header.addWidget(mark);brand=QVBoxLayout();brand.setSpacing(1);brand.addWidget(label('APK REVIVAL','brand'));brand.addWidget(label('Mobile games. Back in play.','muted'));header.addLayout(brand);header.addStretch();from .. import __version__;header.addWidget(label('V'+__version__,'tag'))
@@ -155,7 +155,12 @@ class Window(QMainWindow):
             for w in [self.play_button,self.prepare_button,self.stop_button]:w.hide();w.setEnabled(False)
             self.options_button.setEnabled(False)
             return
-        p=self.profile();ready=readiness(p,self.service.runtime_manager.last.get('ready',False));self.game_title.setText(p['title'] if len(p['title'])<26 else p['title'][:24]+'...');self.game_title.setToolTip(p['title']);self.hero.title=p['title'];self.hero.seed=p['id'];self.hero.update();self.game_kind.setText('INDEPENDENT REBUILD' if p['restoration']['path']=='rebuild' else 'ANDROID GAME'+('  /  SELF-AUTHORED FIXTURE' if p['analysis'] and p['analysis']['fixture'] else ''));self.readiness_label.setText(ready['label']);self.description.setText(ready['detail'])
+        p=self.profile();ready=readiness(p,self.service.runtime_manager.last.get('ready',False))
+        artifact=p.get('restoration',{}).get('artifact')
+        missing=bool(artifact and not (self.service.store.directory(p['id'])/artifact).is_file())
+        if missing or p['id'] in self.repair_games:
+            ready={'label':'Preparation needs repair','detail':'The prepared file is missing or damaged. Select Prepare game to repair it. Your saves are preserved.','prepare':True,'play':False}
+        self.game_title.setText(p['title'] if len(p['title'])<26 else p['title'][:24]+'...');self.game_title.setToolTip(p['title']);self.hero.title=p['title'];self.hero.seed=p['id'];self.hero.update();self.game_kind.setText('INDEPENDENT REBUILD' if p['restoration']['path']=='rebuild' else 'ANDROID GAME'+('  /  SELF-AUTHORED FIXTURE' if p['analysis'] and p['analysis']['fixture'] else ''));self.readiness_label.setText(ready['label']);self.description.setText(ready['detail'])
         busy=bool(self.worker and self.worker.isRunning());active=self.service.active
         # Exactly one main action is visible. Preparation state lives in the saved
         # profile, not in the current Android connection or launcher UI session.
@@ -178,6 +183,7 @@ class Window(QMainWindow):
         if self.active_page=='game' and not self.service.active:self.return_to_library()
         if self.callback:self.callback(result)
     def failed(self,message):
+        if 'prepared game file is missing or changed' in message and self.current:self.repair_games.add(self.current)
         self.message.setText(message);self.refresh()
         if self.last_job and self.last_job.get('label') in {'Start Android container','Start Android'}:QMessageBox.warning(self,'Android startup failed',message)
         if 'Preparation tools are missing' in message:self.show_setup()
@@ -203,7 +209,7 @@ class Window(QMainWindow):
             p=self.service.import_game(resource,[],ctx);return self.service.prepare(p['id'],'rebuild',ctx)
         self.submit('Prepare independent desktop demo',run,lambda p:(self.select(p['id']),self.refresh(),self.message.setText('Desktop demo prepared. It is a separate rebuild of the fixture. Select Play.')))
     def prepare(self):
-        p=self.profile();game=p['id'];path=p.get('launcher',{}).get('preferred_path') or p['analysis']['recommended_path'];self.submit('Prepare '+p['title'],lambda ctx:self.service.prepare(game,path,ctx),lambda p:self.message.setText('Prepared successfully. Select Play to launch.'))
+        p=self.profile();game=p['id'];path=p.get('launcher',{}).get('preferred_path') or p['analysis']['recommended_path'];self.submit('Prepare '+p['title'],lambda ctx:self.service.prepare(game,path,ctx),lambda p:(self.repair_games.discard(game),self.refresh(),self.message.setText('Prepared successfully. Select Play to launch.')))
     def play(self):
         p=self.profile()
         # Play owns Android discovery/startup, saved APK deployment, and backend
