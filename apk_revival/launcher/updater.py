@@ -2,7 +2,7 @@
 from __future__ import annotations
 import hashlib,json,os,pathlib,posixpath,re,shutil,subprocess,sys,tarfile,tempfile,time,urllib.error,urllib.request
 from .. import __version__
-from ..util import RevivalError
+from ..util import RevivalError,external_env
 from .network import open_url
 
 REPO='onlykappa/Apk-revival'
@@ -108,7 +108,7 @@ def stage_archive(archive,progress=lambda _:None,expected_version=None):
             if not path.resolve().is_relative_to(app.resolve()):raise RevivalError('Update path escapes the application')
         exe.chmod(exe.stat().st_mode|0o111)
         # New builds provide a headless probe. No game, runtime or data directory is opened.
-        result=subprocess.run([str(exe),'--update-probe'],capture_output=True,text=True,timeout=25)
+        result=subprocess.run([str(exe),'--update-probe'],capture_output=True,text=True,timeout=25,env=external_env())
         if result.returncode:raise RevivalError('The update cannot start on this system. Your current app was not changed.')
         try:probe=json.loads(result.stdout)
         except ValueError:raise RevivalError('Invalid update compatibility report')
@@ -127,7 +127,7 @@ def restart_with_update(stage):
     if '--fullscreen' in sys.argv:args.append('--fullscreen')
     if '--data' in sys.argv:
         index=sys.argv.index('--data');args.extend(['--data',sys.argv[index+1]])
-    subprocess.Popen(args,start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    subprocess.Popen(args,start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,env=external_env())
 
 
 def apply_update(source,pid,fullscreen=False,data=None):
@@ -143,5 +143,5 @@ def apply_update(source,pid,fullscreen=False,data=None):
     args=[result['executable']]
     if fullscreen:args.append('--fullscreen')
     if data:args.extend(['--data',data])
-    subprocess.Popen(args,start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    subprocess.Popen(args,start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,env=external_env())
     return 0

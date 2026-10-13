@@ -53,6 +53,20 @@ class UpdateTests(unittest.TestCase):
             with self.subTest(members=members),tempfile.TemporaryDirectory() as home,patch('pathlib.Path.home',return_value=pathlib.Path(home)):
                 with self.assertRaises(RevivalError):stage_archive(self.archive(pathlib.Path(home),members))
                 self.assertFalse((pathlib.Path(home)/'outside').exists())
+    def test_update_probe_strips_private_libcrypto_from_inherited_loader_path(self):
+        from apk_revival.launcher.updater import stage_archive
+        from subprocess import CompletedProcess
+        with tempfile.TemporaryDirectory() as home,patch('pathlib.Path.home',return_value=pathlib.Path(home)):
+            root=pathlib.Path(home)
+            archive=self.archive(root,[('APK-Revival/APK-Revival',b'fake',None),('APK-Revival/_internal/library',b'fake',None)])
+            private='/home/deck/.cache/apk-revival/updates/old/APK-Revival/_internal'
+            variables={'LD_LIBRARY_PATH':private,'LD_LIBRARY_PATH_ORIG':private}
+            with patch.dict(os.environ,variables),patch('apk_revival.util.sys.frozen',True,create=True):
+                with patch('subprocess.run',return_value=CompletedProcess([],0,json.dumps({'version':'0.4.0','certificates':True}),'')) as process:
+                    stage_archive(archive,expected_version='0.4.0')
+            self.assertNotIn('LD_LIBRARY_PATH',process.call_args.kwargs['env'])
+            self.assertNotIn('LD_LIBRARY_PATH_ORIG',process.call_args.kwargs['env'])
+
     def test_staging_checks_version_and_keeps_installed_app(self):
         with tempfile.TemporaryDirectory() as home,patch('pathlib.Path.home',return_value=pathlib.Path(home)):
             root=pathlib.Path(home);installed=root/'.local/share/apk-revival-app';installed.mkdir(parents=True);(installed/'APK-Revival').write_text('old')

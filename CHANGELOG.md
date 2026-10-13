@@ -2,6 +2,19 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.5] - 2026-10-13
+
+### Fixed
+
+* Prevent SteamOS `systemctl`, Waydroid, ADB, Konsole and external tools from inheriting APK Revival's bundled OpenSSL and Qt library directory after automatic updates.
+* Filter private library paths even when a previous packaged launcher has already written them to `LD_LIBRARY_PATH_ORIG`. Keep ordinary original system library locations available.
+* Start update compatibility probes and relaunch processes with an isolated host environment, avoiding nested bundled library paths across future updates.
+* Added regression tests for the photographed Steam Deck `OPENSSL_3.4.0 not found` loader failure. Existing games, profiles and saves are not reset by this repair.
+
+### Verification scope
+
+* Automated checks cover inherited loader variables and external host subprocess boundaries. Real Steam Deck Android/Waydroid connection and Meego gameplay still require a device test; passing host process checks does not establish offline gameplay.
+
 ## [0.3.4] - 2026-10-13
 
 ### Improved

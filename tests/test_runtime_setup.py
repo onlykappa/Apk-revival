@@ -2,9 +2,41 @@ import os,pathlib,stat,tempfile,unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 from apk_revival.launcher.runtime_setup import RuntimeManager
-from apk_revival.util import RevivalError
+from apk_revival.util import RevivalError,external_env,command
 
 class RuntimeSetupTests(unittest.TestCase):
+    def test_frozen_runtime_strips_nested_update_private_openssl(self):
+        staged='/home/deck/.cache/apk-revival/updates/staged-abc/APK-Revival/_internal'
+        previous='/home/deck/.local/share/apk-revival-app/_internal'
+        source={
+            'LD_LIBRARY_PATH':staged+':/usr/local/lib',
+            'LD_LIBRARY_PATH_ORIG':previous+':/usr/local/lib:/opt/vendor/lib',
+            'WAYLAND_DISPLAY':'wayland-1',
+        }
+        with patch('apk_revival.util.sys.frozen',True,create=True),patch.dict(os.environ,source,clear=True):
+            env=RuntimeManager().environment()
+        self.assertEqual(env['LD_LIBRARY_PATH'],'/usr/local/lib:/opt/vendor/lib')
+        self.assertNotIn('LD_LIBRARY_PATH_ORIG',env)
+        self.assertEqual(env['WAYLAND_DISPLAY'],'wayland-1')
+
+    def test_host_command_never_inherits_packaged_libcrypto(self):
+        private='/home/deck/.cache/apk-revival/updates/staged-abc/APK-Revival/_internal'
+        with patch('apk_revival.util.sys.frozen',True,create=True),patch.dict(os.environ,{
+                'LD_LIBRARY_PATH':private,'LD_LIBRARY_PATH_ORIG':private,
+            },clear=True),patch('apk_revival.util.subprocess.run') as execute:
+            from subprocess import CompletedProcess
+            execute.return_value=CompletedProcess(['/usr/bin/systemctl'],0,'active\\n','')
+            self.assertEqual(command(['/usr/bin/systemctl','is-active','waydroid-container.service']),'active\\n')
+        env=execute.call_args.kwargs['env']
+        self.assertNotIn('LD_LIBRARY_PATH',env)
+        self.assertNotIn('LD_LIBRARY_PATH_ORIG',env)
+
+    def test_source_python_environment_remains_unchanged(self):
+        original={'LD_LIBRARY_PATH':'/opt/custom/lib','LD_LIBRARY_PATH_ORIG':'original'}
+        with patch('apk_revival.util.sys.frozen',False,create=True):
+            clean=external_env(original)
+        self.assertEqual(clean,original)
+
     def run_command(self,args,**kwargs):
         if args[-1]=='status':return 'Session:        STOPPED\nVendor type:    MAINLINE\n'
         if '--property=ActiveState' in args:return 'active\n'
