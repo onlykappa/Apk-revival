@@ -5,6 +5,36 @@ from apk_revival.launcher.runtime_setup import RuntimeManager
 from apk_revival.util import RevivalError,external_env,command
 
 class RuntimeSetupTests(unittest.TestCase):
+    def test_frozen_runtime_does_not_inject_app_qt_plugins_into_konsole(self):
+        internal='/home/deck/.local/share/apk-revival-app/_internal'
+        qt=internal+'/PySide6/Qt/plugins'
+        source={
+            'LD_LIBRARY_PATH':internal,
+            'QT_QPA_PLATFORM_PLUGIN_PATH':qt+'/platforms',
+            'QT_PLUGIN_PATH':qt+':/usr/lib/qt6/plugins',
+            'QT_QPA_FONTDIR':internal+'/PySide6/Qt/lib/fonts',
+            'QML2_IMPORT_PATH':internal+'/PySide6/Qt/qml',
+            'QTWEBENGINEPROCESS_PATH':internal+'/PySide6/Qt/libexec/QtWebEngineProcess',
+            'QT_QPA_PLATFORM':'offscreen',
+            'WAYLAND_DISPLAY':'wayland-1',
+            'DISPLAY':':0',
+        }
+        with patch('apk_revival.util.sys.frozen',True,create=True),patch.dict(os.environ,source,clear=True):
+            env=RuntimeManager().environment()
+        for key in ('QT_QPA_PLATFORM_PLUGIN_PATH','QT_QPA_FONTDIR',
+                    'QML2_IMPORT_PATH','QTWEBENGINEPROCESS_PATH',
+                    'QT_QPA_PLATFORM','LD_LIBRARY_PATH'):
+            self.assertNotIn(key,env)
+        self.assertEqual(env['QT_PLUGIN_PATH'],'/usr/lib/qt6/plugins')
+        self.assertEqual(env['WAYLAND_DISPLAY'],'wayland-1')
+        self.assertEqual(env['DISPLAY'],':0')
+
+    def test_source_development_keeps_qt_environment(self):
+        original={'QT_QPA_PLATFORM_PLUGIN_PATH':'/tmp/custom/qt',
+                  'QT_QPA_PLATFORM':'offscreen'}
+        with patch('apk_revival.util.sys.frozen',False,create=True):
+            self.assertEqual(external_env(original),original)
+
     def test_frozen_runtime_strips_nested_update_private_openssl(self):
         staged='/home/deck/.cache/apk-revival/updates/staged-abc/APK-Revival/_internal'
         previous='/home/deck/.local/share/apk-revival-app/_internal'
@@ -37,6 +67,26 @@ class RuntimeSetupTests(unittest.TestCase):
             clean=external_env(original)
         self.assertEqual(clean,original)
 
+    def test_frozen_host_konsole_does_not_inherit_private_qt_plugins(self):
+        private='/home/deck/.local/share/apk-revival-app/_internal/PySide6/Qt/plugins'
+        previous='/home/deck/.cache/apk-revival/updates/staged-x/APK-Revival/_internal/PySide6/Qt/qml'
+        source={'QT_QPA_PLATFORM_PLUGIN_PATH':private,
+                'QT_PLUGIN_PATH':private+':/usr/lib/qt6/plugins',
+                'QML2_IMPORT_PATH':previous,
+                'QT_QPA_FONTDIR':private,
+                'QT_QPA_PLATFORM':'offscreen',
+                'WAYLAND_DISPLAY':'wayland-1',
+                'DISPLAY':':0'}
+        with patch('apk_revival.util.sys.frozen',True,create=True),patch.dict(os.environ,source,clear=True):
+            env=RuntimeManager().environment()
+        self.assertNotIn('QT_QPA_PLATFORM_PLUGIN_PATH',env)
+        self.assertNotIn('QML2_IMPORT_PATH',env)
+        self.assertNotIn('QT_QPA_FONTDIR',env)
+        self.assertNotIn('QT_QPA_PLATFORM',env)
+        self.assertEqual(env['QT_PLUGIN_PATH'],'/usr/lib/qt6/plugins')
+        self.assertEqual(env['WAYLAND_DISPLAY'],'wayland-1')
+        self.assertEqual(env['DISPLAY'],':0')
+
     def run_command(self,args,**kwargs):
         if args[-1]=='status':return 'Session:        STOPPED\nVendor type:    MAINLINE\n'
         if '--property=ActiveState' in args:return 'active\n'
@@ -55,6 +105,17 @@ class RuntimeSetupTests(unittest.TestCase):
         with patch('apk_revival.launcher.runtime_setup.tool',side_effect=lambda n:'/usr/bin/'+n),patch('apk_revival.launcher.runtime_setup.command') as call:manager.start_container_authorized()
         self.assertEqual(call.call_args.args[0],['/usr/bin/konsole','--separate','-e','/usr/bin/sudo','/usr/bin/systemctl','start','waydroid-container.service'])
         self.assertIn('started',manager.last_start_note)
+    def test_failed_konsole_reports_manual_recovery_without_modifying_container(self):
+        manager=RuntimeManager()
+        manager.discover=lambda **kw:{'steam_os':True,'service':'inactive','container':'unknown'}
+        with patch('apk_revival.launcher.runtime_setup.tool',side_effect=lambda n:'/usr/bin/'+n),patch(
+            'apk_revival.launcher.runtime_setup.command',side_effect=RevivalError('/usr/bin/konsole failed (-6)')
+        ) as cmd:
+            with self.assertRaisesRegex(RevivalError,'sudo systemctl start waydroid-container.service'):
+                manager.start_container_authorized()
+        cmd.assert_called_once()
+        self.assertIn('konsole',cmd.call_args.args[0][0])
+
     def test_failed_authorization_does_not_report_success(self):
         manager=RuntimeManager();manager.discover=lambda **kw:{'steam_os':False,'service':'inactive','container':'unknown'}
         with patch('apk_revival.launcher.runtime_setup.tool',side_effect=lambda n:n),patch('apk_revival.launcher.runtime_setup.command'):

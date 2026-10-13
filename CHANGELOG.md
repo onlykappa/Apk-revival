@@ -2,6 +2,18 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.6] - 2026-10-13
+
+### Fixed
+
+* Isolate external SteamOS graphical processes, especially Konsole, from APK Revival's bundled PySide6 Qt plugin, font, QML and headless platform environment. Prevent Qt launcher aborts when Start Container requests administrator authorization.
+* Preserve normal host Wayland/display configuration and system Qt search paths while removing packaged internal plugin locations.
+* Add a focused automated regression test for Konsole's environment after a frozen APK Revival launch.
+
+### Verification scope
+
+* Automated unit and native Qt packaging tests cover environment isolation. Physical Steam Deck Android/Waydroid authorization and Meego gameplay remain unverified pending a device test.
+
 ## [0.3.5] - 2026-10-13
 
 ### Fixed

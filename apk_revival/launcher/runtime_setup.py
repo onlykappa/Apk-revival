@@ -114,7 +114,18 @@ class RuntimeManager:
             except RevivalError:terminal=None
         else:terminal=None
         if terminal:
-            command([terminal,'--separate','-e',sudo,tool('systemctl'),'start','waydroid-container.service'],timeout=120,env=self.environment())
+            try:
+                command([terminal,'--separate','-e',sudo,tool('systemctl'),'start','waydroid-container.service'],timeout=120,env=self.environment())
+            except RevivalError as error:
+                # A failed GUI terminal is not an unsuccessful Waydroid install.
+                # Provide a recoverable manual command rather than deleting or
+                # resetting any guest/container files.
+                raise RevivalError(
+                    'SteamOS Konsole could not open from APK Revival. Open Konsole '
+                    'from the SteamOS desktop and run: sudo systemctl start '
+                    'waydroid-container.service. Then return here and select '
+                    'Check again. Terminal detail: '+str(error)
+                ) from error
         else:
             command([tool('pkexec'),tool('systemctl'),'start','waydroid-container.service'],timeout=90,env=self.environment())
         info=self.discover()
