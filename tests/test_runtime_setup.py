@@ -5,6 +5,36 @@ from apk_revival.launcher.runtime_setup import RuntimeManager
 from apk_revival.util import RevivalError,external_env,command
 
 class RuntimeSetupTests(unittest.TestCase):
+    def test_frozen_runtime_does_not_inject_app_qt_plugins_into_konsole(self):
+        internal='/home/deck/.local/share/apk-revival-app/_internal'
+        qt=internal+'/PySide6/Qt/plugins'
+        source={
+            'LD_LIBRARY_PATH':internal,
+            'QT_QPA_PLATFORM_PLUGIN_PATH':qt+'/platforms',
+            'QT_PLUGIN_PATH':qt+':/usr/lib/qt6/plugins',
+            'QT_QPA_FONTDIR':internal+'/PySide6/Qt/lib/fonts',
+            'QML2_IMPORT_PATH':internal+'/PySide6/Qt/qml',
+            'QTWEBENGINEPROCESS_PATH':internal+'/PySide6/Qt/libexec/QtWebEngineProcess',
+            'QT_QPA_PLATFORM':'offscreen',
+            'WAYLAND_DISPLAY':'wayland-1',
+            'DISPLAY':':0',
+        }
+        with patch('apk_revival.util.sys.frozen',True,create=True),patch.dict(os.environ,source,clear=True):
+            env=RuntimeManager().environment()
+        for key in ('QT_QPA_PLATFORM_PLUGIN_PATH','QT_QPA_FONTDIR',
+                    'QML2_IMPORT_PATH','QTWEBENGINEPROCESS_PATH',
+                    'QT_QPA_PLATFORM','LD_LIBRARY_PATH'):
+            self.assertNotIn(key,env)
+        self.assertEqual(env['QT_PLUGIN_PATH'],'/usr/lib/qt6/plugins')
+        self.assertEqual(env['WAYLAND_DISPLAY'],'wayland-1')
+        self.assertEqual(env['DISPLAY'],':0')
+
+    def test_source_development_keeps_qt_environment(self):
+        original={'QT_QPA_PLATFORM_PLUGIN_PATH':'/tmp/custom/qt',
+                  'QT_QPA_PLATFORM':'offscreen'}
+        with patch('apk_revival.util.sys.frozen',False,create=True):
+            self.assertEqual(external_env(original),original)
+
     def test_frozen_runtime_strips_nested_update_private_openssl(self):
         staged='/home/deck/.cache/apk-revival/updates/staged-abc/APK-Revival/_internal'
         previous='/home/deck/.local/share/apk-revival-app/_internal'
