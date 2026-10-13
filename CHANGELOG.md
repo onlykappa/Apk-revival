@@ -2,6 +2,19 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.4] - 2026-10-13
+
+### Improved
+
+* Streamlined the library around one main action: **Prepare game** before preparing, **Play** after preparing, and **Stop game** while the selected game runs. Preparation completion switches the button automatically and focuses Play for controller use.
+* Existing preparation survives app and Steam Deck restarts. Play attempts Android connection, existing-client deployment and local-backend startup as needed. Android containers that require administrator privileges still need the explicit Setup path.
+* Repeated preparation reuses a hash-matched prepared artifact or finished independent rebuild, preserving game data and signing configuration.
+* Missing or corrupted prepared files return the game to an explicit repair action; changes to the preferred preparation method require preparation of the new method.
+
+### Verification scope
+
+* Service and native Qt tests cover button transitions, saved preparation state, altered paths and artifact-integrity rejection. Steam Deck Waydroid gameplay and unfinished Meego mechanics are not newly certified by this launcher update.
+
 ## [0.3.3] - 2026-10-12
 
 ### Fixed
