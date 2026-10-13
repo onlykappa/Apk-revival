@@ -37,6 +37,26 @@ class RuntimeSetupTests(unittest.TestCase):
             clean=external_env(original)
         self.assertEqual(clean,original)
 
+    def test_frozen_host_konsole_does_not_inherit_private_qt_plugins(self):
+        private='/home/deck/.local/share/apk-revival-app/_internal/PySide6/Qt/plugins'
+        previous='/home/deck/.cache/apk-revival/updates/staged-x/APK-Revival/_internal/PySide6/Qt/qml'
+        source={'QT_QPA_PLATFORM_PLUGIN_PATH':private,
+                'QT_PLUGIN_PATH':private+':/usr/lib/qt6/plugins',
+                'QML2_IMPORT_PATH':previous,
+                'QT_QPA_FONTDIR':private,
+                'QT_QPA_PLATFORM':'offscreen',
+                'WAYLAND_DISPLAY':'wayland-1',
+                'DISPLAY':':0'}
+        with patch('apk_revival.util.sys.frozen',True,create=True),patch.dict(os.environ,source,clear=True):
+            env=RuntimeManager().environment()
+        self.assertNotIn('QT_QPA_PLATFORM_PLUGIN_PATH',env)
+        self.assertNotIn('QML2_IMPORT_PATH',env)
+        self.assertNotIn('QT_QPA_FONTDIR',env)
+        self.assertNotIn('QT_QPA_PLATFORM',env)
+        self.assertEqual(env['QT_PLUGIN_PATH'],'/usr/lib/qt6/plugins')
+        self.assertEqual(env['WAYLAND_DISPLAY'],'wayland-1')
+        self.assertEqual(env['DISPLAY'],':0')
+
     def run_command(self,args,**kwargs):
         if args[-1]=='status':return 'Session:        STOPPED\nVendor type:    MAINLINE\n'
         if '--property=ActiveState' in args:return 'active\n'
