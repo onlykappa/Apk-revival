@@ -9,7 +9,7 @@
   <a href="docs/INSTALL_V2.md">Steam Deck setup</a>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.3.6-9fe5c4?labelColor=16242b" alt="Version 0.3.6" />
+  <img src="https://img.shields.io/badge/version-0.3.7-9fe5c4?labelColor=16242b" alt="Version 0.3.7" />
   <img src="https://img.shields.io/badge/Linux-x86__64-9fe5c4?labelColor=16242b" alt="Linux x86_64" />
   <img src="https://img.shields.io/badge/status-preview-efce7d?labelColor=16242b" alt="Preview, hardware unverified" />
   <img src="https://img.shields.io/badge/license-MIT-9fe5c4?labelColor=16242b" alt="MIT source license" />
@@ -17,7 +17,7 @@
 
 ![APK Revival V2 library, captured from the running application](docs/images/library.png)
 
-A small local Android-game launcher for Linux and Steam Deck: **Add Game → Prepare once → Play anytime**. Once a game is prepared, its main button becomes Play automatically and stays that way after restarting the launcher. Play reconnects to Android when available and starts the matching local service, without redoing preparation. If Android itself is stopped and requires administrator permission, Setup explains the recovery. V2 provides a native fullscreen library, setup, background preparation, launch management, saves and exports around the V1 restoration engine.
+A small local Android-game launcher for Linux and Steam Deck: **Add Game → Prepare once → Play anytime**. On the SteamOS Waydroid Bundle, Play can launch the existing persistent Android image and reconnect ADB automatically when needed. Once a game is prepared, its main button becomes Play automatically and stays that way after restarting the launcher. Play reconnects to Android when available and starts the matching local service, without redoing preparation. If Android itself is stopped and requires administrator permission, Setup explains the recovery. V2 provides a native fullscreen library, setup, background preparation, launch management, saves and exports around the V1 restoration engine.
 
 ## Open the app
 
