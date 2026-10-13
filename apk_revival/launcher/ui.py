@@ -90,7 +90,7 @@ class GameView(QWidget):
 
 class Window(QMainWindow):
     def __init__(self,store=None,fullscreen=False):
-        super().__init__();self.service=Launcher(store or Store());self.current=None;self.worker=None;self.monitor_worker=None;self.cards=[];self.last_job=None;self.rebuild_view=None;self.active_page='library';self.closing=False;self.repair_games=set()
+        super().__init__();self.service=Launcher(store or Store());self.current=None;self.worker=None;self.monitor_worker=None;self.cards=[];self.last_job=None;self.rebuild_view=None;self.active_page='library';self.closing=False;self.repair_games=set();self.focus_play_after_prepare=False
         self.setWindowTitle('APK Revival');self.setWindowIcon(QIcon(str(brand_asset())));self.resize(1280,800);self.setMinimumSize(1000,650);self.setAcceptDrops(True)
         root=QWidget();root.setObjectName('base');self.setCentralWidget(root);outer=QVBoxLayout(root);outer.setContentsMargins(28,20,28,18);outer.setSpacing(16)
         header=QHBoxLayout();mark=QLabel();mark.setPixmap(QPixmap(str(brand_asset())).scaled(58,58,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));mark.setFixedSize(58,58);header.addWidget(mark);brand=QVBoxLayout();brand.setSpacing(1);brand.addWidget(label('APK REVIVAL','brand'));brand.addWidget(label('Mobile games. Back in play.','muted'));header.addLayout(brand);header.addStretch();from .. import __version__;header.addWidget(label('V'+__version__,'tag'))
@@ -194,6 +194,8 @@ class Window(QMainWindow):
         self.bar.hide();self.cancel_button.hide();self.add_button.setEnabled(True);self.demo_button.setEnabled(True);finished=self.worker;self.worker=None
         if finished:finished.deleteLater()
         self.update_details()
+        if self.focus_play_after_prepare and self.play_button.isVisible() and self.play_button.isEnabled():self.play_button.setFocus()
+        self.focus_play_after_prepare=False
         if self.closing:QTimer.singleShot(0,self.close)
     def cancel(self):self.service.jobs.cancel();self.message.setText('Will cancel at the next safe stage. Finishing the current operation first.')
     def add_game(self,checked=False,apk=None):
@@ -203,12 +205,14 @@ class Window(QMainWindow):
         if not path:self.message.setText('Choose a base APK first.');return
         self.submit('Add game',lambda ctx:self.service.import_game(path,dialog.support,ctx),lambda p:(self.select(p['id']),self.refresh(),self.message.setText('Added '+p['title']+'. '+readiness(p)['detail'])))
     def demo(self):
+        self.focus_play_after_prepare=True
         resource=pathlib.Path(getattr(sys,'_MEIPASS',pathlib.Path(__file__).resolve().parents[2]))/'resources/tapquest-original.apk'
         if not resource.exists():self.message.setText('Demo APK not bundled. Build the fixture or use the packaged download.');return
         def run(ctx):
             p=self.service.import_game(resource,[],ctx);return self.service.prepare(p['id'],'rebuild',ctx)
         self.submit('Prepare independent desktop demo',run,lambda p:(self.select(p['id']),self.refresh(),self.message.setText('Desktop demo prepared. It is a separate rebuild of the fixture. Select Play.')))
     def prepare(self):
+        self.focus_play_after_prepare=True
         p=self.profile();game=p['id'];path=p.get('launcher',{}).get('preferred_path') or p['analysis']['recommended_path'];self.submit('Prepare '+p['title'],lambda ctx:self.service.prepare(game,path,ctx),lambda p:(self.repair_games.discard(game),self.refresh(),self.message.setText('Prepared successfully. Select Play to launch.')))
     def play(self):
         p=self.profile()
