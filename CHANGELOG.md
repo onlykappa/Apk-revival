@@ -2,6 +2,20 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.7] - 2026-10-13
+
+### Improved
+
+* On Steam Deck installations using the SteamOS Waydroid Bundle, the Play and Start Android actions recognize `~/Android_Waydroid/waydroid.img` and its existing Cage launcher. They start the main-profile launcher when its Android session is stopped, rather than trying the generic uninitialized host session.
+* The bundled ADB tool reconnects to the guest's reported IP automatically, and Play waits for that connection before deploying and starting the previously prepared client and local backend. No new preparation or data reset is performed.
+* Reuse a running Android guest without launching a second Cage session. If administrator authentication is necessary, use an interactive SteamOS Konsole prompt. Otherwise use a valid cached sudo authorization for streamlined startup.
+* Setup now explains bundle-aware Play and routes Start Container through the existing-image launcher when present.
+* Added tests for first launch, automatic reconnection, cached vs interactive authentication, and avoiding duplicate sessions.
+
+### Verification scope
+
+* Automated unit and native Qt tests check the Play orchestration and SteamOS Android startup boundaries. Steam Deck device-specific Cage/sudo behavior and Meego gameplay still require live verification; an ADB connection is not proof of offline gameplay.
+
 ## [0.3.6] - 2026-10-13
 
 ### Fixed
