@@ -1,6 +1,6 @@
 APK REVIVAL V2: START HERE
 
-1. Download from GitHub Releases, then extract APK-Revival-0.3.2-linux-x86_64.tar.gz in Steam Deck Desktop Mode.
+1. Download from GitHub Releases, then extract APK-Revival-0.3.3-linux-x86_64.tar.gz in Steam Deck Desktop Mode.
 2. Open the extracted APK-Revival folder and double-click APK-Revival.
 3. Select Setup > Install desktop shortcut to install it in your home folder.
 4. Open APK Revival from the application menu. Add an APK, Prepare, then Play.
@@ -82,3 +82,18 @@ download because older versions do not yet contain the updater.
 HTTPS CERTIFICATES
 Portable CA certificates are included. HTTPS verification stays enabled. If
 verification still fails, check your Deck clock and captive network sign-in.
+
+ANDROID STARTUP
+Start container now checks the system service independently from the Android
+user session. On SteamOS it opens Konsole for your administrator password
+when the service needs starting. If the service already runs, it tells you
+to use Start Android. An empty selector means ADB is not connected yet.
+Start Android reuses an existing same-user Wayland socket, or starts an
+already-installed Weston on an X11 desktop. It does not install a compositor
+or modify system packages. Failed startup and connection details are shown.
+
+If Android is listed as unauthorized, choose Open Android, approve Allow USB
+debugging and Always allow from this computer, then Check again. Backend
+health requests are generated inside Android, avoiding the ADB stdin behavior
+observed in the Deck diagnostic. A passing transport check is not gameplay
+verification.

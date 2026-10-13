@@ -78,10 +78,16 @@ class WaydroidRuntime:
         except Exception:
             self.stop_backend();raise
     def probe_backend(self):
-        port=self.backend.port
-        request='GET /health HTTP/1.0\r\nHost: localhost\r\n\r\n'
-        response=self.adb('shell',f'toybox nc -w 3 127.0.0.1 {port}',input=request,timeout=10)
-        if self.backend.token not in response:raise RevivalError('Android-to-host backend probe failed. Install a guest toybox nc, check adb reverse, and retry. Host localhost is not assumed to be guest localhost.')
+        port=int(self.backend.port)
+        if not 1<=port<=65535:raise RevivalError('Invalid local backend port')
+        request='GET /health HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n'
+        # Build bytes inside the guest. ADB stdin EOF can drop a piped request
+        # before netcat sends it on the tested Waydroid/Toybox combination.
+        # Keep the producer alive briefly so nc receives the complete request.
+        script="(printf '%s' "+shlex.quote(request)+f"; toybox sleep 1) | toybox nc -w 3 -q 2 127.0.0.1 {port}"
+        response=self.adb('shell','-T',script,timeout=10)
+        if not response.strip():raise RevivalError('Android-to-host backend probe failed: Android returned no HTTP response. Check the local service and ADB reverse connection, then retry Play.')
+        if self.backend.token not in response:raise RevivalError('Android-to-host backend probe failed: the HTTP reply did not identify this local service. Stop any conflicting service and retry Play.')
         return response
     def stop_backend(self):
         if self.forward_port:
@@ -159,3 +165,4 @@ class OfflineGuard:
             except RevivalError as e:errors.append(str(e))
         self.attached=[];self.created=[]
         if errors:raise RevivalError('Guest firewall cleanup failed. Run recovery commands from docs/VERIFICATION.md. Chain: '+self.chain+'; '+'; '.join(errors))
+

@@ -35,3 +35,22 @@ class RuntimeGuardTests(unittest.TestCase):
         with patch.object(r,'adb',return_value='HTTP/1.0 200 OK\n{"token":"wrong-instance"}'):
             with self.assertRaisesRegex(RevivalError,'probe failed'):r.probe_backend()
         with patch.object(r,'adb',return_value='HTTP/1.0 200 OK\n{"token":"fresh-unique-nonce"}'):self.assertIn('fresh-unique-nonce',r.probe_backend())
+
+
+class GuestHTTPProbeTests(unittest.TestCase):
+    def test_request_is_generated_inside_guest_not_adb_stdin(self):
+        import shlex
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        runtime=WaydroidRuntime('explicit-guest');runtime.backend=SimpleNamespace(port=12345,token='fresh-unique-nonce')
+        with patch.object(runtime,'adb',return_value='HTTP/1.0 200 OK\n{\"token\":\"fresh-unique-nonce\"}') as adb:
+            runtime.probe_backend()
+        self.assertEqual(adb.call_args.args[:2],('shell','-T'));self.assertNotIn('input',adb.call_args.kwargs)
+        script=adb.call_args.args[2];self.assertIn('toybox sleep 1',script);self.assertIn('-q 2',script)
+        parts=shlex.split(script);self.assertTrue(any('GET /health HTTP/1.0\r\n' in part for part in parts))
+    def test_empty_response_identifies_failed_http_stage(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        runtime=WaydroidRuntime('explicit-guest');runtime.backend=SimpleNamespace(port=12345,token='fresh-unique-nonce')
+        with patch.object(runtime,'adb',return_value=''):
+            with self.assertRaisesRegex(RevivalError,'no HTTP response'):runtime.probe_backend()

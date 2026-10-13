@@ -2,6 +2,21 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.3] - 2026-10-12
+
+### Fixed
+
+* Generate the HTTP health request inside Android and wait for the reply. A real Deck diagnostic received no response through ADB stdin but returned HTTP 200 and the expected nonce through the guest-generated request. This verifies diagnostic transport, not Meego gameplay.
+* Add Open Android and explicit ADB authorization instructions for unauthorized guests.
+* Query the Waydroid container service independently of user-session status; omitted status fields no longer falsely block session startup.
+* Start container opens a visible Konsole/sudo prompt on SteamOS when available, checks actual service state and explains the next step. Failed starts show a dialog.
+* Empty device lists state that Android is not connected. Connection errors and guest IP are visible rather than discarded.
+* Discover an existing same-user Wayland socket. On X11, Start Android can use an already-installed Weston for an owned nested display, without installing packages. Session startup errors are captured.
+
+### Verification scope
+
+Container/session discovery, terminal authorization routing, failure reporting, socket selection and empty-device UI are tested at process boundaries. Actual Steam Deck service startup and Android gameplay require device testing.
+
 ## [0.3.2] - 2026-10-12
 
 ### Fixed

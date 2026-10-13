@@ -116,7 +116,7 @@ class Window(QMainWindow):
         page=QWidget();page.setObjectName('grid_host');box=QVBoxLayout(page);box.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize);box.setSpacing(16);box.setContentsMargins(8,0,14,16);row=QHBoxLayout();row.addWidget(button('Back',self.back));row.addStretch();box.addLayout(row);box.addWidget(label('Make it ready to play','heading'));box.addWidget(label('Preparation tools and the Android environment are managed separately.','muted',True))
         tools_panel=QFrame();tools_panel.setObjectName('panel');tb=QVBoxLayout(tools_panel);tb.setContentsMargins(24,20,24,20);tb.addWidget(label('1   Preparation tools','readiness'));self.tools_label=label('Checking tools...','muted',True);tb.addWidget(self.tools_label);self.install_tools_button=button('Install preparation tools',self.install_tools,'primary');tb.addWidget(self.install_tools_button);box.addWidget(tools_panel)
         android_panel=QFrame();android_panel.setObjectName('panel');ab=QVBoxLayout(android_panel);ab.setContentsMargins(24,20,24,20);ab.addWidget(label('2   Android environment','readiness'));self.runtime_label=label('Check for an existing Waydroid installation.','muted',True);ab.addWidget(self.runtime_label);self.devices=QComboBox();self.devices.setAccessibleName('Android device');self.devices.currentIndexChanged.connect(self.device_selected);ab.addWidget(self.devices)
-        controls=QGridLayout();controls.setSpacing(12);controls.addWidget(button('Check again',self.check_runtime),0,0);controls.addWidget(button('Start Android',self.start_android),0,1);controls.addWidget(button('Start container',self.start_container),1,0);controls.addWidget(button('Installation guide',self.installation_guide,'quiet'),1,1);ab.addLayout(controls)
+        controls=QGridLayout();controls.setSpacing(12);controls.addWidget(button('Check again',self.check_runtime),0,0);controls.addWidget(button('Start Android',self.start_android),0,1);controls.addWidget(button('Start container',self.start_container),1,0);controls.addWidget(button('Installation guide',self.installation_guide,'quiet'),1,1);controls.addWidget(button('Open Android',self.open_android_ui),2,0,1,2);ab.addLayout(controls)
         manual=QHBoxLayout();self.address=QLineEdit();self.address.setPlaceholderText('Optional: Android guest IP');manual.addWidget(self.address);manual.addWidget(button('Connect',self.manual_connect));ab.addLayout(manual);box.addWidget(android_panel)
         from .updater import Updater
         self.updater=Updater();self.pending_update=None
@@ -169,6 +169,7 @@ class Window(QMainWindow):
         if self.callback:self.callback(result)
     def failed(self,message):
         self.message.setText(message);self.refresh()
+        if self.last_job and self.last_job.get('label') in {'Start Android container','Start Android'}:QMessageBox.warning(self,'Android startup failed',message)
         if 'Preparation tools are missing' in message:self.show_setup()
         elif 'java: not found' in message or 'Missing tool:' in message and 'java' in message:
             self.message.setText('Java could not start. Open Setup and choose Check / repair preparation tools, then retry Prepare.')
@@ -215,7 +216,7 @@ class Window(QMainWindow):
         if self.worker:return
         self.submit('Check Android setup',lambda ctx:(ctx.step('Checking Android setup'),self.service.runtime_manager.discover())[1],self.runtime_result)
     def runtime_result(self,info):
-        self.devices.blockSignals(True);self.devices.clear();self.devices.addItem('Choose an Android environment',None)
+        self.devices.blockSignals(True);self.devices.clear();self.devices.addItem('Choose an Android environment' if info['devices'] else 'No Android device connected yet',None)
         for device in info['devices']:
             self.devices.addItem(device['serial']+'  ('+device['state']+')',device['serial'] if device['state']=='device' else None)
         ready=[d for d in info['devices'] if d['state']=='device'];preferred=self.service.settings.get('serial')
@@ -223,8 +224,13 @@ class Window(QMainWindow):
         index=self.devices.findData(preferred)
         if index>=0:self.devices.setCurrentIndex(index)
         self.devices.blockSignals(False)
+        self.devices.setEnabled(bool(ready))
         self.runtime_label.setText('Android connected. Select the intended environment.' if ready else 'Waydroid is installed, but Android is not connected. Start Android or check its container.' if info['waydroid'] else 'Waydroid is not installed. Open the installation guide, then return and select Check again. The desktop demo works without Android.')
-        self.connection_label.setText('Android: connected' if ready else 'Android: setup needed');self.message.setText('Setup check complete.');self.update_details()
+        self.connection_label.setText('Android: connected' if ready else 'Android: setup needed')
+        if not ready and info.get('service')=='active':self.runtime_label.setText('Container service is running. Start Android to boot the user session, then Check again.')
+        if not ready and info.get('session')=='RUNNING':self.runtime_label.setText('Android session is running, but ADB is not connected. '+('Guest IP: '+str(info['ip'])+'. Use Connect below. ' if info.get('ip') else '')+'Check the connection details below.')
+        if not ready and any(d['state']=='unauthorized' for d in info['devices']):self.runtime_label.setText('Authorization needed. Choose Open Android and approve Allow USB debugging. Select Always allow from this computer, then Check again.')
+        self.message.setText(self.service.runtime_manager.last_start_note or ('; '.join(info.get('errors',[])[-2:]) if not ready and info.get('errors') else 'Setup check complete.'));self.service.runtime_manager.last_start_note=None;self.update_details()
     def install_shortcut(self):
         if not getattr(sys,'frozen',False):
             self.message.setText('Desktop installation is available in the packaged Linux download.');return
@@ -272,11 +278,13 @@ class Window(QMainWindow):
     def install_tools(self):
         answer=QMessageBox.question(self,'Install preparation tools','Download Android SDK tools, apktool and Java when needed into your user cache? No administrator access is required. Upstream licenses apply. The operation needs internet access during setup.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
         if answer==QMessageBox.StandardButton.Yes:self.submit('Install preparation tools',lambda ctx:tools_setup.install(ctx.step),lambda _:self.update_tools())
+    def open_android_ui(self):
+        self.submit('Open Android',lambda ctx:(ctx.step('Opening the Android desktop'),self.service.runtime_manager.open_android_ui())[1],self.runtime_result)
     def start_android(self):
         def run(ctx):ctx.step('Starting the Android session');self.service.runtime_manager.ensure(self.service.settings.get('serial'));return self.service.runtime_manager.last
         self.submit('Start Android',run,self.runtime_result)
     def start_container(self):
-        answer=QMessageBox.question(self,'Start Waydroid container','This starts the existing waydroid-container.service using administrator authorization. It does not install packages or change SteamOS protections. Continue?',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+        answer=QMessageBox.question(self,'Start Waydroid container','This starts the existing waydroid-container.service using administrator authorization. On SteamOS, a Konsole password prompt may open. Enter your Deck administrator password there. This starts the service only; it does not install packages or change SteamOS protections. Continue?',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
         if answer==QMessageBox.StandardButton.Yes:self.submit('Start Android container',lambda ctx:(ctx.step('Starting the existing Android container'),self.service.runtime_manager.start_container_authorized())[1],self.runtime_result)
     def installation_guide(self):QDesktopServices.openUrl(QUrl('https://docs.waydro.id/usage/install-on-desktops' if not self.service.runtime_manager.last.get('steam_os') else 'https://github.com/pjohno/steamos-waydroid-bundle'))
     def manual_connect(self):
