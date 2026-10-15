@@ -43,6 +43,37 @@ class CoreIntegrationTests(unittest.TestCase):
         self.assertEqual(packet['game_state']['all_villagers'], self.data['game_state']['all_villagers'])
         self.assertEqual(self.data, before)
 
+    def test_death_resurrection_and_restart_retain_identity_and_inventory(self):
+        data = copy.deepcopy(self.data)
+        person = data['game_state']['all_villagers']['1']
+        person['deathday'] = self.now + 10
+        person['items'] = {'359': {'item_id': 359, 'count': 1}}
+        before = copy.deepcopy(person)
+        data = sim.advance(data, self.now + 11)
+        self.assertEqual(data['game_state']['all_villagers']['1']['job']['job_id'], 6)
+        data = sim.mutate(data, 'game/village/confirm_dead_villager', params(villager_id=1), self.now + 12)
+        person = data['game_state']['all_villagers']['1']
+        self.assertEqual(person['job']['job_id'], 0)
+        self.assertGreater(person['deathday'], self.now + 12)
+        self.assertEqual(person['items'], before['items'])
+        self.assertEqual(person['name'], before['name'])
+        restored = sim.advance(json.loads(json.dumps(data)), self.now + 13)
+        self.assertEqual(restored['game_state']['all_villagers']['1']['job']['job_id'], 0)
+
+    def test_original_turtle_topper_zero_cost_purchase_is_capped_and_preserves_balances(self):
+        before = copy.deepcopy(self.data)
+        data = sim.mutate(self.data, 'game/purchase/buy_item', params(item_id=371, count=1, use_points='false'), self.now)
+        self.assertEqual(data['game_state']['items']['371']['count'], 1)
+        self.assertEqual(data['game_state']['resources'], before['game_state']['resources'])
+        self.assertEqual(data['game_state']['points'], before['game_state']['points'])
+        self.assertEqual(self.data, before)
+        with self.assertRaises(g.ActionError):
+            sim.mutate(data, 'game/purchase/buy_item', params(item_id=371, count=1, use_points='false'), self.now + 1)
+        bad_rules = copy.deepcopy(g.RULES)
+        del bad_rules['items']['371']['cost']
+        with patch.object(g, 'RULES', bad_rules), self.assertRaises(g.ActionError):
+            sim.mutate(self.data, 'game/purchase/buy_item', params(item_id=371, count=1, use_points='false'), self.now)
+
     def source(self, kind, job_id, stock=30):
         data = copy.deepcopy(self.data)
         node = g.building(9, kind, 1, 3845, self.now)

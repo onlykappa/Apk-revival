@@ -91,6 +91,44 @@ class AdventureTests(unittest.TestCase):
     def assign(self, jid, kind, person=1, at=None):
         return self.call('set_job', at, job_id=jid, source_id=self.source(kind), villager_id=person)
 
+    def test_expired_dungeon_unloads_native_stage_without_losing_claim_or_people(self):
+        self.start()
+        packet = self.call('update_dungeon', self.now + 331, dungeon_id=1, current_stage_level=0)
+        self.assertIsNone(packet['user_dungeon'])
+        self.assertIsNone(packet['dungeon_game_state'])
+        self.assertEqual(len(packet['game_state']['all_villagers']), 9)
+        self.assertEqual(self.session()['status'], 'finished')
+        self.assertEqual(self.data['game_state']['all_villagers']['1']['location_type'], 1)
+        response = self.call('complete_dungeon_quest', self.now + 332, dungeon_id=1, villager_id=1)
+        self.assertEqual(response['game_state']['all_villagers']['1']['location_type'], 0)
+        self.assertEqual(self.session()['status'], 'claimed')
+
+    def test_native_building_timer_poll_without_state_finishes_work_once(self):
+        self.start()
+        source_id = self.source(42)
+        self.call('set_job', job_id=62, villager_id=1,
+                  job_data=json.dumps({'source_id': source_id, 'building_type_id': 42, 'state': 11}))
+        packet = self.call('update_building', self.now + 60, dungeon_id=1,
+                           building_id=source_id, building_type_id=42)
+        self.assertEqual(packet['dungeon_game_state']['buildings'][str(source_id)]['state'], 1)
+        gold = self.session()['participants']['1']['gold_count']
+        self.assertGreater(gold, 0)
+        self.call('update_building', self.now + 61, dungeon_id=1,
+                  building_id=source_id, building_type_id=42)
+        self.assertEqual(self.session()['participants']['1']['gold_count'], gold)
+        with self.assertRaises(g.ActionError):
+            self.call('update_building', self.now + 62, dungeon_id=1,
+                      building_id=source_id, building_type_id=35)
+
+    def test_offline_notices_keep_typed_stage_and_unload_after_expiry(self):
+        self.start()
+        response = self.call('get_dungeon_notices', dungeon_id=1)
+        self.assertEqual(response['dungeon_notices'], [])
+        self.assertEqual(response['dungeon_packet']['user_dungeon']['dungeon_id'], 1)
+        response = self.call('get_dungeon_notices', self.now + 331, dungeon_id=1)
+        self.assertEqual(response['dungeon_notices'], [])
+        self.assertIsNone(response['dungeon_packet']['user_dungeon'])
+
     def test_start_native_packet_has_original_stage_and_isolated_home(self):
         original = copy.deepcopy(self.data)
         packet = self.start()

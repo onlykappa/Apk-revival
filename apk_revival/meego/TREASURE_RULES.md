@@ -41,7 +41,9 @@ ASCII scalar keys. Every candidate must match the submitted base64 SHA256 HMAC
 with a constant-time comparison. Missing/invalid signatures, duplicate JSON
 keys, extra keys, non-integer numeric fields and invalid tokens are rejected.
 A different native whitespace convention would fail closed; actual-device
-compatibility has not been verified in this implementation session.
+compatibility was observed in the Deck review: valid signatures and egg
+numbers 1–4 arrived; later eggs were incorrectly rejected by the earlier
+single-reward policy. Per-egg receipts correct that observed mismatch.
 
 ## Explicit local policy
 
@@ -51,17 +53,19 @@ recovered original behavior. This implementation uses these bounded rules:
 
 - The first poll records the next opportunity one hour later and awards nothing.
 - The next eligible poll issues one cryptographically random 48-character hex
-  session token, with original mini-game type 1 and level 1. Other types remain
-  explicitly unsupported. The session lasts 155 seconds: the original total
+  session token, with the requested original mini-game variant (1–11) and
+  level 1. Its own bundled timing definition must be present and compatible. The session lasts 155 seconds: the original total
   150 seconds plus five seconds for callback/clock skew.
 - Polls/restarts during that session preserve the token and do not re-trigger
   the animation. The opportunity timer persists with the session. A long
   offline interval offers one session, never a backlog of free sessions.
 - A correctly signed, unexpired reward request earns **one crystal skull** and
-  no item, at most once per session. The submitted egg number is bounded to
-  0–5 and is an identifier, not a reward amount.
+  no item, once for each distinct egg number in the session. The submitted
+  egg number is bounded to 0–5 and is an identifier, not a reward amount. This
+  local policy caps a session at six skulls, without granting missed eggs.
 - The exact same signed request retried before expiry returns zero additional
-  reward. Another egg number after collection is rejected. Old tokens, expired
+  reward. Different collected egg numbers can earn their own single reward.
+  Legacy single-egg receipts are retained during migration. Old tokens, expired
   tokens and requests before session start are rejected.
 - The helpers return copies of state and the matching native response; the
   server must atomically persist the copy under its existing state lock before
@@ -81,3 +85,11 @@ requests, expiry boundaries, bounded payouts, restart persistence, retry
 idempotence, stale tokens and no offline catch-up. No installed app, save or
 runtime was changed. Original animation and physical-device compatibility still
 need a later device test; automated backend tests do not establish them.
+
+### Deck follow-up
+
+Variant 4 is requested by the actual native client. Original variants 1–11
+use separate bundled detail records with matching duration contracts; the
+responder now validates the requested record and binds claims to that same
+variant and token. A variant cannot claim another variant's session. The
+cadence and skull payouts above remain local policy, not recovered balances.

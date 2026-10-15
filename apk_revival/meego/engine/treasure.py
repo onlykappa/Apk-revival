@@ -26,8 +26,8 @@ def _clock(now):
     return float(now)
 
 
-def _details(rules):
-    details = rules.get('client_data', {}).get('8', {}).get('mini_game_details_1', {})
+def _details(rules, kind=1):
+    details = rules.get('client_data', {}).get('8', {}).get(f'mini_game_details_{kind}', {})
     if not details or any(details.get(k) != v for k, v in
                           (('idle_duration', 60), ('game_duration', 30), ('reward_duration', 60))):
         raise g.ActionError('The original bird mini-game timing data is unavailable.')
@@ -38,16 +38,14 @@ def poll(data, params, rules, now):
     """Return (new save, direct JMMiniGame); polling itself awards nothing."""
     now = _clock(now)
     kind = g.integer(params, 'minigame_type', default=1, low=1, high=11)
-    if kind != 1:
-        raise g.ActionError('Only the original island bird mini-game is supported offline.')
-    _details(rules)
+    _details(rules, kind)
     new = copy.deepcopy(data)
     state = new.setdefault(STATE_KEY, {'next_opportunity': now + OPPORTUNITY_SECONDS})
     session = state.get('session')
     # Do not re-trigger the bird animation or generate new tokens on polls/restarts.
     launch = False
     if now >= float(state['next_opportunity']) and (not session or now >= session['expire_date']):
-        session = dict(token=secrets.token_hex(24), minigame_type=1, level=1,
+        session = dict(token=secrets.token_hex(24), minigame_type=kind, level=1,
                        start_date=now, expire_date=now + SESSION_SECONDS,
                        claimed_payout=None)
         state['session'] = session
@@ -57,7 +55,7 @@ def poll(data, params, rules, now):
     if session:
         model = {k: session[k] for k in ('token', 'minigame_type', 'level', 'start_date', 'expire_date')}
     else:
-        model = dict(token='', minigame_type=1, level=1, start_date=now,
+        model = dict(token='', minigame_type=kind, level=1, start_date=now,
                      expire_date=now)
     model.update(new_session=launch, next_poll_date=state['next_opportunity'], last_update=now)
     return new, model
@@ -87,7 +85,7 @@ def _payload(params):
         raise g.ActionError('Treasure reward data must contain exactly payout_number, token and minigame_type.')
     if type(raw['payout_number']) is not int or not 0 <= raw['payout_number'] <= 5:
         raise g.ActionError('Invalid treasure payout number.')
-    if type(raw['minigame_type']) is not int or raw['minigame_type'] != 1:
+    if type(raw['minigame_type']) is not int or not 1 <= raw['minigame_type'] <= 11:
         raise g.ActionError('Invalid treasure mini-game type.')
     token = raw['token']
     if not isinstance(token, str) or len(token) != 48 or any(c not in '0123456789abcdef' for c in token):
@@ -121,24 +119,28 @@ def valid_signature(payload, signature):
 def retrieve(data, params, rules, now):
     """Return (new save, native reward envelope), rejecting invalid signatures."""
     now = _clock(now)
-    _details(rules)
     payload = _payload(params)
+    _details(rules, payload['minigame_type'])
     signature = params.get('signature', '')
     if isinstance(signature, list):
         signature = signature[0] if len(signature) == 1 else ''
     if not valid_signature(payload, signature):
         raise g.ActionError('Treasure reward signature is invalid.')
     session = data.get(STATE_KEY, {}).get('session')
-    if not session or not hmac.compare_digest(payload['token'], session['token']):
+    if not session or payload['minigame_type'] != session['minigame_type'] or not hmac.compare_digest(payload['token'], session['token']):
         raise g.ActionError('This treasure session is no longer available.')
     if now < session['start_date'] or now >= session['expire_date']:
         raise g.ActionError('This treasure session has expired or has not started.')
-    previous = session.get('claimed_payout')
-    if previous is not None and previous != payload['payout_number']:
-        raise g.ActionError('This treasure session reward was already collected.')
+    # The native client sends a different egg level for each collected egg.
+    # Keep bounded per-egg receipts, including the old single-reward receipt.
+    claimed = set(session.get('claimed_payouts', []))
+    if session.get('claimed_payout') is not None:
+        claimed.add(session['claimed_payout'])
     new = copy.deepcopy(data)
-    points = 0 if previous is not None else 1
+    number = payload['payout_number']
+    points = 0 if number in claimed else 1
     if points:
         new['game_state']['points'] = int(new['game_state'].get('points', 0)) + points
-        new[STATE_KEY]['session']['claimed_payout'] = payload['payout_number']
+        claimed.add(number)
+        new[STATE_KEY]['session']['claimed_payouts'] = sorted(claimed)
     return new, dict(game_state=copy.deepcopy(new['game_state']), points_reward=points, item_rewards={})

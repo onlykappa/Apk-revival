@@ -120,7 +120,14 @@ def purchase_item(gs, ident, count, use_points, rules, now):
         if rule.get('research_points') and ident not in researched_items(gs, rules):
             raise g.ActionError('Research this item before crafting it with resources.')
         recipe = rule.get('conversion_map', {}).get('1')
-        if not recipe or recipe.get('output_count') != 1 or not recipe.get('input_counter_units'):
+        # Some original shop cosmetics (e.g. Turtle Topper 371) explicitly
+        # cost zero and have no conversion recipe. Missing prices alone must
+        # never make an unknown item free, nor bypass a malformed paid recipe.
+        explicitly_free = (recipe is None and type(rule.get('cost')) is int and rule['cost'] == 0
+                           and type(rule.get('points_cost')) is int and rule['points_cost'] == 0)
+        if explicitly_free:
+            recipe = {'input_counter_units': []}
+        elif not recipe or recipe.get('output_count') != 1 or not recipe.get('input_counter_units'):
             raise g.ActionError('This item has no supported resource purchase recipe in the bundled game.')
         for ingredient in recipe['input_counter_units']:
             item_id, amount = ingredient.get('counter_unit_id'), ingredient.get('count')

@@ -274,6 +274,9 @@ class State:
                 # The native callback binds the entire JSON root to an array.
                 # A dictionary creates bogus products and enters StoreKit initialization.
                 return [], 'empty-local-product-list'
+            if route == 'game/poll/dungeon_chat':
+                # JMDungeonChatPacket exposes dungeon_chat_messages, an array.
+                return {'dungeon_chat_messages': []}, 'no-online-dungeon-chat'
             if route == 'game/poll/chat':
                 return {'global_messages': [], 'global_topics': [], 'group_chat': []}, 'no-online-chat'
             if route in ('game/registration/report_install', 'game/metrics/android/event',

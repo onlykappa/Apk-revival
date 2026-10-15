@@ -16,9 +16,9 @@ included in this branch. The existing launcher design is preserved.
   once. Original job-attempt tiers unlock the bundled reward pools.
 - Native bird/egg treasure sessions use recovered HMAC-SHA256 request validation,
   persistent opportunity/expiry clocks and replay-safe claims. Local policy:
-  one skull per earned session, at most one opportunity/hour, no upfront payout
-  or offline backlog. Native JSON whitespace compatibility still needs a Deck
-  check; invalid signatures fail closed.
+  one skull per distinct signed egg (0–5), at most one opportunity/hour, no
+  upfront payout or offline backlog. Native signed requests were observed on
+  the Deck; invalid signatures fail closed. Variant 4 is now supported too.
 - Solo Turtle's Grotto and Ice Bear Cave use original maps, stage objects,
   timers, jobs, heater/chipper links, drilling/fishing stock, entry costs and
   guaranteed job gold. Participants leave island work, retain identities and

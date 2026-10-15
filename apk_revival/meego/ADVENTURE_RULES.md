@@ -172,3 +172,34 @@ including nested job requests, island/stage identity isolation and unchanged
 saved content. Remaining live gaps include dungeon notice/chat polling (online
 features excluded; empty native response shapes still to verify), bird variant
 4 polling, and native completion/return validation. These are not parity claims.
+
+### Expired trip follow-up
+
+Actual Deck review kept polling an expired trip every five seconds while the
+portal remained in a loading state. `_packet` now sends null `user_dungeon`
+and null `dungeon_game_state` when the session has finished, allowing the
+native packet handler to leave its dungeon session. The original island and
+unclaimed participant result remain saved. A regression checks unloading,
+then explicit claim and return; native portal/result UI remains under review.
+
+The isolated review harness has a private, one-time five-villager fixture,
+which returns its already-finished tester through the normal claim path and
+adds three adults. That fixture is not shipped and does not change the main
+game's population defaults.
+
+### Native timer and offline polling follow-up
+
+The second live trip accepted job 62 on building 42. At completion, the
+client sent `building_id`, `building_type_id` and `dungeon_id`, without a
+`state` field. The handler now returns the already settled authoritative
+state for this timer poll rather than rejecting `Invalid state`. Explicit
+activation remains validated, and a mismatched building type is rejected.
+A copied-save regression checks completion and a repeated poll without
+recrediting job gold, against both authored and original rules.
+
+The original notice callback at 0x6f8c70–0x6f8d50 reads a `dungeon_packet`
+wrapper followed by a `dungeon_notices` strong array. Offline polling now
+supplies the current typed packet plus an empty array, allowing normal
+stage-expiry handling without inventing online messages. The chat packet's
+`dungeon_chat_messages` array is likewise empty. The separate initial
+`get_last_viewed_id` response contract is still unverified/unsupported.

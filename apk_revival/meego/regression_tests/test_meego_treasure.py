@@ -25,7 +25,7 @@ class TreasureTests(unittest.TestCase):
         return t.poll(data, {}, self.rules, self.now + 3600)
 
     def request(self, model, payout=1, order=t.KEYS):
-        payload = {'payout_number': payout, 'token': model['token'], 'minigame_type': 1}
+        payload = {'payout_number': payout, 'token': model['token'], 'minigame_type': model['minigame_type']}
         raw = json.dumps({k: payload[k] for k in order}, separators=(',', ':'))
         signature = base64.b64encode(hmac.digest(model['token'].encode(), raw.encode(), 'sha256')).decode()
         return {'data': [raw], 'signature': [signature]}
@@ -74,11 +74,29 @@ class TreasureTests(unittest.TestCase):
         self.assertEqual(repeated, new)
         self.assertEqual(reward['points_reward'], 0)
 
-    def test_different_payout_cannot_claim_second_session_reward(self):
+    def test_each_native_egg_pays_once_across_restart_and_old_receipts(self):
         data, model = self.open_session()
-        new, _ = t.retrieve(data, self.request(model), self.rules, self.now + 3670)
+        data[t.STATE_KEY]['session']['claimed_payout'] = 1
+        data['game_state']['points'] += 1
+        for egg in (2, 3, 4, 5, 0):
+            data, result = t.retrieve(data, self.request(model, egg), self.rules, self.now + 3670)
+            self.assertEqual(result['points_reward'], 1)
+            data = json.loads(json.dumps(data))
+        self.assertEqual(data['game_state']['points'], 13)
+        for egg in range(6):
+            retried, result = t.retrieve(data, self.request(model, egg), self.rules, self.now + 3671)
+            self.assertEqual(result['points_reward'], 0)
+            self.assertEqual(retried, data)
+
+    def test_original_variant_four_uses_own_session_and_rejects_wrong_kind(self):
+        self.rules['client_data']['8']['mini_game_details_4'] = copy.deepcopy(self.rules['client_data']['8']['mini_game_details_1'])
+        data, _ = t.poll(self.data, {'minigame_type': ['4']}, self.rules, self.now)
+        data, model = t.poll(data, {'minigame_type': ['4']}, self.rules, self.now + 3600)
+        self.assertEqual(model['minigame_type'], 4)
+        new, result = t.retrieve(data, self.request(model), self.rules, self.now + 3670)
+        self.assertEqual(result['points_reward'], 1)
         with self.assertRaises(g.ActionError):
-            t.retrieve(new, self.request(model, 2), self.rules, self.now + 3671)
+            t.retrieve(new, self.request(dict(model, minigame_type=1), 2), self.rules, self.now + 3671)
 
     def test_all_six_native_dictionary_orders_validate(self):
         data, model = self.open_session()

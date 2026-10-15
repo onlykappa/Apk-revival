@@ -20,6 +20,7 @@ ROUTES = {
     'game/dungeon/get_dungeons_list', 'game/dungeon/update_dungeon',
     'game/dungeon/complete_dungeon_quest', 'game/dungeon/set_job',
     'game/dungeon/update_villager_job', 'game/dungeon/update_building',
+    'game/dungeon/get_dungeon_notices',
 }
 
 
@@ -158,9 +159,13 @@ def _join(data, session, ident, rules, now):
 
 
 def _packet(data, session, rules):
+    # A finished trip must unload the native dungeon session. Keeping a past-
+    # deadline view alive makes the client poll update_dungeon indefinitely.
+    # Participant results remain saved until explicitly collected at the portal.
+    finished = session['status'] in ('finished', 'claimed')
     return dict(game_state=copy.deepcopy(data['game_state']),
-                user_dungeon=_view(data, session, rules),
-                dungeon_game_state=copy.deepcopy(session['game_state']))
+                user_dungeon=None if finished else _view(data, session, rules),
+                dungeon_game_state=None if finished else copy.deepcopy(session['game_state']))
 
 
 def _building_rule(source, rules):
@@ -435,19 +440,26 @@ def handle(data, route, params, rules, now):
             raise g.ActionError('This villager has no local adventure results.')
         params = dict(params, dungeon_id=[str(max(candidates, key=lambda s: s['id'])['id'])])
     session = _session(new, params, allow_inactive=route.endswith('/complete_dungeon_quest'))
+    if route.endswith('/get_dungeon_notices'):
+        # Original callback binds dungeon_packet, then dungeon_notices to a
+        # strong array (0x6f8c70–0x6f8d50). No online notices are fabricated.
+        return new, dict(dungeon_packet=_packet(new, session, rules), dungeon_notices=[])
     if route.endswith('/send_villager_to_dungeon'):
         _join(new, session, g.integer(params, 'villager_id', low=1), rules, now)
         _publish(new, rules)
     elif route.endswith('/set_job'):
         _set_job(new, session, params, rules, now)
     elif route.endswith('/update_building'):
-        # The native updateBuilding method supplies the desired state as well
-        # as the source. Activation is charged through the same job transaction.
+        # Native timer completion polls supply building_id/type, without a
+        # desired state. advance() already settled authoritative completion.
+        # Retain explicit-state activation for the existing supported caller.
         source_id = g.integer(params, 'building_id', low=1)
         source = session['game_state']['buildings'].get(str(source_id))
         if not source:
             raise g.ActionError('Adventure building is missing.')
-        target = g.integer(params, 'state', low=1)
+        if 'building_type_id' in params and g.integer(params, 'building_type_id', low=1) != source['building_type']:
+            raise g.ActionError('The adventure building type does not match.')
+        target = g.integer(params, 'state', default=int(source['state']), low=1)
         current = _building_rule(source, rules)
         if target == int(source['state']):
             pass
