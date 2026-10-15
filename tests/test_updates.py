@@ -103,6 +103,20 @@ class UpdateUI(unittest.TestCase):
             self.assertTrue({'Check for updates','GitHub access','Install downloaded update'}.issubset(buttons))
             window.update_checked({'available':False,'version':'0.3.1'});self.assertIn('up to date',window.update_label.text());window.close();app.processEvents()
 
+    def test_update_check_waits_for_a_running_task_instead_of_being_dropped(self):
+        import time
+        from PySide6.QtWidgets import QApplication
+        from apk_revival.launcher.ui import Window
+        from apk_revival.store import Store
+        app=QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as t:
+            window=Window(Store(pathlib.Path(t)));window.updater.check=lambda progress=None:{'available':False,'version':'0.3.8'}
+            window.submit('Check Android setup',lambda ctx:time.sleep(.3));window.check_updates()
+            self.assertIn('will start when check Android setup finishes',window.message.text())
+            end=time.monotonic()+10
+            while (window.worker or window.queued) and time.monotonic()<end:app.processEvents();time.sleep(.02)
+            self.assertIn('up to date',window.update_label.text());window.close();app.processEvents()
+
 class ApplyUpdateTests(unittest.TestCase):
     def test_restart_after_old_process_exits_preserves_data(self):
         from apk_revival.launcher.updater import apply_update
