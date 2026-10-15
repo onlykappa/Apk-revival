@@ -89,7 +89,7 @@ def _publish(data, rules):
     state = _state(data)
     active = state['sessions'].get(str(state['active_id']))
     entries = {}
-    if active and active['status'] != 'claimed':
+    if active and active['status'] == 'active':
         view = _view(data, active, rules)
         entries[str(view['user_id'])] = view
     data['game_state'].setdefault('dungeon_info', {})['active_dungeons'] = entries
@@ -280,6 +280,18 @@ def _settle(data, session, now, rules):
         _load_stage(data, session, rules, stage_end)
     if now >= session['expire_date']:
         session['status'] = 'finished'
+        # Original job 50 is the noninterruptible "post dungeon" / postquest
+        # state. Return the real participant home to wait at its portal;
+        # keep the quest and earned results until the explicit claim request.
+        portals = [b['building_id'] for b in data['game_state'].get('buildings', {}).values()
+                   if int(b.get('building_type', 0)) == 34 and int(b.get('state', 0)) == 1]
+        portal = min(portals) if portals else 0
+        for ident, record in session['participants'].items():
+            person = data['game_state']['all_villagers'].get(ident)
+            if not record.get('claimed') and person and int(person.get('location_type', 0)) == DUNGEON_LOCATION:
+                person.update(location_type=0, location_id=int(data['game_user']['user_id']), last_update=now)
+                person['job'] = g.idle_job(now)
+                person['job'].update(job_id=50, source_id=portal, target_id=portal)
     _publish(data, rules)
 
 

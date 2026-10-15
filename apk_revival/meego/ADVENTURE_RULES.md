@@ -204,3 +204,16 @@ stage-expiry handling without inventing online messages. The chat packet's
 `dungeon_chat_messages` array is likewise empty. The initial `get_last_viewed_id` returns the number zero: the original
 `initializeNotices` success block calls `intValue` on the response itself
 at 0x91c33c–0x91c348, rather than reading a dictionary field.
+
+### Original post-dungeon homecoming
+
+The original job table defines job50 as `post dungeon`, native animation state
+`postquest`, noninterruptible job type16, distinct from job49's waiting-to-start
+state. Finished participants now return to the island in job50, attached to the
+existing portal, while retaining their `dungeon_quest` and unpaid results.
+Finished trips leave `active_dungeons`, stopping expired portal timer updates.
+Explicit `complete_dungeon_quest` still credits earned work once and returns
+that villager to idle. Returning home itself grants no rewards. Old finished
+sessions with a stranded away villager are repaired on the next normal clock
+settlement. Regression checks cover restart before claim and no pre-credit.
+The reward button's actual native presentation remains under Deck review.

@@ -87,3 +87,23 @@ uses the different JMDungeonQuestResult fields.
   Root pyproject/release metadata therefore still says0.3.7 while the Python
   package says0.3.19. Reconcile metadata before a normal packaged release.
   No public release or merge is performed by this update.
+
+## Deck review follow-up (2026-10-15)
+
+Actual isolated native review verified five testers, Quest Portal entry,
+Turtle job62 assignment, Turtle Topper purchase/equip, a successful explicit
+Turtle result claim with five gold saved in its receipt, and a subsequent Ice
+Bear entry with job53 assigned. Timer-poll shape, explicit-free cosmetic
+purchase, distinct signed eggs, finished-stage unloading, empty offline notice
+contracts and original job50 homecoming were corrected during that review.
+The final packaged source repack passed 105 embedded regressions, without
+redirecting imports to the working source, and the certificate/version probe.
+It was applied to the main launcher with its prior executable backed up;
+17 protected main save/profile/APK files matched before and after installation.
+The test-only five-villager fixture was not ported into main-game defaults.
+
+Still unverified physically: multiple egg skull payouts after the new handler,
+Ice Bear's second stage and full native completion, death/resurrection screens,
+and main-game Play after reopening the updated launcher. This was an offline
+source repack using the existing licensed PyInstaller bootloader/dependencies,
+not a clean PyInstaller rebuild or complete original-server parity certification.
