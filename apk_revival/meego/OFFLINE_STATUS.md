@@ -143,4 +143,21 @@ original upgrade costs and all Temple-dependent unlocks remain independent.
 Every original Temple upgrade1->14 passed a real-rule temporary-village test;
 level6->7 also rejects insufficient wood and invalid level skips without debit.
 See `LEVELING_RULES.md`.117 focused regressions and40 additional local related
-checks passed before packaging. Native verification is still pending.
+checks passed before packaging. The user confirmed the review now displays level14.
+
+
+### Equipment transfer follow-up
+
+The native client merges equipment dictionaries with binding options27, which
+leaves omitted models cached. Unequipping therefore returned inventory correctly
+but left a ghost hat visible on the old wearer. Full-state wire projections now
+send explicit null deletions for known inventory/equipment IDs absent from each
+villager. Saves retain only actually owned equipment. This also repairs already
+cached ghosts on the next state response. Original client evidence: equipment
+callbacks0xa37d30/0xa3810c and strong-dictionary binding0x98a5e0; deletion of
+untouched keys requires bit4, absent from27, while explicit null is deleted.
+
+118 source regressions pass, including original Turtle Topper purchase cap,
+unequip/transfer, rejected repeated removal/equip/purchase, save reload, and
+non-mutating native wire projection. Physical appearance confirmation remains
+pending; authoritative ownership was already conserved before this fix.

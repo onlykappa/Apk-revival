@@ -66,6 +66,17 @@ def native_payload(value, game_state=None):
             result['name'] = 'local'
         if {'building_id', 'building_type', 'state'} <= value.keys() and value.get('expire_date') == 0:
             result.pop('expire_date', None)
+        if 'villager_id' in value and isinstance(value.get('items'), dict) and game_state:
+            # Native equipment callbacks bind with options27 (merge, without
+            # remove-untouched bit4). An absent key leaves the old worn model
+            # cached. JMBinding's strong dictionary accepts explicit JSON null
+            # deletions. Include all known inventory/equipment IDs so a later
+            # full-state response also repairs an already cached ghost item.
+            known = set(game_state.get('items', {}))
+            for person in game_state.get('all_villagers', {}).values():
+                known.update(person.get('items', {}))
+            for ident in known - value['items'].keys():
+                result['items'][ident] = None
         if 'villager_id' in value and isinstance(value.get('job'), dict) and game_state:
             job=result['job'];source=game_state.get('buildings',{}).get(str(job.get('source_id')))
             if source:

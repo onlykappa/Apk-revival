@@ -74,6 +74,34 @@ class CoreIntegrationTests(unittest.TestCase):
         with patch.object(g, 'RULES', bad_rules), self.assertRaises(g.ActionError):
             sim.mutate(self.data, 'game/purchase/buy_item', params(item_id=371, count=1, use_points='false'), self.now)
 
+    def test_topper_transfer_clears_native_cached_wearer_and_conserves_ownership(self):
+        data = sim.mutate(self.data, 'game/purchase/buy_item', params(item_id=371, count=1, use_points='false'), self.now)
+        data = sim.mutate(data, 'game/village/assign_item_to_villager', params(villager_id=1, item_id=371, layer=4), self.now)
+        cached = copy.deepcopy(data['game_state']['all_villagers']['1']['items'])
+        data = sim.mutate(data, 'game/village/remove_item_from_villager', params(villager_id=1, item_id=371), self.now)
+        before = copy.deepcopy(data)
+        packet = server.native_payload(data['game_state'])
+        self.assertIsNone(packet['all_villagers']['1']['items']['371'])
+        # Original strong-dictionary merge deletes explicit null entries;
+        # simply sending an empty map leaves cached equipment untouched.
+        for key, item in packet['all_villagers']['1']['items'].items():
+            if item is None:cached.pop(key, None)
+            else:cached[key] = item
+        self.assertNotIn('371', cached)
+        self.assertEqual(data, before)
+        with self.assertRaises(g.ActionError):
+            sim.mutate(data, 'game/village/remove_item_from_villager', params(villager_id=1, item_id=371), self.now)
+        data = sim.mutate(data, 'game/village/assign_item_to_villager', params(villager_id=2, item_id=371, layer=4), self.now)
+        data = json.loads(json.dumps(data))
+        gs = data['game_state']
+        self.assertEqual(gs['items']['371']['count'], 0)
+        self.assertNotIn('371', gs['all_villagers']['1']['items'])
+        self.assertEqual(gs['all_villagers']['2']['items']['371']['count'], 1)
+        with self.assertRaises(g.ActionError):
+            sim.mutate(data, 'game/village/assign_item_to_villager', params(villager_id=1, item_id=371, layer=4), self.now)
+        with self.assertRaises(g.ActionError):
+            sim.mutate(data, 'game/purchase/buy_item', params(item_id=371, count=1, use_points='false'), self.now)
+
     def test_storage_zero_housing_accepts_builder_completes_and_increases_caps(self):
         data = copy.deepcopy(self.data)
         data['game_state']['buildings']['9'] = g.building(9, 8, 0, 3845, self.now)
