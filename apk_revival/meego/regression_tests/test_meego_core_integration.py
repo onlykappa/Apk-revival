@@ -156,6 +156,74 @@ class CoreIntegrationTests(unittest.TestCase):
         self.assertEqual(data['game_state']['resources']['4']['count'], 0)
         self.assertNotIn('local_research_v1', data)
 
+    def test_all_original_temple_upgrades_keep_gates_until_construction_finishes(self):
+        data = copy.deepcopy(self.data)
+        states = g.RULES['buildings']['1']['state_data']
+        for level in range(1, 14):
+            with self.subTest(level=level):
+                self.assertEqual(data['game_state']['achievements']['102']['level'], level)
+                target = states[str(data['game_state']['buildings']['1']['state'])]['valid_transitions'][0]
+                target_rule = states[str(target)]
+                self.assertTrue(target_rule['buildable'])
+                for item, amount in target_rule.get('counter_unit_cost', {}).items():
+                    data['game_state']['resources'][str(g.RESOURCE_IDS[int(item)])]['count'] = amount
+                data['game_state']['points'] = target_rule.get('points_cost', 0)
+                now = self.now + (level - 1) * 50
+                data = sim.mutate(data, 'game/village/change_building', params(
+                    building_id=1, building_type_id=1, state=target), now)
+                self.assertEqual(data['game_state']['achievements']['102']['level'], level)
+                data = sim.mutate(data, 'game/village/set_job', params(
+                    villager_id=1, job_id=5, job_data=json.dumps({'source_id': 1})), now)
+                data = sim.advance(json.loads(json.dumps(data)), now + 46)
+                self.assertEqual(data['game_state']['buildings']['1']['state'], target_rule['auto_transition'])
+                self.assertEqual(data['game_state']['achievements']['102']['level'], level + 1)
+                self.assertEqual(data['game_state']['all_villagers']['1']['job']['job_id'], 0)
+                self.assertGreaterEqual(data['game_user']['village_level'], level + 1)
+        self.assertEqual(states[str(data['game_state']['buildings']['1']['state'])]['valid_transitions'], [])
+
+    def test_temple_six_to_seven_needs_original_costs_and_cannot_skip_level(self):
+        data = copy.deepcopy(self.data)
+        data['game_state']['buildings']['1']['state'] = 51
+        g.synchronize(data, self.now)
+        data['game_state']['resources']['1']['count'] = 90000
+        data['game_state']['resources']['2']['count'] = 179999
+        data['game_state']['resources']['5']['count'] = 2200
+        before = copy.deepcopy(data)
+        with self.assertRaises(g.ActionError):
+            sim.mutate(data, 'game/village/change_building', params(building_id=1, building_type_id=1, state=60), self.now)
+        self.assertEqual(data, before)
+        data['game_state']['resources']['2']['count'] = 180000
+        with self.assertRaises(g.ActionError):
+            sim.mutate(data, 'game/village/change_building', params(building_id=1, building_type_id=1, state=70), self.now)
+        result = sim.mutate(data, 'game/village/change_building', params(building_id=1, building_type_id=1, state=60), self.now)
+        self.assertEqual(result['game_state']['resources']['2']['count'], 0)
+        self.assertEqual(result['game_state']['achievements']['102']['level'], 6)
+        self.assertEqual(result['game_state']['buildings']['1']['state'], 60)
+
+    def test_village_six_to_seven_affluence_does_not_skip_temple_or_research_gates(self):
+        data = copy.deepcopy(self.data)
+        data['game_state']['buildings'] = {'1': g.building(1, 1, 51, 200, self.now)}
+        data['local_affluence_delta'] = 1969
+        g.synchronize(data, self.now)
+        info = data['game_state']['village_information']
+        self.assertEqual((info['village_level'], info['affluence'], info['next_level_affluence']), (6, 11819, 11820))
+        before_resources = copy.deepcopy(data['game_state']['resources'])
+        data['local_affluence_delta'] += 1
+        g.synchronize(data, self.now + 1)
+        self.assertEqual(info['village_level'], 7)
+        self.assertEqual(data['game_user']['village_level'], 7)
+        self.assertEqual(info['current_level_affluence'], 11820)
+        self.assertEqual(info['next_level_affluence'], 13790)
+        self.assertEqual(data['game_state']['achievements']['102']['level'], 6)
+        self.assertEqual(data['game_state']['buildings']['1']['state'], 51)
+        self.assertEqual(data['game_state']['resources'], before_resources)
+        with self.assertRaises(g.ActionError):
+            g.require_unlocked(data['game_state'], {'unlock_achievement_id': 102, 'unlock_achievement_level': 7})
+        restored = json.loads(json.dumps(data))
+        g.synchronize(restored, self.now + 2)
+        self.assertEqual(restored['game_user']['village_level'], 7)
+        self.assertEqual(restored['game_state']['achievements']['102']['level'], 6)
+
     def source(self, kind, job_id, stock=30):
         data = copy.deepcopy(self.data)
         node = g.building(9, kind, 1, 3845, self.now)

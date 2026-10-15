@@ -147,8 +147,12 @@ def complete_tutorial_task(data, task, rules):
     return True
 
 
-def affluence_bounds(affluence, rules):
-    """Stable local UI milestones; not an invented original XP/level formula."""
+def affluence_progress(affluence, rules):
+    """Coherent LOCAL village level/bar using bundled affluence milestones.
+
+    This is not a recovered original server XP schedule. Temple achievement102
+    remains independent and controls original construction/research gates.
+    """
     states = rules.get('buildings', {}).get('1', {}).get('state_data', {})
     milestones = sorted({_integer(state['affluence']) for state in states.values()
                          if isinstance(state, dict) and 'affluence' in state
@@ -158,15 +162,23 @@ def affluence_bounds(affluence, rules):
         return None
     value = max(0, _integer(affluence))
     current = milestones[0]
+    level = 1
     for milestone in milestones[1:]:
         if value < milestone:
-            return current, milestone
+            return level, current, milestone
         current = milestone
-    # Keep the native meter's denominator positive above the final milestone.
-    # Continuing the last interval here is explicitly a local display policy.
+        level += 1
+    # Continue the final interval for the cosmetic village meter only; never
+    # fabricate additional Temple states or bypass their original max level.
     step = max(1, milestones[-1] - milestones[-2])
-    current += ((value - current) // step) * step
-    return current, current + step
+    extra = (value - current) // step
+    current += extra * step
+    return level + extra, current, current + step
+
+
+def affluence_bounds(affluence, rules):
+    status = affluence_progress(affluence, rules)
+    return status[1:] if status is not None else None
 
 
 def synchronize(data, now, rules):
@@ -201,13 +213,16 @@ def synchronize(data, now, rules):
         for ident, amount in [('107', days), ('338', days / 365)]:
             changed = _award(data, ident, _description_level(
                 achievement_rules.get(ident, {}), amount, detail=True), now, rules) or changed
-    bounds = affluence_bounds(state.get('village_information', {}).get('affluence', 0), rules)
-    if bounds is not None:
+    status = affluence_progress(state.get('village_information', {}).get('affluence', 0), rules)
+    if status is not None:
         info = state.setdefault('village_information', {})
-        for key, value in zip(('current_level_affluence', 'next_level_affluence'), bounds):
+        for key, value in zip(('village_level', 'current_level_affluence', 'next_level_affluence'), status):
             if info.get(key) != value:
                 info[key] = value
                 changed = True
+        if data.setdefault('game_user', {}).get('village_level') != status[0]:
+            data['game_user']['village_level'] = status[0]
+            changed = True
     tutorials = _tutorial_rules(rules)
     for building in state.get('buildings', {}).values():
         rule = rules.get('buildings', {}).get(str(building.get('building_type')), {}).get(

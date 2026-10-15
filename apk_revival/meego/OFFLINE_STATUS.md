@@ -133,3 +133,14 @@ clears its countdown. Earned original job gold stays in the trip until final
 claim; exhausted holes still close. Late native timer/notice reads after a
 successful claim now return a closed packet instead of a repeated error.
 114 focused source regressions passed; fresh native confirmation is pending.
+
+### Leveling follow-up
+
+Village number now agrees with its existing affluence bar instead of being
+forced to the Temple level. This is the documented LOCAL milestone schedule;
+the original server XP formula is not recovered. Temple achievement102,
+original upgrade costs and all Temple-dependent unlocks remain independent.
+Every original Temple upgrade1->14 passed a real-rule temporary-village test;
+level6->7 also rejects insufficient wood and invalid level skips without debit.
+See `LEVELING_RULES.md`.117 focused regressions and40 additional local related
+checks passed before packaging. Native verification is still pending.

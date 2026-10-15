@@ -83,6 +83,8 @@ def synchronize(data, now, rules=None):
         achievement_id=102, level=level, last_updated=now)
     affluence+=int(data.get('local_affluence_delta',0))
     info = gs.setdefault('village_information', {})
+    # Fallback for incomplete rule sets; progression then derives the village
+    # display level from affluence without changing Temple achievement102.
     info.update(village_level=level, affluence=affluence,
                 current_level_affluence=0, next_level_affluence=max(100, affluence + 100))
     data['game_user'].update(village_level=level, affluence=affluence)
