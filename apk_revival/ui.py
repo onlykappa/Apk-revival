@@ -183,3 +183,4 @@ class App:
     def run(self):self.root.mainloop()
 
 def run(store):App(store).run()
+

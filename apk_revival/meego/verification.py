@@ -70,3 +70,4 @@ class GuidedTest:
         p=self.store.load(self.game);p['verification'].append(self.record);
         if (self.directory/'in-progress.json').exists():(self.directory/'in-progress.json').unlink()
         p['status']='Verified Offline' if self.record['passed'] else 'Exported but Unverified' if p['restoration'].get('export') else 'Restoration In Progress';self.store.save(p);return self.record
+

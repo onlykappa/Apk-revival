@@ -13,7 +13,7 @@ def cache_root():return pathlib.Path(os.environ.get('APKR_TOOLS',pathlib.Path.ho
 
 def configure(root=None):
     root=pathlib.Path(root or cache_root())
-    values={'APKR_ADB':root/'platform-tools/adb','APKR_APKSIGNER':root/'android-15/apksigner','APKR_ZIPALIGN':root/'android-15/zipalign','APKR_APKTOOL_JAR':root/'apktool.jar','APKR_JAVA':root/'jre/bin/java','APKR_KEYTOOL':root/'jre/bin/keytool'}
+    values={'APKR_AAPT':root/'android-15/aapt','APKR_ADB':root/'platform-tools/adb','APKR_APKSIGNER':root/'android-15/apksigner','APKR_ZIPALIGN':root/'android-15/zipalign','APKR_APKTOOL_JAR':root/'apktool.jar','APKR_JAVA':root/'jre/bin/java','APKR_KEYTOOL':root/'jre/bin/keytool'}
     for key,path in values.items():
         if key not in os.environ and path.is_file():os.environ[key]=str(path)
     # SDK launch scripts invoke bare java, not APKR_JAVA. Give subprocesses
@@ -98,4 +98,5 @@ def install(progress=lambda _:None,root=None):
     configure(root);progress('Checking installed tools')
     command([tool('java'),'-version'],timeout=15);command([tool('apksigner'),'version'],timeout=15)
     return health(root)
+
 

@@ -29,3 +29,4 @@ ADAPTERS={'tapquest-v1':TapQuestAdapter(),'meego-1.32':MeegoAdapter()}
 def adapter(p):
     if not p.get('adapter') or p['adapter'] not in ADAPTERS:raise RevivalError('Needs Evidence: no trusted game adapter. Use analysis report and develop a reviewed adapter; V1 cannot convert this game automatically.')
     return ADAPTERS[p['adapter']]
+

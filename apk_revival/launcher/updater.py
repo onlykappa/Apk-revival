@@ -145,3 +145,4 @@ def apply_update(source,pid,fullscreen=False,data=None):
     if data:args.extend(['--data',data])
     subprocess.Popen(args,start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,env=external_env())
     return 0
+

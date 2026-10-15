@@ -95,3 +95,4 @@ class Controller:
         if self.lib:
             for handle in self.handles.values():self.lib.SDL_GameControllerClose(handle)
             self.handles={};self.lib.SDL_QuitSubSystem(0x2000|0x200);self.lib=None
+

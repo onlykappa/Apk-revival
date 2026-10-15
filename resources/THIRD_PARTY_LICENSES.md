@@ -40,3 +40,4 @@ user cache and retains their notices. Upstream licenses apply to those tools.
 Temurin Java source/license: https://github.com/adoptium/temurin17-binaries
 Android SDK licenses: https://developer.android.com/studio/terms
 apktool source/license: https://github.com/iBotPeaches/Apktool
+

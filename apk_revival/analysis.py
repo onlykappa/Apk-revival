@@ -5,7 +5,7 @@ from .util import RevivalError, command, digest, inspect_zip, now, tool
 
 ANDROID='{http://schemas.android.com/apk/res/android}'
 
-def binary_manifest(data):
+def binary_manifest(data,events=False):
     """Read Android's little-endian ResXMLTree / ResStringPool chunks."""
     strings=[]; tags=[]; pos=8
     def u16(p):return struct.unpack_from('<H',data,p)[0]
@@ -36,6 +36,8 @@ def binary_manifest(data):
                 a=ext+offset+n*attrsize;key=string(u32(a+4));raw=string(u32(a+8));typ=data[a+15];value=u32(a+16)
                 attrs[key]=raw if raw is not None else (string(value) if typ==3 else str(value) if typ in (0x10,0x11) else ('true' if value else 'false') if typ==0x12 else f'@0x{value:08x}')
             tags.append((name,attrs))
+        elif kind==0x103 and events:
+            tags.append(('/'+str(string(u32(pos+header+4))),{}))
         pos+=size
     if not tags:raise RevivalError('Manifest contains no readable tags')
     return tags
@@ -156,3 +158,4 @@ def markdown(p):
     out += ['\n## Alternatives']+['\n* '+x['path']+': '+x['reason'] for x in a['alternatives']]
     out += ['\nFull asset, permission, split and reference inventory: analysis.json. Static inspection is not proof of gameplay.']
     return '\n'.join(out)+'\n'
+

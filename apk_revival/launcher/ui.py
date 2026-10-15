@@ -48,13 +48,15 @@ class Poster(QWidget):
         for n in range(5):painter.drawEllipse(QPoint(int(self.width()*.78),int(self.height()*.45)),45+n*20,45+n*20)
         painter.setBrush(QColor(accent));painter.setPen(Qt.PenStyle.NoPen);painter.drawRoundedRect(QRect(int(self.width()*.68),38,58,95),13,13)
         painter.setPen(QPen(QColor(b),3));painter.drawLine(int(self.width()*.68)+17,108,int(self.width()*.68)+41,108)
+        if hasattr(self,'icon') and not self.icon.isNull():
+            pix=self.icon.scaled(96,96,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation);painter.drawPixmap(self.width()-pix.width()-16,16,pix)
         painter.setPen(QColor('#ffffff'));font=QFont('DejaVu Sans',25,QFont.Weight.Bold);painter.setFont(font)
         painter.drawText(QRect(20,20,int(self.width()*.62),self.height()-35),Qt.AlignmentFlag.AlignBottom|Qt.TextFlag.TextWordWrap,self.title)
 
 class GameCard(QPushButton):
     def __init__(self,p,selected,action):
         super().__init__();self.setObjectName('card');self.setCheckable(True);self.setChecked(selected);self.setMinimumWidth(240);self.setFixedHeight(246);self.setMaximumWidth(350);self.setAccessibleName(p['title']);self.clicked.connect(action)
-        box=QVBoxLayout(self);box.setContentsMargins(10,10,10,12);poster=Poster(p['title'],p['id']);poster.setMinimumHeight(160);poster.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents);box.addWidget(poster)
+        box=QVBoxLayout(self);box.setContentsMargins(10,10,10,12);poster=Poster(p['title'],p['id']);poster.icon=QPixmap(p.get('launcher',{}).get('apk',{}).get('icon') or '');poster.setMinimumHeight(160);poster.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents);box.addWidget(poster)
         title=label(p['title']);title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents);box.addWidget(title)
         detail=label('Independent rebuild' if p['restoration']['path']=='rebuild' else 'Android game','muted');detail.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents);box.addWidget(detail)
 
@@ -116,7 +118,7 @@ class Window(QMainWindow):
         page=QWidget();page.setObjectName('grid_host');box=QVBoxLayout(page);box.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize);box.setSpacing(16);box.setContentsMargins(8,0,14,16);row=QHBoxLayout();row.addWidget(button('Back',self.back));row.addStretch();box.addLayout(row);box.addWidget(label('Make it ready to play','heading'));box.addWidget(label('Preparation tools and the Android environment are managed separately.','muted',True))
         tools_panel=QFrame();tools_panel.setObjectName('panel');tb=QVBoxLayout(tools_panel);tb.setContentsMargins(24,20,24,20);tb.addWidget(label('1   Preparation tools','readiness'));self.tools_label=label('Checking tools...','muted',True);tb.addWidget(self.tools_label);self.install_tools_button=button('Install preparation tools',self.install_tools,'primary');tb.addWidget(self.install_tools_button);box.addWidget(tools_panel)
         android_panel=QFrame();android_panel.setObjectName('panel');ab=QVBoxLayout(android_panel);ab.setContentsMargins(24,20,24,20);ab.addWidget(label('2   Android environment','readiness'));self.runtime_label=label('Check for an existing Waydroid installation.','muted',True);ab.addWidget(self.runtime_label);self.devices=QComboBox();self.devices.setAccessibleName('Android device');self.devices.currentIndexChanged.connect(self.device_selected);ab.addWidget(self.devices)
-        controls=QGridLayout();controls.setSpacing(12);controls.addWidget(button('Check again',self.check_runtime),0,0);controls.addWidget(button('Start Android',self.start_android),0,1);controls.addWidget(button('Start container',self.start_container),1,0);controls.addWidget(button('Installation guide',self.installation_guide,'quiet'),1,1);controls.addWidget(button('Open Android',self.open_android_ui),2,0,1,2);ab.addLayout(controls)
+        controls=QGridLayout();controls.setSpacing(12);controls.addWidget(button('Check again',self.check_runtime),0,0);controls.addWidget(button('Start Android',self.start_android),0,1);controls.addWidget(button('Start container',self.start_container),1,0);controls.addWidget(button('Installation guide',self.installation_guide,'quiet'),1,1);controls.addWidget(button('Open Android',self.open_android_ui),2,0,1,2);controls.addWidget(button('Capture input diagnostics',self.input_diagnostics),3,0,1,2);controls.addWidget(button('Restart Android',self.restart_android),4,0,1,2);ab.addLayout(controls)
         manual=QHBoxLayout();self.address=QLineEdit();self.address.setPlaceholderText('Optional: Android guest IP');manual.addWidget(self.address);manual.addWidget(button('Connect',self.manual_connect));ab.addLayout(manual);box.addWidget(android_panel)
         from .updater import Updater
         self.updater=Updater();self.pending_update=None
@@ -134,6 +136,8 @@ class Window(QMainWindow):
             widget=item.widget()
             if widget:widget.hide();widget.setParent(None);widget.deleteLater()
         games=self.service.store.games();query=self.search.text().casefold();filtered=[p for p in games if query in p['title'].casefold()]
+        if self.current not in {p['id'] for p in games}:self.current=None
+        if self.service.store.last_library_errors:self.message.setText('Some saved library entries could not be read. See the library error report in diagnostics.')
         if not self.current and games:self.current=games[0]['id']
         for index,p in enumerate(filtered):
             card=GameCard(p,p['id']==self.current,lambda checked=False,game=p['id']:self.select(game));card.setProperty('game_id',p['id']);self.grid.addWidget(card,index//2,index%2);self.cards.append(card)
@@ -160,9 +164,11 @@ class Window(QMainWindow):
         missing=bool(artifact and not (self.service.store.directory(p['id'])/artifact).is_file())
         if missing or p['id'] in self.repair_games:
             ready={'label':'Preparation needs repair','detail':'The prepared file is missing or damaged. Select Prepare game to repair it. Your saves are preserved.','prepare':True,'play':False}
+        self.hero.icon=QPixmap(p.get('launcher',{}).get('apk',{}).get('icon') or '')
         self.game_title.setText(p['title'] if len(p['title'])<26 else p['title'][:24]+'...');self.game_title.setToolTip(p['title']);self.hero.title=p['title'];self.hero.seed=p['id'];self.hero.update();self.game_kind.setText('INDEPENDENT REBUILD' if p['restoration']['path']=='rebuild' else 'ANDROID GAME'+('  /  SELF-AUTHORED FIXTURE' if p['analysis'] and p['analysis']['fixture'] else ''));self.readiness_label.setText(ready['label']);self.description.setText(ready['detail'])
         busy=bool(self.worker and self.worker.isRunning());active=self.service.active
-        # Exactly one main action is visible. Preparation state lives in the saved
+        # Play can open an original APK; Prepare can create a restored copy.
+        # Preparation state lives in the saved
         # profile, not in the current Android connection or launcher UI session.
         playing_here=bool(active and active['game']==p['id'])
         self.prepare_button.setVisible(bool(ready['prepare'] and not active))
@@ -175,6 +181,11 @@ class Window(QMainWindow):
         control=CONTROL_PROFILES.get(p.get('adapter'),{'description':'Controls are unknown until this game is investigated.'});self.controls_label.setText('Controls: A / Enter collects. B / Esc returns.' if p['restoration']['path']=='rebuild' else 'Controls: touch or trackpad.' if p.get('adapter') in {'tapquest-v1','meego-1.32'} else 'Controls need game-specific investigation.')
     def submit(self,title,operation,callback=None):
         if self.worker:return
+        if self.monitor_worker and self.monitor_worker.isRunning():
+            # Status checks share the serialized service lock. Queue button
+            # actions instead of making Stop/Play fail depending on timing.
+            if not getattr(self,'pending_submission',None):self.pending_submission=(title,operation,callback)
+            self.message.setText('Finishing the current status check...');return
         self.worker=Worker(self.service,title,operation,self);worker=self.worker;self.callback=callback;worker.update.connect(self.progress);worker.succeeded.connect(self.completed);worker.failed.connect(self.failed);worker.finished.connect(lambda owned=worker:self.job_finished(owned));self.bar.show();self.cancel_button.show();self.add_button.setEnabled(False);self.demo_button.setEnabled(False);worker.start();self.update_details()
     def progress(self,job):
         self.last_job=job;step=job['steps'][-1]['label'] if job['steps'] else job['label'];self.message.setText(step+('...' if job['state']=='running' else ''))
@@ -197,6 +208,7 @@ class Window(QMainWindow):
         if self.focus_play_after_prepare and self.play_button.isVisible() and self.play_button.isEnabled():self.play_button.setFocus()
         self.focus_play_after_prepare=False
         if self.closing:QTimer.singleShot(0,self.close)
+        elif getattr(self,'pending_apks',[]):QTimer.singleShot(0,lambda:self.open_apk(self.pending_apks.pop(0)))
     def cancel(self):self.service.jobs.cancel();self.message.setText('Will cancel at the next safe stage. Finishing the current operation first.')
     def add_game(self,checked=False,apk=None):
         dialog=ImportDialog(apk,self)
@@ -204,6 +216,10 @@ class Window(QMainWindow):
         path=dialog.apk.text().strip()
         if not path:self.message.setText('Choose a base APK first.');return
         self.submit('Add game',lambda ctx:self.service.import_game(path,dialog.support,ctx),lambda p:(self.select(p['id']),self.refresh(),self.message.setText('Added '+p['title']+'. '+readiness(p)['detail'])))
+    def open_apk(self,path):
+        if self.worker and self.worker.isRunning():
+            self.pending_apks=getattr(self,'pending_apks',[])+[path];return
+        self.submit('Add APK',lambda ctx:self.service.import_game(path,[],ctx),lambda p:(self.select(p['id']),self.refresh(),self.message.setText('Added '+p['title']+'. Press Play.')))
     def demo(self):
         self.focus_play_after_prepare=True
         resource=pathlib.Path(getattr(sys,'_MEIPASS',pathlib.Path(__file__).resolve().parents[2]))/'resources/tapquest-original.apk'
@@ -219,10 +235,35 @@ class Window(QMainWindow):
         # Play owns Android discovery/startup, saved APK deployment, and backend
         # startup. Do not force the user through Setup on each application restart.
         self.submit('Play '+p['title'],lambda ctx:self.service.play(p['id'],ctx),self.open_game)
+    def run_library_request(self,value,reply):
+        """Run local controls through the same worker/service as the buttons."""
+        if self.worker or (self.monitor_worker and self.monitor_worker.isRunning()):return False
+        action=value['action']
+        if action=='quit':
+            self.quit_request_reply=reply;QTimer.singleShot(0,self.close);return True
+        callbacks={'play':self.open_game,'stop':lambda _:self.return_to_library()}
+        if action=='play':
+            game=value['game'];profile=self.service.store.load(game,check=False);self.select(game)
+            title='Play '+profile['title']
+        else:title={'stop':'Stop game','restart-runtime':'Restart Android'}[action]
+        def run(ctx):
+            try:
+                if action=='play':
+                    if self.service.active and self.service.active['game']==game:result=self.service.active
+                    else:result=self.service.play(game,ctx)
+                elif action=='stop':result=self.service.stop(ctx)
+                else:
+                    if self.service.active:raise RevivalError('Stop the running game before restarting its runtime.')
+                    result=self.service.runtime_manager.restart_android(progress=ctx.step)
+                reply(state='succeeded',job_id=ctx.job.id)
+                return result
+            except Exception as error:
+                reply(state='failed',job_id=ctx.job.id,error=str(error));raise
+        self.submit(title,run,callbacks.get(action));return True
     def open_game(self,session):
         if session['kind']=='rebuild':
             self.rebuild_view=GameView(self.service.store.directory(session['game'])/'saves/rebuild.json',self.stop);self.stack.addWidget(self.rebuild_view);self.stack.setCurrentWidget(self.rebuild_view);self.active_page='game';self.activateWindow();QTimer.singleShot(10,self.rebuild_view.collect.setFocus)
-        self.message.setText('Playing. Stop returns to your library.' if session['kind']=='rebuild' else 'Android activity launched. Offline gameplay remains subject to verification.')
+        self.message.setText('Playing. Stop returns to your library.')
     def stop(self):self.submit('Stop game',lambda ctx:self.service.stop(ctx),lambda _:self.return_to_library())
     def return_to_library(self):
         self.stack.setCurrentWidget(self.library);self.active_page='library'
@@ -232,6 +273,20 @@ class Window(QMainWindow):
         if self.active_page=='game':self.stop()
         elif self.active_page!='library':self.return_to_library()
         elif self.isFullScreen():self.showNormal()
+    def restart_android(self):
+        if self.worker:return
+        def restart(ctx):
+            self.service.stop(ctx)
+            self.service.runtime_manager.restart_android(progress=ctx.step)
+            return self.service.runtime_manager.last
+        self.submit('Restart Android',restart,self.runtime_result)
+    def input_diagnostics(self):
+        if self.worker:return
+        from .input_diagnostics import collect,LABELS
+        from PySide6.QtWidgets import QInputDialog
+        choice,accepted=QInputDialog.getItem(self,'Input diagnostics','Choose a comparison. After capture begins, switch back to Android and repeat the same gestures for 10 seconds. This does not change settings.',LABELS,0,False)
+        if not accepted:return
+        self.submit('Input diagnostics',lambda ctx:collect(self.service,choice,ctx),lambda result:self.message.setText('Diagnostic report: '+result['directory']+(' — Android captured; this is not a latency measurement.' if result['android_captured'] else ' — Android was inaccessible; host evidence only.')))
     def show_setup(self):self.stack.setCurrentWidget(self.setup);self.active_page='setup';self.update_tools();self.check_runtime()
     def update_tools(self):
         h=tools_setup.health();missing=[n for n in ['java','keytool','zipalign','apksigner'] if not h[n]['ready']];self.tools_label.setText('Preparation tools found. Prepare checks their compatibility.' if not missing else 'Install the user-local tools needed to build and sign supported games.');self.install_tools_button.setText('Check / repair preparation tools' if not missing else 'Install preparation tools')
@@ -261,8 +316,10 @@ class Window(QMainWindow):
         from .install import install_dialog
         install_dialog()
     def steam_help(self):
-        path=pathlib.Path.home()/'.local/share/apk-revival-app/APK-Revival'
-        QMessageBox.information(self,'Add APK Revival to Steam','Install the desktop shortcut first. Then open Steam in Desktop Mode and choose Games > Add a Non-Steam Game. Select APK Revival, or browse to:\n\n'+str(path)+'\n\nLaunch the shortcut from Gaming Mode. Its desktop entry enables fullscreen automatically.')
+        from .steam import register
+        result=register(pathlib.Path(sys.executable))
+        QMessageBox.information(self,'Steam launcher','APK Revival is registered in Steam. Start Steam and select APK Revival in Gaming Mode.' if result['registered'] else result['reason'])
+
     def device_selected(self,index):
         self.service.settings['serial']=self.devices.itemData(index);self.service.save_settings()
     def show_updates(self):
@@ -337,6 +394,9 @@ class Window(QMainWindow):
             picker=ImportDialog(str(self.service.store.base(p)),dialog);picker.apk.setReadOnly(True);picker.add.setText('Add supporting files')
             if picker.exec()==QDialog.DialogCode.Accepted and picker.support:start('Add supporting files',lambda ctx:self.service.attach(p['id'],picker.support,ctx))
         actions.addWidget(button('Backup save',lambda:start('Backup save',lambda ctx:self.service.backup(p['id'],ctx))),0,0);actions.addWidget(button('Restore save',restore),0,1);actions.addWidget(button('Add supporting files',attach),1,0);actions.addWidget(button('Export game',export),1,1);actions.addWidget(button('Export diagnostics',diagnostics),2,0);actions.addWidget(button('Advanced',lambda:(dialog.accept(),self.advanced())),2,1)
+        if p.get('adapter')=='meego-1.32':
+            actions.addWidget(button('New village (no bonuses)',lambda:start('New village',lambda ctx:self.service.new_meego_village(p['id'],ctx))),3,0,1,2)
+            box.addWidget(label('A new village starts with two Meego and no bonus resources or crystal skulls. The previous village is backed up. Exact original starting values and some gameplay features remain unrecovered.','muted',True))
         box.addWidget(label('Preparation path','muted'));choice=QComboBox()
         for key,value in PATH_NAMES.items():choice.addItem(value,key)
         preferred=p.get('launcher',{}).get('preferred_path') or p['restoration']['path'] or (p['analysis']['recommended_path'] if p['analysis'] else 'offline_patch');choice.setCurrentIndex(choice.findData(preferred));choice.setEnabled(bool(p.get('adapter')));
@@ -383,13 +443,21 @@ class Window(QMainWindow):
         files=[u.toLocalFile() for u in event.mimeData().urls() if u.isLocalFile()]
         apks=[p for p in files if pathlib.Path(p).suffix.lower()=='.apk']
         if not apks:self.message.setText('Unsupported input. Drop a base APK. XAPK/APKS containers must be unpacked first.');return
-        self.add_game(apk=apks[0])
+        self.open_apk(apks[0])
     def monitor(self):
         if not self.service.android or (self.worker and self.worker.isRunning()) or (self.monitor_worker and self.monitor_worker.isRunning()):return
-        self.monitor_worker=Worker(self.service,'Check running game',lambda ctx:self.service.monitor(),self);self.monitor_worker.succeeded.connect(lambda message:(self.message.setText(message),self.return_to_library()) if message else None);self.monitor_worker.finished.connect(self.monitor_finished);self.monitor_worker.start()
+        self.monitor_worker=Worker(self.service,'Check running game',lambda ctx:self.service.monitor(),self);self.monitor_worker.succeeded.connect(self.monitored);self.monitor_worker.finished.connect(self.monitor_finished);self.monitor_worker.start()
+    def monitored(self,message):
+        if not message:return
+        self.message.setText(message)
+        if not self.service.active:self.return_to_library()
     def monitor_finished(self):
         if self.monitor_worker:self.monitor_worker.deleteLater();self.monitor_worker=None
         if self.closing:QTimer.singleShot(0,self.close)
+        elif getattr(self,'pending_submission',None):
+            pending=self.pending_submission;self.pending_submission=None
+            QTimer.singleShot(0,lambda:self.submit(*pending))
+        elif getattr(self,'pending_apks',[]):QTimer.singleShot(0,lambda:self.open_apk(self.pending_apks.pop(0)))
     def closeEvent(self,event):
         guided=getattr(self,"meego_test_dialog",None)
         if guided and not guided.test.finished:self.closing=True;event.ignore();guided.reject();return
@@ -399,7 +467,11 @@ class Window(QMainWindow):
             self.closing=True;event.ignore();self.stop();return
         self.monitor_timer.stop();self.controller.close();QApplication.instance().removeEventFilter(self)
         try:self.service.shutdown()
-        except Exception as e:print('Shutdown cleanup: '+str(e),file=sys.stderr)
+        except Exception as e:
+            print('Shutdown cleanup: '+str(e),file=sys.stderr)
+            if getattr(self,'quit_request_reply',None):self.quit_request_reply(state='failed',error=str(e))
+        else:
+            if getattr(self,'quit_request_reply',None):self.quit_request_reply(state='succeeded')
         if self.pending_update:
             from .updater import restart_with_update
             try:restart_with_update(self.pending_update)
@@ -409,4 +481,5 @@ class Window(QMainWindow):
 
 def run(store=None,fullscreen=False):
     app=QApplication.instance() or QApplication(sys.argv);app.setApplicationName('APK Revival');app.setStyle('Fusion');app.setStyleSheet(STYLE);window=Window(store,fullscreen);window.show();return app.exec()
+
 

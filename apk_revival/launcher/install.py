@@ -1,11 +1,11 @@
 """User-local desktop installation. No system package manager or sudo."""
 from __future__ import annotations
-import os,pathlib,shutil,sys
+import os,pathlib,shutil,sys,shlex,time,re
 from ..util import RevivalError
 
 def desktop_escape(value):return str(value).replace('\\','\\\\').replace('"','\\"').replace('`','\\`').replace('$','\\$')
 
-def install(source=None,home=None):
+def install(source=None,home=None,register_steam=True):
     source=pathlib.Path(source or pathlib.Path(sys.executable).resolve().parent)
     if not (source/'APK-Revival').is_file():raise RevivalError('The update executable is missing; installed application was not changed')
     home=pathlib.Path(home or pathlib.Path.home());target=home/'.local/share/apk-revival-app'
@@ -14,7 +14,8 @@ def install(source=None,home=None):
         staged=target.with_name('apk-revival-app.new');prior=target.with_name('apk-revival-app.previous')
         if staged.exists():shutil.rmtree(staged)
         shutil.copytree(source,staged)
-        if prior.exists():shutil.rmtree(prior)
+        if prior.exists():
+            prior=target.with_name('apk-revival-app.previous-'+str(time.time_ns()))
         if target.exists():target.rename(prior)
         try:staged.rename(target)
         except Exception:
@@ -26,17 +27,40 @@ def install(source=None,home=None):
     icon=target/'_internal/resources/apk-revival-logo.png'
     if not icon.exists():icon=target/'_internal/resources/apk-revival.svg'
     applications=home/'.local/share/applications';applications.mkdir(parents=True,exist_ok=True)
-    desktop='[Desktop Entry]\nType=Application\nName=APK Revival\nComment=Your mobile games, back in play\nExec="'+desktop_escape(exe)+'" --fullscreen\nIcon='+str(icon)+'\nTerminal=false\nCategories=Game;\nStartupNotify=true\n'
-    path=applications/'apk-revival.desktop';path.write_text(desktop);path.chmod(0o755)
+    # xdg-utils on SteamOS cannot resolve unnecessary quotes around a simple Exec path.
+    launch=str(exe) if re.fullmatch(r'[A-Za-z0-9/_.-]+',str(exe)) else '"'+desktop_escape(exe)+'"'
+    desktop='[Desktop Entry]\nType=Application\nName=APK Revival\nComment=Your mobile games, back in play\nExec='+launch+' --fullscreen %F\nMimeType=application/vnd.android.package-archive;\nIcon='+str(icon)+'\nTerminal=false\nCategories=Game;\nStartupNotify=true\n'
+    path=applications/'apk-revival.desktop'
+    if path.exists():shutil.copyfile(path,path.with_name(path.name+'.previous-'+str(time.time_ns())))
+    path.write_text(desktop);path.chmod(0o755)
+    bindir=home/'.local/bin';bindir.mkdir(parents=True,exist_ok=True)
+    gaming=bindir/'apk-revival-gaming';gaming.write_text('#!/bin/sh\nexec '+shlex.quote(str(exe))+' --fullscreen "$@"\n');gaming.chmod(0o755)
     desktop_dir=home/'Desktop'
     if desktop_dir.is_dir():shutil.copyfile(path,desktop_dir/'APK Revival.desktop');(desktop_dir/'APK Revival.desktop').chmod(0o755)
-    return {'executable':str(exe),'desktop_file':str(path),'previous_install':str(target.with_name('apk-revival-app.previous'))}
+    import configparser
+    config=home/'.config';config.mkdir(parents=True,exist_ok=True)
+    for name in ('mimeapps.list','kde-mimeapps.list'):
+        mime=config/name;settings=configparser.ConfigParser(interpolation=None,strict=False);settings.optionxform=str
+        if mime.exists():
+            shutil.copyfile(mime,mime.with_name(mime.name+'.previous-'+str(time.time_ns())))
+            settings.read(mime)
+        if not settings.has_section('Default Applications'):settings.add_section('Default Applications')
+        key='application/vnd.android.package-archive'
+        existing=[item for item in settings.get('Default Applications',key,fallback='').split(';') if item and item!='apk-revival.desktop']
+        settings.set('Default Applications',key,'apk-revival.desktop;'+(';'.join(existing)+';' if existing else ''))
+        staged=mime.with_suffix('.apkr-new')
+        with staged.open('w') as output:settings.write(output,space_around_delimiters=False)
+        staged.replace(mime)
+    from .steam import register
+    steam=register(exe,home) if register_steam else {'registered':False,'reason':'Host Steam process status is unavailable in the build sandbox. Close Steam and select Setup > Add to Steam in the installed application.'}
+    return {'gaming_launcher':str(gaming),'steam':steam,'executable':str(exe),'desktop_file':str(path),'previous_install':str(prior) if source.resolve()!=target.resolve() else None}
 
 def install_dialog():
     from PySide6.QtWidgets import QApplication,QMessageBox
     app=QApplication.instance() or QApplication(sys.argv)
     if QMessageBox.question(None,'Install APK Revival','Install APK Revival in your home folder and create an application-menu shortcut? No administrator password is needed. A previous installation is preserved.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)!=QMessageBox.StandardButton.Yes:return 0
     try:
-        result=install();QMessageBox.information(None,'APK Revival installed','Open APK Revival from your application menu.\n\nFor Steam: choose Games > Add a Non-Steam Game, select APK Revival, and add --fullscreen to its launch options.');return 0
+        result=install();QMessageBox.information(None,'APK Revival installed','Open APK Revival from your application menu or open an APK from Dolphin.\n\n'+('The Steam launcher is registered.' if result['steam']['registered'] else result['steam']['reason']));return 0
     except Exception as e:QMessageBox.critical(None,'Installation failed',str(e));return 1
+
 

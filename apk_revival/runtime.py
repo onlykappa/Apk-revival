@@ -6,6 +6,9 @@ from .util import RevivalError, atomic_json, command, digest, now, tool
 
 class WaydroidRuntime:
     def __init__(self,serial=None):self.serial=serial;self.backend=None;self.forward_port=None;self.package=None
+    def launch_step(self,message):
+        callback=getattr(self,'launch_progress',None)
+        if callback:callback(message)
     def adb(self,*args,timeout=60,input=None):
         if not self.serial:raise RevivalError('Set a specific runtime ADB serial. Get the Waydroid IP from Android Settings > About, run adb connect IP:5555, then configure that serial.')
         return command([tool('adb'),'-s',self.serial,*args],timeout=timeout,input=input)
@@ -30,9 +33,10 @@ class WaydroidRuntime:
         r=self.probe()
         if not r['available']:raise RevivalError('Runtime unavailable. '+r.get('error','Connect the configured Waydroid ADB serial first.'))
         required=p['analysis']['abis']
+        if 'armeabi' in required and 'armeabi-v7a' in r['abis']:required=required+['armeabi-v7a']
         if required and not set(required)&set(r['abis']):raise RevivalError(f'Architecture mismatch: APK {required}, Android {r["abis"]}. Configure a compatible runtime or ARM translation separately.')
         sdk=p['analysis']['metadata']['min_sdk']
-        if sdk and sdk.isdigit() and int(sdk)>int(r['sdk']):raise RevivalError('Android runtime SDK is too old')
+        if sdk and sdk.isdigit() and int(sdk)>int(r['sdk']):raise RevivalError(f'APK requires Android API {sdk}; this runtime provides API {r["sdk"]}. Use a newer compatible Android runtime.')
         if p['analysis']['input_errors']:raise RevivalError('Input split mismatch must be fixed')
         return r
     def artifact(self,store,p):
@@ -45,7 +49,14 @@ class WaydroidRuntime:
         self.compatible(p);self.package=p['analysis']['metadata']['package'] if original else p['restoration'].get('client_package',p['analysis']['metadata']['package'])
         apk=store.base(p) if original else self.artifact(store,p)
         split=[store.directory(p['id'])/'originals'/i['stored_name'] for i in p['inputs'] if i['role']=='split_apk']
-        self.adb('install-multiple' if split else 'install','-r',apk,*split,timeout=180)
+        try:
+            result=self.adb('install-multiple' if split else 'install','-r',apk,*split,timeout=180)
+            if 'Success' not in result:raise RevivalError(result or 'Android returned no installation confirmation')
+        except RevivalError as error:
+            detail=str(error)
+            hints={'INSTALL_FAILED_UPDATE_INCOMPATIBLE':'An installed copy has a different signing key. It was kept to protect its saves. Use the matching APK/signature.', 'INSTALL_FAILED_VERSION_DOWNGRADE':'A newer version is already installed. It was kept to protect game data.', 'INSTALL_FAILED_NO_MATCHING_ABIS':'Android cannot run this APK architecture. A compatible runtime or working ARM translation is required.', 'INSTALL_FAILED_DEPRECATED_SDK_VERSION':'Android rejects this APK’s old target SDK. Use a compatible Android version or a reviewed restoration.', 'INSTALL_FAILED_MISSING_SPLIT':'This APK needs matching split APK files. Add them in Game options.', 'INSTALL_FAILED_INSUFFICIENT_STORAGE':'Android storage is full.'}
+            hint=next((message for code,message in hints.items() if code in detail),'Android could not install this APK. Existing app data was not removed.')
+            raise RevivalError(hint+'\n'+detail) from error
         for i in p['inputs']:
             if i['role']=='obb':
                 remote='/sdcard/Android/obb/'+self.package
@@ -60,24 +71,41 @@ class WaydroidRuntime:
         except Exception:
             self.stop();raise
     def launch(self,p):
-        package=p['restoration'].get('client_package',p['analysis']['metadata']['package']);self.package=package
-        # Resolve the actual launcher instead of picking an arbitrary manifest activity.
-        component=self.shell('cmd','package','resolve-activity','--brief',package).strip().splitlines()[-1]
-        if '/' not in component or ' ' in component:raise RevivalError('No launchable activity resolved; inspect manifest and logs')
-        self.shell('am','start','-W','-n',component)
+        package=p['restoration'].get('client_package') or p['analysis']['metadata']['package'];self.package=package
+        if not re.fullmatch(r'[A-Za-z0-9_.]+',package):raise RevivalError('Invalid Android package name.')
+        self.launch_step('Resolving the game activity')
+        result=self.shell('cmd','package','resolve-activity','--brief','-a','android.intent.action.MAIN','-c','android.intent.category.LAUNCHER',package,timeout=8)
+        components=[line.strip() for line in result.splitlines() if re.fullmatch(r'[A-Za-z0-9_.$]+/[A-Za-z0-9_.$]+',line.strip())]
+        if not components:raise RevivalError('This APK has no enabled launcher activity. It may be a split, service, or plugin rather than a standalone game.')
+        # Waydroid uses active_apps to expose the Android surface through Cage.
+        self.launch_step('Connecting the game window to the display')
+        command([tool('waydroid'),'prop','set','waydroid.active_apps',package],timeout=5)
+        self.launch_step('Starting the game activity')
+        result=self.shell('am','start','-a','android.intent.action.MAIN','-c','android.intent.category.LAUNCHER','-n',components[-1],timeout=10)
+        if re.search(r'Error:|Exception|Permission Denial|Status:\s*(?!ok)\w+',result):raise RevivalError('Android rejected the activity launch: '+result[-2000:])
+        deadline=time.monotonic()+8
+        self.launch_step('Checking the game process')
+        while time.monotonic()<deadline:
+            try:
+                if self.shell('pidof',package,timeout=3).strip():return components[-1]
+            except RevivalError:pass
+            time.sleep(.5)
+        log=self.adb('logcat','-d','-t','100',timeout=8)
+        relevant=[line for line in log.splitlines() if any(term in line for term in (package,'UnsatisfiedLinkError','dlopen failed','FATAL EXCEPTION','Fatal signal'))]
+        raise RevivalError('The game exited during startup. Possible native library, Android version, or missing service failure. Android details: '+'\n'.join(relevant[-15:]))
     def start_backend(self,store,p):
         port=p['runtime']['backend_port']
         if p.get('adapter')=='tapquest-v1':self.backend=Backend(store.directory(p['id'])/'saves/tapquest.json',port).start()
         elif p.get('adapter')=='meego-1.32':
             from .meego.backend import MeegoBackend,config_path
-            self.backend=MeegoBackend(store.directory(p['id']),config_path(store,p),port).start()
+            self.backend=MeegoBackend(store.directory(p['id']),config_path(store,p),port,apk=store.base(p)).start()
         else:raise RevivalError('No implemented backend adapter')
         try:
             self.adb('reverse','--no-rebind',f'tcp:{port}',f'tcp:{port}');self.forward_port=port
             self.probe_backend()
         except Exception:
             self.stop_backend();raise
-    def probe_backend(self):
+    def probe_backend(self,timeout=10):
         port=int(self.backend.port)
         if not 1<=port<=65535:raise RevivalError('Invalid local backend port')
         request='GET /health HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n'
@@ -85,19 +113,19 @@ class WaydroidRuntime:
         # before netcat sends it on the tested Waydroid/Toybox combination.
         # Keep the producer alive briefly so nc receives the complete request.
         script="(printf '%s' "+shlex.quote(request)+f"; toybox sleep 1) | toybox nc -w 3 -q 2 127.0.0.1 {port}"
-        response=self.adb('shell','-T',script,timeout=10)
+        response=self.adb('shell','-T',script,timeout=timeout)
         if not response.strip():raise RevivalError('Android-to-host backend probe failed: Android returned no HTTP response. Check the local service and ADB reverse connection, then retry Play.')
         if self.backend.token not in response:raise RevivalError('Android-to-host backend probe failed: the HTTP reply did not identify this local service. Stop any conflicting service and retry Play.')
         return response
     def stop_backend(self):
         if self.forward_port:
-            try:self.adb('reverse','--remove',f'tcp:{self.forward_port}')
+            try:self.adb('reverse','--remove',f'tcp:{self.forward_port}',timeout=3)
             except RevivalError:pass
             self.forward_port=None
         if self.backend:self.backend.stop();self.backend=None
     def stop(self):
         try:
-            if self.package:self.shell('am','force-stop',self.package)
+            if self.package:self.shell('am','force-stop',self.package,timeout=5)
         finally:self.stop_backend();self.package=None
     def diagnostics(self,store,p,original=False):
         self.install(store,p,original=original);self.launch(p)
@@ -165,4 +193,5 @@ class OfflineGuard:
             except RevivalError as e:errors.append(str(e))
         self.attached=[];self.created=[]
         if errors:raise RevivalError('Guest firewall cleanup failed. Run recovery commands from docs/VERIFICATION.md. Chain: '+self.chain+'; '+'; '.join(errors))
+
 

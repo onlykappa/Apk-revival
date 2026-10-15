@@ -122,3 +122,4 @@ def external_env(env=None):
         if clean.get('QT_QPA_PLATFORM','').lower() in ('offscreen','minimal','minimalegl'):
             clean.pop('QT_QPA_PLATFORM',None)
     return clean
+

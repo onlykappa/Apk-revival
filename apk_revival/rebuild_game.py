@@ -18,3 +18,4 @@ def run(save_path):
 if __name__=='__main__':
     import argparse
     parser=argparse.ArgumentParser();parser.add_argument('--save',default=str(Path.home()/'.local/share/apk-revival/rebuild/tapquest.json'));args=parser.parse_args();run(Path(args.save))
+

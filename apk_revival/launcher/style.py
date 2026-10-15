@@ -39,3 +39,4 @@ QTabBar::tab:selected { background: #36594c; }
 QCheckBox { spacing: 10px; padding: 9px; }
 QCheckBox::indicator { width: 22px; height: 22px; }
 '''
+

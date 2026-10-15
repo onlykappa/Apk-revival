@@ -1,8 +1,8 @@
 """Serialized jobs with actual steps, inspired by OmniPC's JobManager."""
 from __future__ import annotations
 from dataclasses import dataclass,field
-import copy,threading,uuid
-from ..util import RevivalError,now
+import copy,pathlib,threading,uuid
+from ..util import RevivalError,now,atomic_json
 
 class Cancelled(RevivalError):pass
 
@@ -30,12 +30,22 @@ class Context:
     def skipped(self,label,reason):self.job.steps.append({'label':label,'state':'skipped','detail':reason});self.notify(self.job.snapshot())
 
 class Jobs:
-    def __init__(self):self.lock=threading.Lock();self.active=None;self.history=[]
+    def __init__(self,history_dir=None):
+        self.lock=threading.Lock();self.active=None;self.history=[]
+        self.history_dir=pathlib.Path(history_dir) if history_dir is not None else None
+        self.last_history_error=None
     def run(self,label,operation,notify=lambda _:None):
         if not self.lock.acquire(blocking=False):raise RevivalError('Another task is running. Wait for it to finish or cancel at the next safe stage.')
         job=Job(label);self.active=job;self.history.append(job)
+        def emit(snapshot):
+            if self.history_dir is not None:
+                try:
+                    self.history_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
+                    atomic_json(self.history_dir/(job.id+'.json'),snapshot)
+                except OSError as error:self.last_history_error=str(error)
+            notify(snapshot)
         try:
-            job.state='running';notify(job.snapshot());result=operation(Context(job,notify));job.state='succeeded'
+            job.state='running';emit(job.snapshot());result=operation(Context(job,emit));job.state='succeeded'
             for s in job.steps:
                 if s['state']=='running':s['state']='done'
             return result
@@ -45,6 +55,7 @@ class Jobs:
                 if s['state']=='running':s['state']='skipped' if job.state=='cancelled' else 'failed';s['detail']=str(e)
             raise
         finally:
-            job.ended_at=now();notify(job.snapshot());self.active=None;self.lock.release()
+            job.ended_at=now();emit(job.snapshot());self.active=None;self.lock.release()
     def cancel(self):
         if self.active:self.active.cancellation.set()
+

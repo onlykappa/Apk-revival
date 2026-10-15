@@ -20,3 +20,4 @@ def open_url(request, timeout=45):
         if isinstance(error.reason, ssl.SSLCertVerificationError):
             raise RevivalError('HTTPS certificate verification failed. Check the Deck date/time and network sign-in. APK Revival keeps certificate verification enabled.') from error
         raise
+

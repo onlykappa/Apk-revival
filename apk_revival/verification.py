@@ -49,3 +49,4 @@ def verify(store,game_id):
         atomic_json(d/'result.json',record);p['verification'].append(record)
         p['status']='Verified Offline' if record['passed'] else 'Exported but Unverified' if p['restoration'].get('export') else 'Restoration In Progress';store.save(p)
     return record
+

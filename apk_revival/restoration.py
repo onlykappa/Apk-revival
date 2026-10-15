@@ -88,9 +88,12 @@ class Restorer:
             command([tool('zipalign'),'-c','-p','4',work/'restored.apk'])
             # Check original hash again after all tooling completes.
             self.store.load(game_id)
-            p['restoration']={'path':path,'operations':plan['operations'],'plan':plan,'artifact':str((work/'restored.apk').relative_to(self.store.directory(game_id))),'artifact_sha256':digest(work/'restored.apk'),'signature_verified':True,'client_package':result['package'],'diff':str((work/'changes.diff').relative_to(self.store.directory(game_id)))}
+            restoration={'path':path,'operations':plan['operations'],'plan':plan,'artifact':str((work/'restored.apk').relative_to(self.store.directory(game_id))),'artifact_sha256':digest(work/'restored.apk'),'signature_verified':True,'client_package':result['package'],'diff':str((work/'changes.diff').relative_to(self.store.directory(game_id)))}
             if hasattr(adapter(p),'prepare_data'):
-                progress('Setting up local services');p['restoration']['backend_data']=adapter(p).prepare_data(self.store,p,work)
+                progress('Setting up local services');restoration['backend_data']=adapter(p).prepare_data(self.store,p,work)
+            # Publish the new artifact only after its service data is ready.
+            # A failure/cancellation above must keep the old working reference.
+            p['restoration']=restoration
             p['status']='Restoration In Progress';p['verification']=[];p['logs'].append({'message':'APK rebuilt, aligned, signed and signature verified. Gameplay remains unverified.'});self.store.save(p);return p
         except Exception as e:
             p['logs'].append({'message':'Preparation failed: '+str(e)});self.store.save(p);raise
@@ -131,3 +134,4 @@ class Restorer:
         key.chmod(0o600);return key,password
 
 def re_hash(s):return len(s)==64 and all(c in '0123456789abcdef' for c in s)
+

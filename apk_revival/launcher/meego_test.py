@@ -33,3 +33,4 @@ class MeegoTestDialog(QDialog):
     def closeEvent(self,event):
         if not self.test.finished or self.worker:event.ignore();self.reject()
         else:event.accept()
+

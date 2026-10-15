@@ -37,7 +37,7 @@ class PortableSession:
                 if self.p.get('adapter')=='tapquest-v1':r.backend=Backend(self.save_root/'tapquest.json',port).start()
                 elif self.p.get('adapter')=='meego-1.32':
                     from ..meego.backend import MeegoBackend
-                    r.backend=MeegoBackend(self.save_root,self.root/'backend-data',port).start()
+                    r.backend=MeegoBackend(self.save_root,self.root/'backend-data',port,apk=self.root/'restored.apk').start()
                 else:raise RevivalError('Unsupported local backend')
                 r.adb('reverse','--no-rebind',f'tcp:{port}',f'tcp:{port}');r.forward_port=port;r.probe_backend()
             ctx.step('Launching Android');r.launch(self.p);return {'kind':'android'}
@@ -79,3 +79,4 @@ class PortableWindow(QWidget):
         if self.worker:self.closing=True;event.ignore();self.message.setText('Finishing the current operation before closing.');return
         if self.session.android:self.closing=True;event.ignore();self.stop();return
         self.controller.close();self.session.shutdown();event.accept()
+

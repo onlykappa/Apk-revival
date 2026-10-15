@@ -48,7 +48,7 @@ def idle_job(now):
 def villager(ident, name, gender, appearance, user_id, now):
     return dict(villager_id=ident, name=name, gender=gender, user_id=user_id,
                 location_type=0, location_id=user_id,
-                birthday=int(now - 20 * 86400), deathday=int(now + 80 * 86400),
+                birthday=int(now - 20 * 3600), deathday=int(now + 80 * 3600),
                 last_update=now, job=idle_job(now), items={}, effects=[],
                 appearance_items=[dict(item_id=i, count=1, layer=1,
                                        cooldown=0, last_update=now) for i in appearance],
@@ -68,22 +68,26 @@ def next_id(collection):
     return max([int(k) for k in collection if str(k).isdigit()] + [0]) + 1
 
 
-def synchronize(data, now):
+def synchronize(data, now, rules=None):
+    rules = RULES if rules is None else rules
     gs = data['game_state']
     level = 1
     affluence = 0
     for b in gs['buildings'].values():
-        rule = RULES['buildings'].get(str(b['building_type']), {})
+        rule = rules['buildings'].get(str(b['building_type']), {})
         state = rule.get('state_data', {}).get(str(b['state']), {})
         affluence += int(state.get('affluence', 0))
         if b['building_type'] == 1:
             level = int(state.get('temple_level', 1))
     gs.setdefault('achievements', {})['102'] = dict(
         achievement_id=102, level=level, last_updated=now)
+    affluence+=int(data.get('local_affluence_delta',0))
     info = gs.setdefault('village_information', {})
     info.update(village_level=level, affluence=affluence,
                 current_level_affluence=0, next_level_affluence=max(100, affluence + 100))
     data['game_user'].update(village_level=level, affluence=affluence)
+    from . import progression
+    progression.synchronize(data,now,rules)
 
 
 def migrate(data, now=None):
@@ -217,9 +221,9 @@ def mutate(data, route, params, now=None):
         task = text(params, 'task_id') or text(params, 'task_name') or text(params, 'task')
         if not task or len(task) > 100:
             raise ActionError('Invalid tutorial task.')
-        tasks = new.setdefault('local_tutorial_tasks', [])
-        if task not in tasks:
-            tasks.append(task)
+        from . import progression
+        try:progression.complete_tutorial_task(new,task,RULES)
+        except ValueError as error:raise ActionError(str(error)) from error
     elif route == 'game/village/place_building':
         kind = integer(params, 'building_type_id', low=1)
         rule = RULES['buildings'].get(str(kind))
@@ -300,21 +304,11 @@ def mutate(data, route, params, now=None):
             gs['resources'][str(i)]['count'] += amount
             gs['resources'][str(i)]['last_update'] = now
     elif route == 'game/purchase/buy_item':
+        from . import catalog
         ident = str(integer(params, 'item_id', low=1))
         count = integer(params, 'count', default=1, low=1, high=100)
-        rule = RULES['items'].get(ident)
-        if not rule or not rule.get('active') or not rule.get('items_store_purchasable'):
-            raise ActionError('This item is not in the local item shop.')
-        if text(params, 'use_points', 'false').lower() not in ('true', '1'):
-            raise ActionError('Only skull-priced items are supported in the local item shop.')
-        require_unlocked(gs, rule)
-        price = int(rule.get('points_cost', 0))
-        if price <= 0:
-            raise ActionError('This item has no supported local price.')
-        old = gs.setdefault('items', {}).get(ident, {}).get('count', 0)
-        if rule.get('max_count', 0) and old + count > rule['max_count']:
-            raise ActionError('Maximum item count reached.')
-        charge(gs, {}, price * count)
-        gs['items'][ident] = dict(item_id=int(ident), count=old + count, last_update=now)
+        catalog.purchase_item(gs, ident, count,
+                              text(params, 'use_points', 'false').lower() in ('true', '1'), RULES, now)
     synchronize(new, now)
     return new
+

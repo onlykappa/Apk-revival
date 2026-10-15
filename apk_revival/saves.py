@@ -59,3 +59,4 @@ def validate_meego_save(value):
     state=value["game_state"]
     for field in ["buildings","all_villagers","resources","global_state"]:
         if not isinstance(state.get(field),dict):raise RevivalError("Invalid Meego save field: "+field)
+

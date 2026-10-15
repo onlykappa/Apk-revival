@@ -1,17 +1,28 @@
 """Owned loopback responder with fresh guest-verifiable health identity."""
-import json,pathlib,threading,uuid
+import json,pathlib,threading,uuid,plistlib,zipfile
 from urllib.parse import urlsplit
 from ..util import RevivalError,read_json,digest
-from .engine import server,local_game
+from .engine import server,local_game,birthstones
 _lock=threading.Lock()
 
 class MeegoBackend:
-    def __init__(self,data,config,port):self.data=pathlib.Path(data);self.config=pathlib.Path(config);self.port=port;self.token=uuid.uuid4().hex;self.server=None;self.thread=None;self.owned=False
+    def __init__(self,data,config,port,*,apk=None):self.data=pathlib.Path(data);self.config=pathlib.Path(config);self.port=port;self.apk=apk;self.token=uuid.uuid4().hex;self.server=None;self.thread=None;self.owned=False
     def start(self):
         if not _lock.acquire(False):raise RevivalError('Another Meego local service is running in this application')
         self.owned=True
         try:
-            local_game.RULES=read_json(self.config/'local-rules.json');state=server.State(self.data,read_json(self.config/'starter-packet.json'));token=self.token
+            rules=read_json(self.config/'local-rules.json')
+            if self.apk is not None:
+                # Read additional original rules for already prepared clients;
+                # do not rewrite/hash-break their private service-data files.
+                with zipfile.ZipFile(self.apk) as archive:
+                    tree=plistlib.loads(archive.read('assets/TechTree.plist'))['techtree']
+                for name in ('birthsigns','achievements','client_data','dungeon_types','dungeon_stages'):
+                    if name in tree:rules[name]=tree[name]
+                rules['birthsigns']=birthstones.load_catalog(self.apk)
+            seed=read_json(self.config/'starter-packet.json')
+            birthstones.populate_packet(seed,rules.get('birthsigns',{}))
+            local_game.RULES=rules;state=server.State(self.data,seed);token=self.token
             class Handler(server.Handler):
                 def dispatch(inner):
                     if urlsplit(inner.path).path=='/health':inner.reply(200,{'token':token,'package':server.PACKAGE,'status':'experimental-local-simulation'});return
@@ -34,3 +45,4 @@ def config_path(store,p):
     for name,sha in entry['files'].items():
         if pathlib.PurePosixPath(name).name!=name or digest(path/name)!=sha:raise RevivalError('Meego backend data changed. Prepare again.')
     return path
+

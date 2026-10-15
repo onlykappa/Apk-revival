@@ -3,12 +3,13 @@
 Response fields are recovered where noted, defaults are provisional.
 No claim of complete gameplay compatibility. No upstream network requests.
 """
-import argparse, copy, datetime, ipaddress, json, os, tempfile, threading, time, signal
+import argparse, copy, datetime, ipaddress, json, math, os, tempfile, threading, time, signal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
-from .local_game import migrate, ActionError, integer
-from .simulation import advance, mutate
+from .local_game import migrate, synchronize, ActionError, integer
+from .simulation import advance, mutate, migrate_economy, housing, refresh_aging_jobs, SETTINGS
+from . import community, catalog, ecology, skills, food, birthstones, local_game as g
 
 HERE = Path(__file__).resolve().parent
 PACKAGE = 'ata.apkrv.meego'
@@ -31,12 +32,67 @@ def redact(params):
     return {k: '[redacted]' if any(s in k.lower() for s in SENSITIVE) else v
             for k, v in params.items()}
 
+def native_payload(value, game_state=None):
+    """Project saved building timers onto the native no-expiry wire contract.
+
+    JMBuilding treats a missing expire_date as NSDate.distantFuture. Sending
+    our internal zero instead means Unix epoch and causes endless overdue
+    building updates/loading spinners. Keep saves and real deadlines intact;
+    job timers and resource balances have different contracts.
+    """
+    if isinstance(value, dict):
+        if {'all_villagers', 'buildings'} <= value.keys():game_state=value
+        elif isinstance(value.get('game_state'), dict):game_state=value['game_state']
+        result = {key: native_payload(item, game_state) for key, item in value.items()}
+        if {'building_id', 'building_type', 'state'} <= value.keys() and value.get('expire_date') == 0:
+            result.pop('expire_date', None)
+        if 'villager_id' in value and isinstance(value.get('job'), dict) and game_state:
+            job=result['job'];source=game_state.get('buildings',{}).get(str(job.get('source_id')))
+            if source:
+                rule=g.RULES.get('buildings',{}).get(str(source.get('building_type')),{}).get('state_data',{}).get(str(source.get('state')), {})
+                finite=source.get('building_type') in (2,3,4) or rule.get('stocked_phase')
+                count=source.get('count');rate=job.get('gather_rate')
+                if (finite and isinstance(count,(int,float)) and not isinstance(count,bool)
+                        and isinstance(rate,(int,float)) and not isinstance(rate,bool)
+                        and math.isfinite(count) and math.isfinite(rate) and count>0 and rate>count):
+                    # The final pickup can be smaller than a full normal trip.
+                    # Keep authoritative rates/fractions in the save unchanged.
+                    job['gather_rate']=count
+        return result
+    if isinstance(value, list):
+        return [native_payload(item, game_state) for item in value]
+    return value
+
+def initial_village(seed, when=None, rules=None):
+    """A fresh local village without the earlier test economy bonuses.
+
+    Exact original server starting balances have not been recovered. Keep this
+    provenance explicit rather than presenting local defaults as vanilla parity.
+    """
+    when = time.time() if when is None else when
+    data = {'format_version': 1, 'created_at': when, 'last_simulated_at': when,
+            'game_user': copy.deepcopy(seed['game_user']),
+            'game_state': copy.deepcopy(seed['game_state']),
+            'local_migrations': ['starter-economy-1', 'completed-trips-2'],
+            'start_profile': {'name': 'no-bonus-local-village',
+                              'original_server_defaults_verified': False}}
+    state = data['game_state']
+    for resource in state['resources'].values():resource.update(count=0, last_update=when)
+    state['points'] = 0
+    for person in state['all_villagers'].values():
+        person.update(birthday=int(when-20*3600), deathday=int(when+80*3600), last_update=when)
+        person['job'].update(job_start_date=int(when), last_update=when)
+    synchronize(data, when, rules=rules)
+    community.advance(data, when, housing_capacity=housing(state, rules), rules=rules)
+    return data
+
 class State:
     def __init__(self, directory, seed=None):
         self.directory = Path(directory).expanduser()
         self.directory.mkdir(parents=True, exist_ok=True)
         self.save = self.directory / 'saves' / 'village.json'
         self.lock = threading.RLock()
+        self.action_notice = None
         self.logfile = self.directory / 'logs' / 'requests.jsonl'
         self.logfile.parent.mkdir(parents=True, exist_ok=True)
         # Preserve the old retry storm without adding it to every diagnostic ZIP.
@@ -49,12 +105,7 @@ class State:
             if self.data.get('format_version') != 1:
                 raise ValueError('Unsupported save format. Existing save was not changed.')
         else:
-            self.data = {'format_version': 1, 'created_at': time.time(), 'last_simulated_at': time.time(),
-                         'game_user': self.seed['game_user'], 'game_state': self.seed['game_state']}
-            fresh_now = time.time()
-            for person in self.data['game_state']['all_villagers'].values():
-                person.update(birthday=int(fresh_now-20*3600), deathday=int(fresh_now+80*3600), last_update=fresh_now)
-                person['job'].update(job_start_date=int(fresh_now), last_update=fresh_now)
+            self.data = initial_village(self.seed)
             atomic_json(self.save, self.data)
         if self.data['game_user'].get('avatar_type')==0:
             new = copy.deepcopy(self.data)
@@ -73,11 +124,35 @@ class State:
         if migrated is not None:
             self.persist(migrated)
             print('Backed up and added starter population, balances and temple unlocks.', flush=True)
-    def record(self, route, params, status):
+        new = copy.deepcopy(self.data)
+        migrate_economy(new, time.time())
+        ecology.upgrade_bush_stock(new)
+        skills.migrate_work_progress(new)
+        catalog.normalize_research_cursors(new['game_state'], g.RULES)
+        refresh_aging_jobs(new, time.time())
+        if ecology.STATE_KEY not in new:
+            ecology.advance(new, time.time(), rules=g.RULES, stocks=SETTINGS['resource_stocks'])
+        if community.STATE_KEY not in new:
+            community.advance(new, time.time(), housing_capacity=housing(new['game_state']))
+        if food.STATE_KEY not in new:
+            food.advance(new, time.time(), time.time())
+        birthstones.discover_owned(new, g.RULES.get('birthsigns', {}))
+        if new != self.data:self.persist(new)
+    def record(self, route, params, status, error=None):
         record = {'time': datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   'route': route, 'parameters': redact(params), 'status': status}
-        with self.lock, self.logfile.open('a') as f: f.write(json.dumps(record) + '\n')
+        if error:
+            # Record only our own action description, never request credentials.
+            record['error'] = {key: error[key] for key in ('title','message','reason') if key in error}
+        with self.lock, self.logfile.open('a') as f:
+            f.write(json.dumps(record) + '\n')
+            if error:self.action_notice = str(error.get('message','Game action rejected.'))
         print(route, status, flush=True)
+    def take_action_notice(self):
+        with self.lock:
+            message = self.action_notice
+            self.action_notice = None
+            return message
     def persist(self, new):
         if self.save.exists():
             backups = self.directory / 'backups'; backups.mkdir(exist_ok=True)
@@ -96,16 +171,22 @@ class State:
     def handle(self, route, params):
         route = route.strip('/')
         with self.lock:
-            current = advance(self.data)
+            now = time.time()
+            current = advance(self.data, now)
             if current != self.data:
                 self.persist(current)
             try:
-                new = mutate(self.data, route, params)
+                new = mutate(self.data, route, params, now)
                 if new is not None:
+                    birthstones.discover_owned(new, g.RULES.get('birthsigns', {}))
+                    g.synchronize(new,now)
+                    food.advance(new, now, now)
                     if new != self.data:
                         self.persist(new)
                     if route == 'game/village/check_breeding_compatibility':
                         return {'token': self.data['response_token'], 'game_state': copy.deepcopy(self.data['game_state'])}, 'local-breeding-token'
+                    if route == 'game/village/collect_report_cards':
+                        return {'game_state': copy.deepcopy(self.data['game_state']), 'report_cards': copy.deepcopy(self.data.get('response_report_cards', {}))}, 'local-report-cards'
                     if route == 'game/village/change_villager_name':
                         ident = str(integer(params, 'villager_id', low=1))
                         return copy.deepcopy(self.data['game_state']['all_villagers'][ident]), 'saved-local-action'
@@ -178,7 +259,11 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
     def log_message(self, *_): pass
     def reply(self, code, value):
-        body = json.dumps(value, separators=(',', ':')).encode()
+        state=getattr(getattr(self,'server',None),'state',None)
+        if state is not None:
+            with state.lock:projected=native_payload(value,state.data['game_state'])
+        else:projected=native_payload(value)
+        body = json.dumps(projected, separators=(',', ':')).encode()
         self.send_response(code); self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(body))); self.send_header('Connection', 'close')
         self.end_headers(); self.wfile.write(body); self.close_connection = True
@@ -203,8 +288,18 @@ class Handler(BaseHTTPRequestHandler):
                 params.update({k: v if isinstance(v, list) else [str(v)] for k, v in values.items()})
             else: params.update(parse_qs(body.decode('utf-8', 'replace'), keep_blank_values=True))
         value, status = self.server.state.handle(parsed.path, params)
-        self.server.state.record(parsed.path, params, status)
-        self.reply(200, value)
+        error = value.get('exception') if isinstance(value, dict) else None
+        self.server.state.record(parsed.path, params, status, error=error)
+        if error:
+            # JMRemoteCallback onFailure: calls JSONValue on exception: the
+            # wire field is a JSON-encoded string, not a nested dictionary.
+            value = dict(value, exception=json.dumps(error, separators=(',', ':')))
+        # SNServerConnection selects the success callback only for HTTP 200.
+        # A JSON exception with 200 enters the breeding success callback with
+        # no token/game_state, leaving the native sequence in an invalid state.
+        # Avoid 403: that code triggers the client's upstream IP fallback.
+        code = 501 if status == 'unsupported' else 409 if error else 200
+        self.reply(code, value)
     do_GET = dispatch
     do_POST = dispatch
 
@@ -228,3 +323,4 @@ def main():
     finally: server.server_close()
 
 if __name__ == '__main__': main()
+

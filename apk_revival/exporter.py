@@ -60,3 +60,4 @@ def export_game(store,game_id,output):
     p['restoration']['export']={'path':str(output),'sha256':digest(output)}
     if p['status']!='Verified Offline':p['status']='Exported but Unverified'
     store.save(p);return {'file':str(output),'sha256':digest(output),'status':p['status'],'path':path}
+
