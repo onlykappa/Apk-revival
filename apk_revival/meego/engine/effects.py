@@ -26,6 +26,7 @@ FIELDS = ('production_rate_modifier', 'production_rate_multiplier',
 DEFAULTS = (0.0, 1.0, 0.0, 1.0)
 CHILD_PLAY_ITEMS = (1663, 2210, 2211)
 CHILD_PLAY_SCRIPT = 'JFSoccerBall.lua'
+DUNGEON_BOOST_ITEMS = (1186, 1511)
 
 
 def _number(value, label, minimum=None):
@@ -95,6 +96,24 @@ def change_times(data, start, end):
                    for value in (entry['started_at'], entry['expires_at']) if start < value < end})
 
 
+def adventure_bonus(data, person_id, now):
+    """Original active owned bonus coefficient; LOCAL non-stacking maximum.
+
+    The adventure engine documents how it interprets this coefficient. This
+    helper never grants a reward or reconstructs a missing server payout.
+    """
+    now = _number(now, 'adventure effect clock')
+    owner = data['game_user']['user_id']
+    person = data['game_state'].get('all_villagers', {}).get(str(person_id))
+    if not person or person.get('user_id') != owner:
+        return 0
+    return max([0] + [int(entry.get('dungeon_bonus', 0))
+                      for entry in (_state(data)['active'] if STATE_KEY in data else [])
+                      if entry.get('villager_id') == person_id
+                      and entry.get('item_id') in DUNGEON_BOOST_ITEMS
+                      and entry['started_at'] <= now < entry['expires_at']])
+
+
 def advance(data, now, rules):
     """Expire owned receipts/cooldowns AFTER prior harvesting has been settled."""
     now = _number(now, 'effect clock')
@@ -104,10 +123,14 @@ def advance(data, now, rules):
     before = copy.deepcopy(state)
     # JMEffect's recovered native shape is effect_id + Unix expire_date. Remove
     # only a record created by our own receipt; retain unrelated village effects.
-    wire = data['game_state'].get('global_state', {}).get('effects', [])
     for entry in state['active']:
         owned_wire = entry.get('wire_effect')
         if owned_wire is not None and entry['expires_at'] <= now:
+            if entry.get('wire_owner') is not None:
+                person = data['game_state'].get('all_villagers', {}).get(str(entry['wire_owner']), {})
+                wire = person.get('effects', [])
+            else:
+                wire = data['game_state'].get('global_state', {}).get('effects', [])
             wire[:] = [record for record in wire if record != owned_wire]
     state['active'] = [entry for entry in state['active'] if entry['expires_at'] > now]
     for key, entry in list(state['cooldowns'].items()):
@@ -168,6 +191,8 @@ def use_item(data, person_id, item_id, rules, now, *, hours_per_age=1, child_age
         raise g.ActionError('Choose one of your Meegos.')
     if person.get('job', {}).get('job_id') == 6:
         raise g.ActionError('Choose a living Meego.')
+    if person.get('location_type', 0) != 0:
+        raise g.ActionError('This Meego is away on an adventure. Finish the adventure first.')
     rule = rules.get('items', {}).get(str(item_id))
     if not rule or int(rule.get('type', -1)) != 4:
         return False
@@ -177,8 +202,9 @@ def use_item(data, person_id, item_id, rules, now, *, hours_per_age=1, child_age
         raise g.ActionError('This scripted village item is not implemented offline; it was not consumed.')
     if rule.get('target') not in ('self', 'village'):
         raise g.ActionError('This infection or subset effect is not implemented offline; it was not consumed.')
-    if rule.get('bonus_dungeon_reward') or rule.get('bonus_questing_reward'):
-        raise g.ActionError('This quest reward booster needs an offline quest system; it was not consumed.')
+    dungeon_boost = item_id in DUNGEON_BOOST_ITEMS and bool(rule.get('bonus_dungeon_reward'))
+    if rule.get('bonus_questing_reward') or (rule.get('bonus_dungeon_reward') and not dungeon_boost):
+        raise g.ActionError('This social-travel or unknown quest booster is not supported offline; it was not consumed.')
     affluence = _number(rule.get('affluence', 0), 'item Mojo')
     duration = _number(rule.get('duration', 0), 'item duration', 0)
     hair = bool(rule.get('change_hair') or rule.get('change_hair_colour'))
@@ -188,8 +214,14 @@ def use_item(data, person_id, item_id, rules, now, *, hours_per_age=1, child_age
     if (hair or age) and rule.get('target') != 'self':
         raise g.ActionError('This appearance or age item must target one Meego.')
     values = _values(rule)
-    if duration and values == DEFAULTS and not child_play:
+    if duration and values == DEFAULTS and not child_play and not dungeon_boost:
         raise g.ActionError('This item has no supported temporary production effect; it was not consumed.')
+    dungeon_bonus = 0
+    if dungeon_boost:
+        dungeon_bonus = _number(rule['bonus_dungeon_reward'], 'dungeon bonus', 0)
+        if (rule.get('target') != 'self' or duration <= 0 or not dungeon_bonus.is_integer()
+                or dungeon_bonus > 100 or not isinstance(person.get('effects', []), list)):
+            raise g.ActionError('This adventure booster has unsupported bundled effect fields.')
     mojo_delta = _number(data.get('local_affluence_delta', 0), 'saved item Mojo')
     additions = {stat: _number(rule.get('add_' + stat, 0), f'item {stat}')
                  for stat in ('strength', 'intelligence', 'charisma')}
@@ -275,6 +307,10 @@ def use_item(data, person_id, item_id, rules, now, *, hours_per_age=1, child_age
     if duration:
         entry = dict(item_id=item_id, villager_id=person_id, target=rule['target'],
                      started_at=now, expires_at=now + duration)
+        if dungeon_boost:
+            entry.update(dungeon_bonus=int(dungeon_bonus), wire_owner=person_id,
+                         wire_effect=dict(effect_id=item_id, expire_date=now + duration))
+            person.setdefault('effects', []).append(copy.deepcopy(entry['wire_effect']))
         if child_play:
             # The bundled Lua owns animation/selection and has no payout call.
             # LOCAL reward policy: apply its explicit add_* to children present

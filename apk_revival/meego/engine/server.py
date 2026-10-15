@@ -9,11 +9,11 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 from .local_game import migrate, synchronize, ActionError, integer
 from .simulation import advance, mutate, migrate_economy, housing, refresh_aging_jobs, SETTINGS
-from . import community, catalog, ecology, skills, food, birthstones, local_game as g
+from . import community, catalog, ecology, skills, food, birthstones, treasure, scripted_items, adventures, local_game as g
 
 HERE = Path(__file__).resolve().parent
 PACKAGE = 'ata.apkrv.meego'
-SENSITIVE = ('token', 'secret', 'authorization', 'mac_key', 'password', 'facebook')
+SENSITIVE = ('token', 'secret', 'authorization', 'mac_key', 'password', 'facebook', 'signature')
 
 def atomic_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -29,8 +29,22 @@ def atomic_json(path, value):
         if os.path.exists(tmp): os.unlink(tmp)
 
 def redact(params):
-    return {k: '[redacted]' if any(s in k.lower() for s in SENSITIVE) else v
-            for k, v in params.items()}
+    if isinstance(params,list):return [redact(value) for value in params]
+    if not isinstance(params,dict):return params
+    result={}
+    for key,value in params.items():
+        if any(s in key.lower() for s in SENSITIVE):result[key]='[redacted]'
+        elif key=='data':
+            if isinstance(value,list) and len(value)!=1:
+                result[key]='[redacted]'
+                continue
+            raw=value[0] if isinstance(value,list) and len(value)==1 else value
+            if isinstance(raw,str):
+                try:raw=json.loads(raw)
+                except ValueError:raw='[redacted]'
+            result[key]=redact(raw)
+        else:result[key]=redact(value)
+    return result
 
 def native_payload(value, game_state=None):
     """Project saved building timers onto the native no-expiry wire contract.
@@ -176,6 +190,25 @@ class State:
             if current != self.data:
                 self.persist(current)
             try:
+                if route in adventures.ROUTES:
+                    new,response=adventures.handle(self.data,route,params,g.RULES,now)
+                    g.synchronize(new,now)
+                    food.advance(new,now,now)
+                    # Refresh the returned island snapshot after synchronization;
+                    # preserve the separate original dungeon stage snapshot.
+                    if isinstance(response,dict) and 'game_state' in response:
+                        response['game_state']=copy.deepcopy(new['game_state'])
+                    if new!=self.data:self.persist(new)
+                    return response,'local-solo-adventure'
+                if route == 'game/gift/open_gift':
+                    new,response=scripted_items.open_gift(self.data,params,g.RULES,now)
+                    if new!=self.data:self.persist(new)
+                    return response,'local-owned-scripted-gift'
+                if route in ('game/village/get_treasure_mini_game','game/village/retrieve_treasure_mini_game_reward'):
+                    helper=treasure.poll if route.endswith('/get_treasure_mini_game') else treasure.retrieve
+                    new,response=helper(self.data,params,g.RULES,now)
+                    if new!=self.data:self.persist(new)
+                    return response,'local-treasure-session'
                 new = mutate(self.data, route, params, now)
                 if new is not None:
                     birthstones.discover_owned(new, g.RULES.get('birthsigns', {}))
@@ -193,15 +226,6 @@ class State:
                     return copy.deepcopy(self.data['game_state']), 'saved-local-action'
             except ActionError as e:
                 return {'exception': {'type': 6, 'title': 'Local Village', 'message': str(e), 'reason': 'local_action_rejected', 'endpoint': route}}, 'rejected-local-action'
-            if route == 'game/village/get_treasure_mini_game':
-                now = time.time()
-                try:
-                    kind = integer(params, 'minigame_type', default=1, low=1, high=10)
-                except ActionError:
-                    kind = 1
-                return dict(new_session=False, token='local-treasure-deferred',
-                            minigame_type=kind, level=1, start_date=now,
-                            next_poll_date=now+3600, expire_date=now+3600), 'treasure-deferred'
             if route == 'game/village/consume_food':
                 # Native callback extracts game_state and rate separately.
                 return {'game_state': copy.deepcopy(self.data['game_state']),
@@ -276,16 +300,23 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, {'status': 'experimental', 'package': PACKAGE,
                              'save_exists': self.server.state.save.exists(), 'pid': os.getpid(), 'version': '0.2.0-rc1'}); return
         params = parse_qs(parsed.query, keep_blank_values=True)
-        length = int(self.headers.get('Content-Length', '0'))
+        try:length = int(self.headers.get('Content-Length', '0'))
+        except (ValueError, TypeError):self.reply(400, {'error': 'Invalid Content-Length'});return
         if length < 0 or length > 1024 * 1024:
             self.reply(413, {'error': 'Request too large'}); return
         if length:
             body = self.rfile.read(length)
             if 'application/json' in self.headers.get('Content-Type', ''):
-                try: values = json.loads(body)
+                def unique(pairs):
+                    result={}
+                    for key,value in pairs:
+                        if key in result:raise ValueError('Duplicate JSON key')
+                        result[key]=value
+                    return result
+                try: values = json.loads(body, object_pairs_hook=unique)
                 except (ValueError, UnicodeError): self.reply(400, {'error': 'Invalid JSON'}); return
                 if not isinstance(values, dict): self.reply(400, {'error': 'Expected JSON object'}); return
-                params.update({k: v if isinstance(v, list) else [str(v)] for k, v in values.items()})
+                params.update({k: v if isinstance(v, list) else [v] if isinstance(v,dict) else [str(v)] for k, v in values.items()})
             else: params.update(parse_qs(body.decode('utf-8', 'replace'), keep_blank_values=True))
         value, status = self.server.state.handle(parsed.path, params)
         error = value.get('exception') if isinstance(value, dict) else None

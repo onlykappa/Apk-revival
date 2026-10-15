@@ -6,7 +6,7 @@ import time
 import uuid
 from pathlib import Path
 from . import local_game as g
-from . import community, skills, catalog, ecology, food, birthstones, production, population, progression, effects, harvesting
+from . import community, skills, catalog, ecology, food, birthstones, production, population, progression, effects, harvesting, commercial, adventures
 
 SETTINGS = {'construction_seconds': 45, 'gather_update_seconds': 10, 'gather_seconds': 8, 'travel_seconds': 4, 'resource_stocks': {2: 40, 3: 30, 4: 75}, 'maximum_offline_seconds': 86400, 'hours_per_age': 1, 'baby_age': 2, 'adult_age': 10, 'elder_age': 65, 'death_age': 100}
 ActionError = g.ActionError
@@ -138,9 +138,12 @@ def _advance_segment(data, now=None):
     limits = g.caps(gs)
     people = gs['all_villagers']
     buildings = gs['buildings']
+    commercial.advance(new,now,elapsed,g.RULES)
     handled_cycles=production.advance_cycles(new,now,elapsed,g.RULES)
     effect_clock=previous+elapsed/2
     for person in list(people.values()):
+        if person.get('location_type', 0) != 0:
+            continue  # Adventure participants advance in their isolated stage.
         job = person['job']
         job_id = int(job['job_id'])
         rule = g.RULES['jobs'].get(str(job_id), {})
@@ -263,6 +266,7 @@ def _advance_segment(data, now=None):
     new['last_simulated_at'] = now
     community.advance(new, now, housing_capacity=housing(gs), rules=g.RULES, hours_per_age=SETTINGS['hours_per_age'])
     birthstones.discover_owned(new, g.RULES.get('birthsigns', {}))
+    adventures.advance(new,now,g.RULES)
     effects.advance(new,now,g.RULES)
     refresh_gather_jobs(new, now)
     g.synchronize(new, now)
@@ -285,10 +289,14 @@ def get_person(gs, params, key='villager_id'):
     ident = str(g.integer(params, key, low=1))
     if ident not in gs['all_villagers']:
         raise ActionError('Villager does not exist.')
+    if gs['all_villagers'][ident].get('location_type', 0) != 0:
+        raise ActionError('This Meego is away on an adventure. Finish the adventure first.')
     return gs['all_villagers'][ident]
 
 
 def compatible(gs, father, mother, now):
+    if any(person.get('location_type', 0) != 0 for person in (father, mother)):
+        raise ActionError('Both parents must be at home.')
     if father['villager_id'] == mother['villager_id'] or father['gender'] != 1 or mother['gender'] != 0:
         raise ActionError('Choose an adult male and female Meego.')
     if any(hours_age(p, now) < SETTINGS['adult_age'] or p['job']['job_id'] in (1, 2, 3, 6) for p in (father, mother)):
@@ -305,6 +313,10 @@ def mutate(data, route, params, now=None):
     gs = new['game_state']
     people = gs['all_villagers']
     buildings = gs['buildings']
+    if route == 'game/village/collect_building_items':
+        return commercial.collect(data,params,g.RULES,now)
+    if route == 'game/village/change_villager_name':
+        get_person(gs,params)
     if route == 'game/village/set_job':
         person = get_person(gs, params)
         job_id = g.integer(params, 'job_id')
@@ -342,6 +354,10 @@ def mutate(data, route, params, now=None):
                        job_start_date=int(now), update_interval=SETTINGS['gather_update_seconds'])
             if production.configure_job(source,job,g.RULES,now):
                 pass
+            elif job_id == 49 and source['building_type'] == 34:
+                job['update_interval'] = 60  # Native waiting-at-Quest-Portal job.
+            elif job_id == 7 and source['building_type'] == 9:
+                raise ActionError('Launch Dock visits require other players and are excluded offline. Use the Quest Portal for solo adventures.')
             elif job_id == 5:
                 length = max(1, int(sr.get('default_length', 1)))
                 job['build_rate'] = max(1, math.ceil(length / SETTINGS['construction_seconds']))

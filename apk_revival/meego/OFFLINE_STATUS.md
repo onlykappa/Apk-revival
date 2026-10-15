@@ -1,90 +1,89 @@
-# Meego offline restoration status — 0.3.19 source
+# Meego offline restoration — 0.3.19 review branch
 
-This is a partial reconstruction of the unavailable game service, not a claim
-of complete original-server parity. Original APK assets are supplied privately
-by the player; this source tree contains neither that APK nor a personal save.
-Waydroid remains the Android runtime dependency. APK Revival manages it behind
-Play; it does not replace Android with a new runtime.
+This is a playable local reconstruction candidate, not recovered server code or
+verified complete original-server parity. It requires the player's original APK
+and the existing Waydroid runtime. No proprietary APK, save or signing key is
+included in this branch. The existing launcher design is preserved.
 
-## Latest source changes, not installed on the Deck
+## Implemented source workflow
 
-- Wild bushes start with 75 food. One additive migration gives old standing
-  bushes their extra 55 remaining food once, preserving already harvested food
-  and bank balances. Rocks stay at 40 and trees at 30.
-- The native response projects a finite source's last pickup no larger than its
-  remaining stock. Saved rates/fractions are unchanged. Simulation tests prove
-  one-unit depletion and credit without overpayment for all three wild kinds;
-  the native cause of the reported stuck pickup is not conclusively recovered,
-  so the client-side improvement still needs a device trial.
-- Original Farm/Quarry/Sawmill stocking jobs can activate idle buildings, use
-  original timings/unlocks/costs and produce finite stocks. Actual depletion
-  returns the building to idle. Assignments require a genuine receiving depot.
-- Owned equipped tools affect matching job yields/timing. Supported temporary
-  self/village boosts expire across offline catch-up. Equipment/boost changes
-  update active job values in the same response, without a duplicate global
-  native boost. Supported hair/age/Mojo items and child-play ball scripts have
-  explicit, validated item paths. Unsupported effects reject without consumption.
-- Future births and permanent arrivals get valid original appearance slots and
-  birthstones, with locally documented stat/inheritance rules. Existing people
-  are not rewritten. Collection discoveries and supported earned achievements
-  are synchronized without inventing currency payouts.
-- Existing prepared clients load additional original progression rules read-only
-  from their selected APK; the prepared data files are not rewritten.
+- Existing farm/quarry/sawmill activation, stocking, finite harvesting and depot
+  validation; owned tools and temporary boosts affect actual work. Wild bushes
+  hold75 food, and final-unit pickups are clipped on the wire without changing
+  saved rates or overcrediting rocks/trees/bushes.
+- All seven commercial building families stage earned original catalog items
+  after paid, fully worked cycles. Explicit collection credits village inventory
+  once. Original job-attempt tiers unlock the bundled reward pools.
+- Native bird/egg treasure sessions use recovered HMAC-SHA256 request validation,
+  persistent opportunity/expiry clocks and replay-safe claims. Local policy:
+  one skull per earned session, at most one opportunity/hour, no upfront payout
+  or offline backlog. Native JSON whitespace compatibility still needs a Deck
+  check; invalid signatures fail closed.
+- Solo Turtle's Grotto and Ice Bear Cave use original maps, stage objects,
+  timers, jobs, heater/chipper links, drilling/fishing stock, entry costs and
+  guaranteed job gold. Participants leave island work, retain identities and
+  return through restart-safe results claims. Early/spoofed/duplicate claims
+  cannot generate extra rewards.
+- New adventure sessions can earn one original themed item after60 seconds of
+  actual work, an activation and positive job gold. All15 themed item IDs are
+  reachable. Pool membership is inferred from original imagery/descriptions;
+  weights and the work threshold are explicit LOCAL balance, not recovered
+  server odds. Both native result formats receive the same item/count payout.
+- Owned Turtle Soup/Walrus Musk activate and expire correctly; their20/50
+  coefficients are interpreted locally as a percentage of earned job gold,
+  using the maximum active coefficient. No after-the-fact boost is applied to
+  already completed work. Original permanent-stat and age consumables remain
+  supported, including earned adventure consumables.
+- Existing owned cosmetic Kick Ball/Mystery Box/April Fools mailbox gifts open
+  through the recovered native route and original Lua. No incoming social
+  gifts are invented; the tombstone prank never changes saved deaths/stats.
+- Existing births, aging, food, permanent arrivals, birthstone discovery and
+  earned progression are retained. Future villagers vary using original
+  eligible appearances/stones with documented local genetics policies.
 
-## Verification on 2026-10-15
+## Review and verification
 
-118 focused automated tests passed using original bundled rules, fixed clocks
-and temporary/synthetic villages. Coverage includes jobs, aging, food, ecology,
-skills, wire responses, production, population, item effects, progression,
-final-unit collection and poll/restart invariance for effect expiry. No live
-gameplay, Android install or personal save mutation was performed for these
-latest changes. Earlier user feedback that the camera worked well applies to
-the previously installed camera repair, not to new gameplay validation.
+The new regression tests are shipped in `apk_revival/meego/regression_tests/`
+so they accompany the two-folder-only GitHub export. They use authored temporary
+villages and optionally read the privately owned original APK. Run:
 
-The full default discovery attempt ran 377 tests with one release-note assertion
-failure, nine errors and ten skips. The release-note assertion was repaired
-locally; eight errors required sockets denied by the sandbox, and one required
-the unavailable PySide6 dependency. See the local development handoff for the
-subsequent supported-suite results:371 tests ran,362 passed and9 skipped,
-excluding socket-dependent backend/real-Meego integration and the missing-Qt
-UI module. The118 focused tests are part of this count. No release candidate
-is certified by this.
+```sh
+APKR_MEEGO_APK='/path/to/original.apk' python3 -m unittest discover -s apk_revival/meego/regression_tests -v
+```
 
-## Explicit reconstruction policies
+95 source regression checks passed on the Deck. All95 also passed through the installed application's bundled Python3.12
+against current source. These are backend,
+request-parser and serialization tests, not proof of native adventure animation
+or a completed physical playthrough. Private isolated review APK preparation
+passed signing and alignment validation. No main app or personal save was
+replaced; the review uses a different Android package and test data directory.
 
-Original tables provide content, costs, limits and many durations, but not all
-former server formulas. The following are local policies: stock initialization
-from industrial stocked-state default_length; base stat-to-yield coefficients;
-additive/multiplicative effect composition; reusable-item cooldown origin;
-once-per-activation child-play stat benefits; newborn genetics/newcomer stats;
-unseen-first birthstone generation; 15-minute resource replenishment at known
-unoccupied sites; permanent-arrival scheduling; age/food configuration; and
-elapsed-time achievement accounting. They must not be described as recovered
-original-server behavior. Original food-rate consumption is not reduced to
-hide a village producing less food than it consumes.
+A real request-parser integration test covers Quest Portal waiting/departure,
+assigned pump work, away-villager protection, save restart, boosted return and
+replayed claims. Other checks cover paid production/collection, signed form and
+nested-JSON treasure envelopes, duplicate-key rejection and token redaction.
+The native result contract was corrected using actual reward-screen consumers:
+`dungeon_results` maps IDs to JMQuestResult fields, while summary.quest_results
+uses the different JMDungeonQuestResult fields.
 
-## Remaining core gaps
+## Explicit limits
 
-- Commercial operator cycles use original costs and one-hour timing, but their
-  earned random-drop/collection reward path is not implemented. They currently
-  expire without item payout: do not spend food on these expecting rewards.
-- Solo treasure mini-game reward sessions, Launch Dock/Quest Portal travel,
-  solo quests/dungeons and special dungeon jobs remain unsupported/deferred.
-  Bundled maps and assets alone do not make those mechanics functional.
-- Some scripted minigame/infection/quest-booster items remain rejected. Local
-  Photo Hut capture and some native catalog/menu paths still need verification.
-- Original achievement/tutorial payout amounts and several balance/genetics
-  formulas remain unknown. No invented skull reward is claimed as original.
-- Tourists identified by the original client are other players' visitors;
-  social travel, tribes, gifting, online events and payments are deliberately
-  excluded. Permanent local arrivals are a separate implemented feature.
-- Runtime reboot recovery, direct-display preference persistence and physical
-  latency below 15 ms are not newly verified. No fresh input/runtime measurement
-  was taken during this source-only change.
-
-The requested GitHub export copies only apk_revival/ and resources/ onto
-df989d1. Root packaging metadata, tests and documentation intentionally remain
-at that base in the export. In particular pyproject.toml still says 0.3.7 while
-the exported Python package says 0.3.19. A merge must reconcile packaging version,
-release notes and regression tests before packaging; this is a review branch,
-not an installable or publicly published release.
+- Exact former-server odds, genetics, food coefficients, progression payouts
+  and reward balances are not recoverable from preserved client data alone.
+  Local policies are spelled out in COMMERCIAL_RULES.md, TREASURE_RULES.md,
+  ADVENTURE_RULES.md and SCRIPTED_GIFTS_RULES.md. They are not presented as an
+  exact port of the unavailable server.
+- Launch Dock travel and its returned social quests involve other players;
+  they are excluded. The Quest Portal provides the local solo adventures.
+  No fabricated remote quest catalog, visitors, chat, tribes, purchases or
+  online events are enabled.
+- Type2/3 reward bug gifts and social cloud infections remain unsupported and
+  unconsumed. There is no verified offline acquisition/conversion route for
+  legacy mailbox-only scripted gifts. Photo Hut local capture is unverified.
+- Device acceptance of the new native adventure/results/script screens remains
+  to be checked. No new sub15ms physical latency or reboot verification is
+  claimed. Previously accepted camera behavior is retained.
+- Only apk_revival/ and resources/ were exported onto df989d1 as requested.
+  Root pyproject/release metadata therefore still says0.3.7 while the Python
+  package says0.3.19. Reconcile metadata before a normal packaged release.
+  No public release or merge is performed by this update.
