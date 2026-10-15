@@ -117,6 +117,45 @@ class CoreIntegrationTests(unittest.TestCase):
         data = sim.mutate(data, 'game/purchase/unlock_item', params(item_id=377), self.now + 122)
         self.assertEqual(data['game_state']['resources']['4']['count'], 0)
 
+    def test_automatic_discoveries_unlock_original_accessories_and_are_restart_safe(self):
+        data = copy.deepcopy(self.data)
+        data['game_state']['buildings']['1']['state'] = 31  # Original level-four temple.
+        data['game_state']['buildings']['9'] = g.building(9, 7, 1, 3845, self.now)
+        g.synchronize(data, self.now)
+        data['game_state']['resources']['4']['count'] = 3000
+        # Merely opening the UI must neither debit points nor invent items.
+        before = copy.deepcopy(data)
+        server.catalog.research_progress(data['game_state'], g.RULES)
+        self.assertEqual(before, data)
+        self.assertEqual(server.catalog.advance_research(data, g.RULES, self.now), [])
+        data = sim.mutate(data, 'game/village/set_job', params(villager_id=1, job_id=20,
+                          job_data=json.dumps({'source_id': 9})), self.now)
+        data = sim.advance(data, self.now + 1)
+        unlocked = server.catalog.researched_items(data['game_state'], g.RULES)
+        self.assertIn('387', unlocked, 'Original Nose Bone enables Accessories sort_type4')
+        self.assertEqual(g.RULES['items']['387']['sort_type'], 4)
+        self.assertNotIn('596', unlocked, 'Level-five research must remain gated')
+        paid = sum(g.RULES['items'][key]['research_points'] for key in data['local_research_v1']['discoveries'])
+        self.assertEqual(data['game_state']['resources']['4']['count'], 3000 - paid)
+        self.assertNotIn('387', data['game_state']['items'], 'A discovered recipe is not a free purchased item')
+        restored = json.loads(json.dumps(data))
+        self.assertEqual(server.catalog.advance_research(restored, g.RULES, self.now + 2), [])
+        self.assertEqual(restored, data)
+        data['game_state']['all_villagers']['1']['job'] = g.idle_job(self.now + 2)
+        data['game_state']['resources']['4']['count'] = 20000
+        self.assertEqual(server.catalog.advance_research(data, g.RULES, self.now + 3), [])
+
+    def test_research_upgrade_stops_old_job_and_does_not_create_discoveries(self):
+        data = copy.deepcopy(self.data)
+        data['game_state']['buildings']['9'] = g.building(9, 7, 1, 3845, self.now)
+        data = sim.mutate(data, 'game/village/set_job', params(villager_id=1, job_id=20,
+                          job_data=json.dumps({'source_id': 9})), self.now)
+        data['game_state']['buildings']['9']['state'] = 10
+        data = sim.advance(data, self.now + 120)
+        self.assertEqual(data['game_state']['all_villagers']['1']['job']['job_id'], 0)
+        self.assertEqual(data['game_state']['resources']['4']['count'], 0)
+        self.assertNotIn('local_research_v1', data)
+
     def source(self, kind, job_id, stock=30):
         data = copy.deepcopy(self.data)
         node = g.building(9, kind, 1, 3845, self.now)

@@ -217,3 +217,20 @@ that villager to idle. Returning home itself grants no rewards. Old finished
 sessions with a stranded away villager are repaired on the next normal clock
 settlement. Regression checks cover restart before claim and no pre-credit.
 The reward button's actual native presentation remains under Deck review.
+
+### Fishing timer follow-up
+
+The native Ice Bear test reached stage2 and performed both small/large-hole
+fishing. Its trip record retained58 gold across completed work, including
+fishing; fishing job58/61 original rules award gold rather than island food.
+The local finite-stock policy closes a hole when its four/five catches run out;
+these earned rewards remain staged until the explicit final quest claim.
+
+A deadline bug set each stocked hole's expiry to one ten-second pickup while
+more catches remained. The client consequently sent overdue building polls
+about every1.1 seconds. The expiry now covers every remaining catch, minus
+partial work, and stays fixed across ordinary polls. Legacy first-pickup
+expiries repair on clock settlement. Abandoning a stocked hole clears its
+countdown immediately without changing remaining stock. Exhaustion still
+closes the hole and credits original gold exactly once. No payout boost or
+refill was added. The visual orange-circle outcome awaits a fresh native trial.

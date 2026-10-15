@@ -118,3 +118,18 @@ explicit item research remain intact. Its progress-selection policy is local,
 as described in `RESEARCH_RULES.md`; polling never grants points or unlocks.
 108 focused source regressions passed before packaging. On-screen verification
 of this follow-up is pending; the active user session is still Solo Review.
+
+### Automatic discovery / fishing follow-up
+
+The original Doctor category locks require researched item cursors. Active
+Thinking Rock work now completes affordable original-cost discoveries rather
+than leaving a full progress bar indefinitely. Recipe ordering is LOCAL
+(cheapest eligible then numeric ID), with original temple/prerequisite gates.
+No researcher means no auto-spending; discoveries unlock purchases without
+granting free inventory. Native progress reads remain read-only.
+
+Ice fishing deadlines now cover all remaining catches, and abandoning a hole
+clears its countdown. Earned original job gold stays in the trip until final
+claim; exhausted holes still close. Late native timer/notice reads after a
+successful claim now return a closed packet instead of a repeated error.
+114 focused source regressions passed; fresh native confirmation is pending.

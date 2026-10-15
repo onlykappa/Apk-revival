@@ -197,6 +197,27 @@ def _gold(job_id, rules):
     return max(0, int(contribution.get('constant', 0)))
 
 
+def _refresh_fishing_deadlines(session):
+    """A stocked hole expires at its final catch, not its first pickup.
+
+    Clear timers on abandoned stocked holes as well: without a worker, stock
+    cannot deplete, so an old countdown must not trigger repeated native polls.
+    """
+    workers = {int(p.get('job', {}).get('source_id', 0)): p['job']
+               for p in session['game_state']['all_villagers'].values()
+               if int(p.get('job', {}).get('job_id', 0)) in (58, 61)}
+    for source in session['game_state']['buildings'].values():
+        if source['building_type'] not in (38, 41) or int(source['state']) not in (21, 31):
+            continue
+        job = workers.get(int(source['building_id']))
+        if not job:
+            source['expire_date'] = 0
+            continue
+        duration = max(1, float(job.get('gather_time', 10)))
+        remaining = max(0, int(source.get('count', 0)) * duration - float(job.get('local_cycle_work', 0)))
+        source['expire_date'] = float(job['last_update']) + remaining if remaining else 0
+
+
 def _settle(data, session, now, rules):
     """Settle only assigned work, bounded by stage deadlines and source cycles."""
     stages = _stages(rules, session['type_id'])
@@ -278,6 +299,7 @@ def _settle(data, session, now, rules):
             break
         session['stage_level'] += 1
         _load_stage(data, session, rules, stage_end)
+    _refresh_fishing_deadlines(session)
     if now >= session['expire_date']:
         session['status'] = 'finished'
         # Original job 50 is the noninterruptible "post dungeon" / postquest
@@ -318,6 +340,7 @@ def _set_job(data, session, params, rules, now):
         if jid in (55, 57) and not _stages(rules, session['type_id'])[session['stage_level']].get('default_jobs'):
             raise g.ActionError('That role is unavailable on this stage.')
         _idle(person, now, jid)
+        _refresh_fishing_deadlines(session)
         return
     # The native drag/drop client sends source_id inside JSON job_data,
     # just like island assignments. Keep direct fields for older callers.
@@ -372,7 +395,10 @@ def _set_job(data, session, params, rules, now):
     duration = int(job_rule.get('gather_time', target.get('default_length', 1)))
     if jid in (58, 61):
         duration = int(job_rule.get('gather_time', 10))
-    source.update(progress=0, expire_date=now + max(1, duration), last_update=now)
+    # Fishing stock is multiple catches. A single-catch expiry makes the
+    # original time-left popup flash overdue while valid stock remains.
+    cycles_left = max(1, int(source.get('count', 0))) if jid in (58, 61) else 1
+    source.update(progress=0, expire_date=now + max(1, duration) * cycles_left, last_update=now)
     _links(session, source, True, now)
     job = g.idle_job(now)
     job.update(job_id=jid, source_id=source_id, target_id=source_id,
@@ -380,6 +406,7 @@ def _set_job(data, session, params, rules, now):
                gather_time=max(1, duration), trip_time=max(1, duration), update_interval=10)
     person['job'] = job
     session['participants'][str(ident)]['job_activations'] += 1
+    _refresh_fishing_deadlines(session)
 
 
 def _results(data, session, rules, now):
@@ -451,7 +478,11 @@ def handle(data, route, params, rules, now):
         if not candidates:
             raise g.ActionError('This villager has no local adventure results.')
         params = dict(params, dungeon_id=[str(max(candidates, key=lambda s: s['id'])['id'])])
-    session = _session(new, params, allow_inactive=route.endswith('/complete_dungeon_quest'))
+    # Native stage timers can already be queued when the player collects
+    # rewards. Reading that completed trip should close its old view cleanly,
+    # never turn a successful claim into repeated error dialogs.
+    completed_reads = ('/get_dungeon', '/update_dungeon', '/get_dungeon_notices', '/get_last_viewed_id')
+    session = _session(new, params, allow_inactive=route.endswith(('/complete_dungeon_quest',) + completed_reads))
     if route.endswith('/get_last_viewed_id'):
         # JFDungeonSession.initializeNotices success block (0x91c33c) calls
         # intValue on the response itself. Empty offline notices have ID zero.

@@ -182,6 +182,9 @@ def _advance_segment(data, now=None):
                     except ActionError:
                         person['job']=g.idle_job(now)
                         continue
+                if job_id == 20 and state_rule(source).get('active_job') != 20:
+                    person['job'] = g.idle_job(now)
+                    continue
                 parameters=gather_parameters(person,job_id,new,effect_clock)
                 job.update(parameters)
                 period = max(1, float(job.get('trip_time', SETTINGS['gather_seconds'] + SETTINGS['travel_seconds'])))
@@ -262,6 +265,7 @@ def _advance_segment(data, now=None):
             rate = sum(p['job'].get('build_rate', 0) for p in people.values()
                        if p['job']['job_id'] == 5 and p['job']['source_id'] == b['building_id'])
             b['expire_date'] = now + max(0, length - b.get('progress', 0)) / rate if rate else 0
+    catalog.advance_research(new, g.RULES, now)
     food.advance(new, previous, now, maximum_elapsed=SETTINGS['maximum_offline_seconds'])
     new['last_simulated_at'] = now
     community.advance(new, now, housing_capacity=housing(gs), rules=g.RULES, hours_per_age=SETTINGS['hours_per_age'])

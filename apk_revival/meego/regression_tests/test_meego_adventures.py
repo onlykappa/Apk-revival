@@ -132,6 +132,46 @@ class AdventureTests(unittest.TestCase):
         self.assertEqual(response['dungeon_notices'], [])
         self.assertIsNone(response['dungeon_packet']['user_dungeon'])
 
+    def test_fishing_deadline_covers_remaining_stock_and_stopping_clears_timer(self):
+        self.start(2)
+        self.call('update_dungeon', self.now + 421, dungeon_id=1, current_stage_level=0)
+        source = next(b for b in self.session()['game_state']['buildings'].values()
+                      if b['building_type'] == 38 and b['state'] == 21)
+        source_id = source['building_id']
+        self.call('set_job', self.now + 422, villager_id=1, job_id=58, source_id=source_id)
+        source = self.session()['game_state']['buildings'][str(source_id)]
+        stock = source['count']
+        deadline = self.now + 422 + stock * 10
+        self.assertEqual(source['expire_date'], deadline)
+        before = self.session()['participants']['1']['gold_count']
+        self.call('update_building', self.now + 432, dungeon_id=1, building_id=source_id)
+        source = self.session()['game_state']['buildings'][str(source_id)]
+        self.assertEqual(source['count'], stock - 1)
+        self.assertEqual(source['expire_date'], deadline)
+        self.assertGreater(self.session()['participants']['1']['gold_count'], before)
+        # Simulate the old first-pickup timer and repair it on the next poll.
+        source['expire_date'] = self.now + 432
+        self.call('update_building', self.now + 433, dungeon_id=1, building_id=source_id)
+        self.assertEqual(self.session()['game_state']['buildings'][str(source_id)]['expire_date'], deadline)
+        stopped = self.call('set_job', self.now + 434, villager_id=1, job_id=57)
+        self.assertEqual(stopped['dungeon_game_state']['buildings'][str(source_id)]['expire_date'], 0)
+        self.call('update_building', self.now + 435, dungeon_id=1, building_id=source_id)
+        self.assertEqual(self.session()['game_state']['buildings'][str(source_id)]['expire_date'], 0)
+        self.assertEqual(self.session()['game_state']['buildings'][str(source_id)]['count'], stock - 1)
+
+    def test_late_timer_and_notice_reads_after_claim_close_without_new_rewards(self):
+        self.start()
+        self.call('complete_dungeon_quest', self.now + 331, dungeon_id=1, villager_id=1)
+        before = copy.deepcopy(self.data)
+        packet = self.call('update_dungeon', self.now + 332, dungeon_id=1, current_stage_level=0)
+        self.assertIsNone(packet['user_dungeon'])
+        self.assertIsNone(packet['dungeon_game_state'])
+        self.assertEqual(packet['game_state'], before['game_state'])
+        notices = self.call('get_dungeon_notices', self.now + 333, dungeon_id=1)
+        self.assertEqual(notices['dungeon_notices'], [])
+        self.assertIsNone(notices['dungeon_packet']['user_dungeon'])
+        self.assertEqual(self.data, before)
+
     def test_start_native_packet_has_original_stage_and_isolated_home(self):
         original = copy.deepcopy(self.data)
         packet = self.start()

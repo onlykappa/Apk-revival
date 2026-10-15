@@ -66,26 +66,62 @@ def researched_items(gs, rules):
     return unlocked
 
 
-def research_progress(gs, rules):
-    """Native Thinking Rock display, without granting work or inventing unlocks.
-
-    The original menu reads max_out/researching booleans and a 0..1 progress
-    fraction. Display progress toward the cheapest currently eligible recipe;
-    this selection policy is local. Existing explicit research purchases remain
-    authoritative and debit their original cost exactly once.
-    """
+def _research_candidates(gs, rules):
     unlocked = researched_items(gs, rules)
     pending = [(str(ident), rule) for ident, rule in rules.get('items', {}).items()
                if rule.get('active') and type(rule.get('research_points')) is int
                and rule['research_points'] > 0 and str(ident) not in unlocked]
-    eligible = [rule for _, rule in pending
+    eligible = [(ident, rule) for ident, rule in pending
                 if _temple_level(gs) >= int(rule.get('research_temple_level', 1))
                 and (not rule.get('research_required_item_id')
                      or str(rule['research_required_item_id']) in unlocked)]
+    return pending, sorted(eligible, key=lambda pair: (pair[1]['research_points'], int(pair[0])))
+
+
+def research_progress(gs, rules):
+    """Read-only native Thinking Rock display; local cheapest-eligible order."""
+    pending, eligible = _research_candidates(gs, rules)
     points = max(0, float(gs.get('resources', {}).get('4', {}).get('count', 0)))
-    cost = min((rule['research_points'] for rule in eligible), default=0)
+    cost = eligible[0][1]['research_points'] if eligible else 0
     return {'max_out': not pending, 'researching': bool(eligible),
             'progress': min(1.0, points / cost) if cost else 0.0}
+
+
+def advance_research(data, rules, now):
+    """Complete affordable discoveries only while an adult actually researches.
+
+    Original costs/gates/cursors are retained; choosing the cheapest eligible
+    recipe (then numeric ID) is an explicit LOCAL scheduling policy. Cursors
+    prevent replay charges. Unlock recipes, never grant/equip their output.
+    """
+    gs = data['game_state']
+    working = False
+    for person in gs.get('all_villagers', {}).values():
+        job = person.get('job', {})
+        source = gs.get('buildings', {}).get(str(job.get('source_id', 0)))
+        if (job.get('job_id') == 20 and person.get('location_type', 0) == 0
+                and float(person.get('deathday', now)) > now and source
+                and source.get('building_type') == 7
+                and rules['buildings']['7']['state_data'].get(str(source['state']), {}).get('active_job') == 20):
+            working = True
+            break
+    if not working:
+        return []
+    discoveries = []
+    # Each iteration unlocks an original item, so work is bounded by catalog size.
+    for _ in range(len(rules.get('items', {}))):
+        _, eligible = _research_candidates(gs, rules)
+        if not eligible:
+            break
+        ident, rule = eligible[0]
+        if gs.get('resources', {}).get('4', {}).get('count', 0) < rule['research_points']:
+            break
+        research_item(gs, ident, rules, now)
+        state = data.setdefault('local_research_v1', {'policy': 'cheapest-eligible-original-costs-v1', 'discoveries': {}})
+        state['discoveries'].setdefault(ident, {'discovered_at': now, 'points_cost': rule['research_points']})
+        state['last_discovery'] = ident
+        discoveries.append(ident)
+    return discoveries
 
 
 def research_item(gs, ident, rules, now):
