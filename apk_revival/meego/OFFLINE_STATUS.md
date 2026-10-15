@@ -107,3 +107,14 @@ Ice Bear's second stage and full native completion, death/resurrection screens,
 and main-game Play after reopening the updated launcher. This was an offline
 source repack using the existing licensed PyInstaller bootloader/dependencies,
 not a clean PyInstaller rebuild or complete original-server parity certification.
+
+### Storage / Thinking Rock follow-up
+
+Storage's missing worker limit no longer falls back to zero housing slots:
+construction accepts one builder and completes using existing timing. Thinking
+Rock's native `get_research_progress` read is implemented with the recovered
+three-field packet; existing work-generated research points and original-cost
+explicit item research remain intact. Its progress-selection policy is local,
+as described in `RESEARCH_RULES.md`; polling never grants points or unlocks.
+108 focused source regressions passed before packaging. On-screen verification
+of this follow-up is pending; the active user session is still Solo Review.

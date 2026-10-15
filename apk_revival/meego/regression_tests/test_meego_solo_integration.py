@@ -50,6 +50,24 @@ class SoloWireIntegrationTests(unittest.TestCase):
         handler.dispatch()
         return handler.result
 
+    def test_native_thinking_rock_progress_is_read_only_and_reports_catalog_limits(self):
+        code, model = self.request('game/village/get_research_progress')
+        self.assertEqual(code, 200)
+        self.assertEqual(model, {'max_out': False, 'researching': False, 'progress': 0.0})
+        self.state.data['game_state']['buildings']['1']['state'] = 11
+        self.state.data['game_state']['resources']['4']['count'] = 15
+        g.synchronize(self.state.data, self.now)
+        before = copy.deepcopy(self.state.data)
+        code, model = self.request('game/village/get_research_progress')
+        self.assertEqual(code, 200)
+        self.assertEqual(model, {'max_out': False, 'researching': True, 'progress': 0.5})
+        self.assertEqual(self.state.data, before)
+        info = self.state.data['game_state']['unlock_information']
+        info['unlocked_item_cursors'] = [key for key, rule in g.RULES['items'].items() if rule.get('research_points', 0) > 0]
+        code, model = self.request('game/village/get_research_progress')
+        self.assertEqual(code, 200)
+        self.assertEqual(model, {'max_out': True, 'researching': False, 'progress': 0.0})
+
     def treasure(self):
         code, model = self.request('game/village/get_treasure_mini_game', {'minigame_type': 1})
         self.assertEqual(code, 200)

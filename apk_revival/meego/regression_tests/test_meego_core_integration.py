@@ -74,6 +74,49 @@ class CoreIntegrationTests(unittest.TestCase):
         with patch.object(g, 'RULES', bad_rules), self.assertRaises(g.ActionError):
             sim.mutate(self.data, 'game/purchase/buy_item', params(item_id=371, count=1, use_points='false'), self.now)
 
+    def test_storage_zero_housing_accepts_builder_completes_and_increases_caps(self):
+        data = copy.deepcopy(self.data)
+        data['game_state']['buildings']['9'] = g.building(9, 8, 0, 3845, self.now)
+        before_caps = g.caps(data['game_state'])
+        self.assertEqual(self.rules['buildings']['8']['state_data']['0']['villager_slots'], 0)
+        data = sim.mutate(data, 'game/village/set_job', params(villager_id=1, job_id=5,
+                          job_data=json.dumps({'source_id': 9})), self.now)
+        self.assertEqual(data['game_state']['all_villagers']['1']['job']['job_id'], 5)
+        with self.assertRaises(g.ActionError):
+            sim.mutate(data, 'game/village/set_job', params(villager_id=2, job_id=5,
+                       job_data=json.dumps({'source_id': 9})), self.now)
+        data = sim.advance(json.loads(json.dumps(data)), self.now + 46)
+        self.assertEqual(data['game_state']['buildings']['9']['state'], 1)
+        self.assertEqual(data['game_state']['all_villagers']['1']['job']['job_id'], 0)
+        after_caps = g.caps(data['game_state'])
+        self.assertTrue(all(after_caps[k] > before_caps[k] for k in before_caps))
+
+    def test_thinking_rock_work_progress_and_explicit_unlock_survive_restart(self):
+        data = copy.deepcopy(self.data)
+        # Original level-two temple and research building; no synthetic recipes.
+        data['game_state']['buildings']['1']['state'] = 11
+        data['game_state']['buildings']['9'] = g.building(9, 7, 1, 3845, self.now)
+        g.synchronize(data, self.now)
+        data = sim.mutate(data, 'game/village/set_job', params(villager_id=1, job_id=20,
+                          job_data=json.dumps({'source_id': 9})), self.now)
+        data = sim.advance(data, self.now + 120)
+        points = data['game_state']['resources']['4']['count']
+        self.assertGreater(points, 0)
+        before = copy.deepcopy(data)
+        model = server.catalog.research_progress(data['game_state'], g.RULES)
+        self.assertEqual(set(model), {'max_out', 'researching', 'progress'})
+        self.assertFalse(model['max_out'])
+        self.assertTrue(model['researching'])
+        self.assertGreater(model['progress'], 0)
+        self.assertLessEqual(model['progress'], 1)
+        self.assertEqual(before, data, 'Display polls must not create points or unlocks')
+        data['game_state']['resources']['4']['count'] = 30
+        data = sim.mutate(data, 'game/purchase/unlock_item', params(item_id=377), self.now + 121)
+        self.assertEqual(data['game_state']['resources']['4']['count'], 0)
+        self.assertIn('377', server.catalog.researched_items(json.loads(json.dumps(data))['game_state'], g.RULES))
+        data = sim.mutate(data, 'game/purchase/unlock_item', params(item_id=377), self.now + 122)
+        self.assertEqual(data['game_state']['resources']['4']['count'], 0)
+
     def source(self, kind, job_id, stock=30):
         data = copy.deepcopy(self.data)
         node = g.building(9, kind, 1, 3845, self.now)

@@ -66,6 +66,28 @@ def researched_items(gs, rules):
     return unlocked
 
 
+def research_progress(gs, rules):
+    """Native Thinking Rock display, without granting work or inventing unlocks.
+
+    The original menu reads max_out/researching booleans and a 0..1 progress
+    fraction. Display progress toward the cheapest currently eligible recipe;
+    this selection policy is local. Existing explicit research purchases remain
+    authoritative and debit their original cost exactly once.
+    """
+    unlocked = researched_items(gs, rules)
+    pending = [(str(ident), rule) for ident, rule in rules.get('items', {}).items()
+               if rule.get('active') and type(rule.get('research_points')) is int
+               and rule['research_points'] > 0 and str(ident) not in unlocked]
+    eligible = [rule for _, rule in pending
+                if _temple_level(gs) >= int(rule.get('research_temple_level', 1))
+                and (not rule.get('research_required_item_id')
+                     or str(rule['research_required_item_id']) in unlocked)]
+    points = max(0, float(gs.get('resources', {}).get('4', {}).get('count', 0)))
+    cost = min((rule['research_points'] for rule in eligible), default=0)
+    return {'max_out': not pending, 'researching': bool(eligible),
+            'progress': min(1.0, points / cost) if cost else 0.0}
+
+
 def research_item(gs, ident, rules, now):
     ident = str(ident)
     rule = _item(rules, ident)

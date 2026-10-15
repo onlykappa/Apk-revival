@@ -266,6 +266,10 @@ class State:
                 return self.packet(), 'saved-local-profile'
             if route == 'game/village/get_village':
                 return copy.deepcopy(self.data['game_state']), 'local-village'
+            if route == 'game/village/get_research_progress':
+                # JFUIResearchBuilding success block (0x69ef9c–0x69f128)
+                # reads these three fields directly; it does not bind a state.
+                return catalog.research_progress(self.data['game_state'], g.RULES), 'local-research-progress'
             if route == 'game/village/get_resources':
                 return copy.deepcopy(self.data['game_state']), 'local-state'
             if route == 'game/poll/notices':

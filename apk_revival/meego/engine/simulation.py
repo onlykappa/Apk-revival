@@ -346,7 +346,10 @@ def mutate(data, route, params, now=None):
             if int(sr.get('active_job', -1)) != job_id:
                 raise ActionError('That job does not match this building state.')
             workers = [p for p in people.values() if p['villager_id'] != person['villager_id'] and p['job'].get('source_id') == source_id and p['job']['job_id'] != 0]
-            if len(workers) >= int(sr.get('max_workers', sr.get('villager_slots', 5))):
+            # Housing capacity is unrelated to construction staffing. Storage
+            # explicitly houses zero villagers and omits max_workers entirely.
+            worker_limit = sr.get('max_workers', 1 if job_id == 5 else sr.get('villager_slots', 5))
+            if len(workers) >= int(worker_limit):
                 raise ActionError('This building already has enough workers.')
             job = g.idle_job(now)
             job.update(job_id=job_id, source_id=source_id, target_id=source_id,
