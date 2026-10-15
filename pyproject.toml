@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "apk-revival"
-version = "0.3.7"
+version = "0.3.8"
 description = "Local Android game restoration workbench with evidence-bound adapters"
 requires-python = ">=3.10"
 license = {text = "MIT"}

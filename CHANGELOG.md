@@ -2,6 +2,20 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.8] - 2026-10-15
+
+### Improved
+
+* Redesigned the launcher in a Windows 11 style: a left navigation pane (Library, Setup, Updates) that collapses to icons on narrow windows, a status bar, and content dialogs with button footers.
+* Setup is now grouped into Windows Settings style cards for preparation tools, Android, updates, and desktop and Steam integration. Each card explains what it does in plain language. All previous actions remain available.
+* Library tiles show each game's own launcher icon from the imported APK (or a generated tile when none is available), its version, and a clear status: Ready to play, Needs preparing or Not supported yet.
+* The details pane lists version, package, engine, required and target Android versions, architecture, size, preparation method, date added and last played.
+* Newly imported games use their real name when the APK stores it as a compiled resource, instead of the file name.
+
+### Verification scope
+
+* Automated unit and native Qt tests cover the redesigned interface, controller focus and the Setup layout at Steam Deck and minimum window sizes. The new look has not yet been checked on physical Steam Deck hardware, and Android gameplay verification is unchanged by this release.
+
 ## [0.3.7] - 2026-10-13
 
 ### Improved
