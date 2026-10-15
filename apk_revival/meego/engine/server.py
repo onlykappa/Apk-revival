@@ -58,6 +58,12 @@ def native_payload(value, game_state=None):
         if {'all_villagers', 'buildings'} <= value.keys():game_state=value
         elif isinstance(value.get('game_state'), dict):game_state=value['game_state']
         result = {key: native_payload(item, game_state) for key, item in value.items()}
+        if {'all_villagers', 'buildings'} <= value.keys() and value.get('name') == 'village':
+            # JMGameState.localInstance is registered as "local". Login assigns
+            # that name explicitly, but JMDungeonPacket.onPostModelUpdate binds
+            # game_state directly into the singleton, including its name. Never
+            # rename the cached island while entering/leaving a dungeon.
+            result['name'] = 'local'
         if {'building_id', 'building_type', 'state'} <= value.keys() and value.get('expire_date') == 0:
             result.pop('expire_date', None)
         if 'villager_id' in value and isinstance(value.get('job'), dict) and game_state:

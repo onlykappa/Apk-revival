@@ -32,6 +32,17 @@ class CoreIntegrationTests(unittest.TestCase):
         ecology.upgrade_bush_stock(self.data)
         self.data = sim.advance(self.data, self.now)
 
+    def test_dungeon_packet_preserves_native_island_identity_and_saved_state(self):
+        before = copy.deepcopy(self.data)
+        dungeon = copy.deepcopy(self.data['game_state'])
+        dungeon.update(name='dungeon', buildings={}, all_villagers={})
+        packet = server.native_payload(dict(game_state=self.data['game_state'], dungeon_game_state=dungeon))
+        self.assertEqual(packet['game_state']['name'], 'local')
+        self.assertEqual(packet['dungeon_game_state']['name'], 'dungeon')
+        self.assertEqual(packet['game_state']['buildings'], server.native_payload(self.data['game_state'])['buildings'])
+        self.assertEqual(packet['game_state']['all_villagers'], self.data['game_state']['all_villagers'])
+        self.assertEqual(self.data, before)
+
     def source(self, kind, job_id, stock=30):
         data = copy.deepcopy(self.data)
         node = g.building(9, kind, 1, 3845, self.now)

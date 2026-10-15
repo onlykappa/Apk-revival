@@ -149,3 +149,26 @@ No installed application, APK, personal configuration or live save was
 modified during this source implementation. Launch Dock is original travel
 to **other villages**, which remains excluded. A separate generic solo quest
 catalogue has not been recovered and is not fabricated by this module.
+
+### Deck review fixes (2026-10-15)
+
+The native review reached the dungeon map. Its actual drag/drop request embeds
+`source_id` and `building_type_id` in JSON `job_data`; the handler now accepts
+that shape and rejects conflicting identifiers. The integration trial uses the
+captured request shape instead of only the older direct-field test shape.
+
+The blank return report did not erase the saved island: inspection found all
+13 buildings and both villagers. A native cache-name mismatch was found:
+`JMGameState.localInstance` uses `local`, whereas saved island data
+uses `village`. Login explicitly assigns the instance name, but
+`JMDungeonPacket.onPostModelUpdate` (0x6b62c0) binds the island dictionary
+straight into that existing singleton. The wire projection now sends `local`
+for island snapshots and preserves `dungeon` for the stage; saved names and
+contents are unchanged. This addresses the mismatch, but the user-visible
+return still requires a fresh native review before declaring it resolved.
+
+Focused regression suite: 96 tests passed with the original APK available,
+including nested job requests, island/stage identity isolation and unchanged
+saved content. Remaining live gaps include dungeon notice/chat polling (online
+features excluded; empty native response shapes still to verify), bird variant
+4 polling, and native completion/return validation. These are not parity claims.

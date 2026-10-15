@@ -5,6 +5,7 @@ local policies. No downloaded stage, remote player or client-supplied payout is
 trusted. All public mutations operate on copies so validation errors roll back.
 """
 import copy
+import json
 import math
 
 from . import local_game as g
@@ -301,10 +302,26 @@ def _set_job(data, session, params, rules, now):
             raise g.ActionError('That role is unavailable on this stage.')
         _idle(person, now, jid)
         return
-    source_id = g.integer(params, 'source_id', low=1)
+    # The native drag/drop client sends source_id inside JSON job_data,
+    # just like island assignments. Keep direct fields for older callers.
+    raw = params.get('job_data', [{}])
+    raw = raw[0] if isinstance(raw, list) and len(raw) == 1 else raw
+    if isinstance(raw, str):
+        if len(raw) > 8192:
+            raise g.ActionError('Adventure job data is too large.')
+        try:raw = json.loads(raw)
+        except (ValueError, TypeError):
+            raise g.ActionError('Invalid adventure job data.') from None
+    if not isinstance(raw, dict):
+        raise g.ActionError('Adventure job data must be an object.')
+    source_id = g.integer(raw if 'source_id' in raw else params, 'source_id', low=1)
+    if 'source_id' in raw and 'source_id' in params and source_id != g.integer(params, 'source_id', low=1):
+        raise g.ActionError('Conflicting adventure source identifiers.')
     source = session['game_state']['buildings'].get(str(source_id))
     if source is None:
         raise g.ActionError('Adventure source is missing.')
+    if 'building_type_id' in raw and g.integer(raw,'building_type_id',low=1) != source['building_type']:
+        raise g.ActionError('The adventure building type does not match.')
     if int(person['job'].get('job_id', 0)) == jid and int(person['job'].get('source_id', 0)) == source_id:
         return  # A retried activation neither charges again nor resets progress.
     job_rule = rules.get('jobs', {}).get(str(jid), {})

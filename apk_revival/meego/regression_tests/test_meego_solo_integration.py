@@ -152,7 +152,8 @@ class SoloWireIntegrationTests(unittest.TestCase):
         self.assertEqual(packet['game_state']['points'], 9)
         pump = next(b for b in packet['dungeon_game_state']['buildings'].values() if b['building_type'] == 35)
         self.assertEqual(self.request('game/dungeon/set_job', dict(dungeon_id=ident, villager_id=1,
-                        job_id=52, source_id=pump['building_id']))[0], 200)
+                        job_id=52, job_data=json.dumps(dict(source_id=pump['building_id'],
+                            building_type_id=35, source_worker_ids=[], state=11))))[0], 200)
         self.now += 20
         code, island = self.request('game/village/get_resources')
         self.assertEqual(code, 200)
@@ -188,7 +189,8 @@ class SoloWireIntegrationTests(unittest.TestCase):
         pump = next(b for b in packet['dungeon_game_state']['buildings'].values() if b['building_type'] == 35)
         for _ in range(3):
             self.assertEqual(self.request('game/dungeon/set_job', dict(dungeon_id=ident,
-                villager_id=1, job_id=52, source_id=pump['building_id']))[0], 200)
+                villager_id=1, job_id=52, job_data=json.dumps(dict(source_id=pump['building_id'],
+                    building_type_id=35, source_worker_ids=[], state=11))))[0], 200)
             self.now += 20
         self.now += 270
         code, result = self.request('game/dungeon/complete_dungeon_quest', dict(villager_id=1))
