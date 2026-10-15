@@ -147,7 +147,7 @@ class GameView(QWidget):
 
 class Window(QMainWindow):
     def __init__(self,store=None,fullscreen=False):
-        super().__init__();self.service=Launcher(store or Store());self.current=None;self.worker=None;self.monitor_worker=None;self.cards=[];self.last_job=None;self.rebuild_view=None;self.active_page='library';self.closing=False;self.repair_games=set();self.focus_play_after_prepare=False;self.art_cache={};self.columns=0
+        super().__init__();self.service=Launcher(store or Store());self.current=None;self.worker=None;self.monitor_worker=None;self.cards=[];self.last_job=None;self.rebuild_view=None;self.active_page='library';self.closing=False;self.repair_games=set();self.focus_play_after_prepare=False;self.art_cache={};self.columns=0;self.queued=None
         self.setWindowTitle('APK Revival');self.setWindowIcon(QIcon(str(brand_asset())));self.resize(1280,800);self.setMinimumSize(1000,650);self.setAcceptDrops(True)
         root=QWidget();root.setObjectName('base');self.setCentralWidget(root);outer=QHBoxLayout(root);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
         outer.addWidget(self.navigation())
@@ -235,7 +235,7 @@ class Window(QMainWindow):
         box.addWidget(setting_card('window','Desktop shortcut','Adds APK Revival to your applications menu.',button('Install desktop shortcut',self.install_shortcut)))
         box.addWidget(setting_card('gamepad','Add to Steam','Launch APK Revival from Gaming Mode as a non-Steam game.',button('Add to Steam',self.steam_help)))
         box.addSpacing(12);box.addWidget(label('SteamOS needs a compatible kernel and Wayland setup. Host installation is guided; system protections are not changed automatically.','caption',True));box.addStretch()
-        self.setup_scroll=QScrollArea();self.setup_scroll.setWidgetResizable(True);self.setup_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff);self.setup_scroll.setWidget(page);return self.setup_scroll
+        self.setup_scroll=QScrollArea();self.setup_scroll.setWidgetResizable(True);self.setup_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff);self.setup_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn);self.setup_scroll.setWidget(page);return self.setup_scroll
     def artwork(self,p):
         if p['id'] not in self.art_cache:
             path=icon_path(self.service.store,p);image=QPixmap(str(path)) if path else None
@@ -310,7 +310,10 @@ class Window(QMainWindow):
         self.options_button.setEnabled(bool(not busy and not active))
         control=CONTROL_PROFILES.get(p.get('adapter'),{'description':'Controls are unknown until this game is investigated.'});self.controls_label.setText('Controls: A / Enter collects. B / Esc returns.' if p['restoration']['path']=='rebuild' else 'Controls: touch or trackpad.' if p.get('adapter') in {'tapquest-v1','meego-1.32'} else 'Controls need game-specific investigation.')
     def submit(self,title,operation,callback=None):
-        if self.worker:return
+        if self.worker:
+            # One background task runs at a time. Never drop a request silently:
+            # run the most recent one as soon as the current task finishes.
+            self.queued=(title,operation,callback);self.message.setText(title+' will start when '+self.worker.title[0].lower()+self.worker.title[1:]+' finishes.');return
         self.worker=Worker(self.service,title,operation,self);worker=self.worker;self.callback=callback;worker.update.connect(self.progress);worker.succeeded.connect(self.completed);worker.failed.connect(self.failed);worker.finished.connect(lambda owned=worker:self.job_finished(owned));self.bar.show();self.cancel_button.show();self.add_button.setEnabled(False);self.demo_button.setEnabled(False);worker.start();self.update_details()
     def progress(self,job):
         self.last_job=job;step=job['steps'][-1]['label'] if job['steps'] else job['label'];self.message.setText(step+('...' if job['state']=='running' else ''))
@@ -321,6 +324,7 @@ class Window(QMainWindow):
     def failed(self,message):
         if 'prepared game file is missing or changed' in message and self.current:self.repair_games.add(self.current)
         self.message.setText(message);self.refresh()
+        if getattr(self.worker,'title',None) in {'Check for updates','Download update'}:self.update_label.setText(message)
         if self.last_job and self.last_job.get('label') in {'Start Android container','Start Android'}:QMessageBox.warning(self,'Android startup failed',message)
         if 'Preparation tools are missing' in message:self.show_setup()
         elif 'java: not found' in message or 'Missing tool:' in message and 'java' in message:
@@ -332,7 +336,8 @@ class Window(QMainWindow):
         self.update_details()
         if self.focus_play_after_prepare and self.play_button.isVisible() and self.play_button.isEnabled():self.play_button.setFocus()
         self.focus_play_after_prepare=False
-        if self.closing:QTimer.singleShot(0,self.close)
+        if self.closing:self.queued=None;QTimer.singleShot(0,self.close)
+        elif self.queued:queued=self.queued;self.queued=None;self.submit(*queued)
     def cancel(self):self.service.jobs.cancel();self.message.setText('Will cancel at the next safe stage. Finishing the current operation first.')
     def add_game(self,checked=False,apk=None):
         dialog=ImportDialog(apk,self)
@@ -513,7 +518,8 @@ class Window(QMainWindow):
         if event.type()==QEvent.Type.Resize and obj is getattr(self,'scroll',None) and self.cards:
             if max(1,(self.scroll.viewport().width()-4+TILE_GAP)//(TILE_WIDTH+TILE_GAP))!=self.columns:QTimer.singleShot(0,self.layout_cards)
         if event.type()==QEvent.Type.FocusIn and isinstance(obj,QWidget) and getattr(self,'setup_scroll',None) and self.setup_scroll.widget().isAncestorOf(obj):
-            self.setup_scroll.ensureWidgetVisible(obj,16,24)
+            # Cards re-wrap as layout settles; scroll again once it has.
+            self.setup_scroll.ensureWidgetVisible(obj,16,24);QTimer.singleShot(0,lambda target=obj:self.setup_scroll.ensureWidgetVisible(target,16,24) if target.hasFocus() else None)
         if event.type()==QEvent.Type.KeyPress and self.isActiveWindow():
             key=event.key();focus=QApplication.focusWidget()
             if key==Qt.Key.Key_F11:self.toggle_fullscreen();return True
