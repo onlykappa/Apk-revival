@@ -201,5 +201,6 @@ The original notice callback at 0x6f8c70–0x6f8d50 reads a `dungeon_packet`
 wrapper followed by a `dungeon_notices` strong array. Offline polling now
 supplies the current typed packet plus an empty array, allowing normal
 stage-expiry handling without inventing online messages. The chat packet's
-`dungeon_chat_messages` array is likewise empty. The separate initial
-`get_last_viewed_id` response contract is still unverified/unsupported.
+`dungeon_chat_messages` array is likewise empty. The initial `get_last_viewed_id` returns the number zero: the original
+`initializeNotices` success block calls `intValue` on the response itself
+at 0x91c33c–0x91c348, rather than reading a dictionary field.

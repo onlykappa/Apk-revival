@@ -124,6 +124,7 @@ class AdventureTests(unittest.TestCase):
         self.start()
         response = self.call('get_dungeon_notices', dungeon_id=1)
         self.assertEqual(response['dungeon_notices'], [])
+        self.assertEqual(self.call('get_last_viewed_id', dungeon_id=1), 0)
         self.assertEqual(response['dungeon_packet']['user_dungeon']['dungeon_id'], 1)
         response = self.call('get_dungeon_notices', self.now + 331, dungeon_id=1)
         self.assertEqual(response['dungeon_notices'], [])

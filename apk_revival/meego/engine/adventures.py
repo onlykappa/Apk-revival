@@ -20,7 +20,7 @@ ROUTES = {
     'game/dungeon/get_dungeons_list', 'game/dungeon/update_dungeon',
     'game/dungeon/complete_dungeon_quest', 'game/dungeon/set_job',
     'game/dungeon/update_villager_job', 'game/dungeon/update_building',
-    'game/dungeon/get_dungeon_notices',
+    'game/dungeon/get_dungeon_notices', 'game/dungeon/get_last_viewed_id',
 }
 
 
@@ -440,6 +440,10 @@ def handle(data, route, params, rules, now):
             raise g.ActionError('This villager has no local adventure results.')
         params = dict(params, dungeon_id=[str(max(candidates, key=lambda s: s['id'])['id'])])
     session = _session(new, params, allow_inactive=route.endswith('/complete_dungeon_quest'))
+    if route.endswith('/get_last_viewed_id'):
+        # JFDungeonSession.initializeNotices success block (0x91c33c) calls
+        # intValue on the response itself. Empty offline notices have ID zero.
+        return new, 0
     if route.endswith('/get_dungeon_notices'):
         # Original callback binds dungeon_packet, then dungeon_notices to a
         # strong array (0x6f8c70–0x6f8d50). No online notices are fabricated.
