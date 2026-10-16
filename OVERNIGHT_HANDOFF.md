@@ -1110,3 +1110,19 @@ Blocked/pending:
   code or data changes after the verified application replacement.
 - Host root helper NOT installed by sandbox. One-time Setup authorization and
   physical baby timer/node-tail/cold-start confirmation remain pending.
+
+
+## October 15: finite baby timer confirmed; fullscreen follow-up
+
+The user confirmed Lowsee's normal timer and child transition. A photo showed
+Meego in a decorated KDE window above the visible desktop panel. Added an exact
+package-scoped transient KWin fullscreen request before local Waydroid activity
+launch, with unload on stop and a nonfatal fallback. No save edits or permanent
+desktop rules. New game_window tests execute real JavaScript against synthetic
+windows and mock D-Bus lifecycle; actual compositor behavior remains pending
+normal Play because the sandbox cannot reach the host bus. Offline simulation
+already catches up from saved dates, with a 24h cap on work/food. See AI_HANDOFF.
+
+Verification: 253 packaged checks passed; five fullscreen checks passed, with
+real JavaScript execution and mocked host D-Bus boundaries. Packaging repack
+succeeded. Native fullscreen behavior is pending the user reopening Play.

@@ -420,6 +420,8 @@ class RuntimeManager:
 class ManagedAndroid(WaydroidRuntime):
     def __init__(self,serial=None):
         super().__init__(serial);self.previous_policy=None;self.applied_policy=None
+        from .game_window import KdeGameWindow
+        self.game_window=KdeGameWindow()
 
     def game_presentation(self,package):
         # Restrict immersive mode to this game. Respect custom user policies.
@@ -440,7 +442,9 @@ class ManagedAndroid(WaydroidRuntime):
 
     def stop(self):
         try:super().stop()
-        finally:self.restore_presentation()
+        finally:
+            try:self.restore_presentation()
+            finally:self.game_window.stop()
 
     def install(self,store,p,original=False):
         self.compatible(p);self.package=p['analysis']['metadata']['package'] if original else p['restoration'].get('client_package',p['analysis']['metadata']['package'])
@@ -475,6 +479,8 @@ class ManagedAndroid(WaydroidRuntime):
             raise RevivalError('The game display disconnected before activity launch. Retry Play to recover it; saves are preserved.')
         self.launch_step('Applying game window presentation')
         self.game_presentation(package)
+        if self.serial==str(info.get('ip'))+':5555':
+            self.launch_step(self.game_window.start(package))
         super().launch(p)
         # An activity launch is only a launch observation, never an offline gameplay result.
         pid=self.shell('pidof',self.package,timeout=3).strip()

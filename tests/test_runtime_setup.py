@@ -25,7 +25,9 @@ class RuntimeSetupTests(unittest.TestCase):
         guest.start();self.addCleanup(guest.stop)
     def test_restart_checks_profile_before_stopping_and_reuses_image(self):
         manager=RuntimeManager()
-        with patch.object(manager,'steam_bundle_launcher',return_value=pathlib.Path('/existing/launcher')),patch('apk_revival.launcher.runtime_setup.command') as run,patch.object(manager,'ensure',return_value='current:5555') as ensure:
+        # Privilege routing has its own tests; do not depend on whether the
+        # real Deck has completed the optional password-free setup.
+        with patch('apk_revival.launcher.runtime_access.preflight_command',return_value=['sudo','-A','/usr/bin/waydroid-mount','main','--check-only']),patch.object(manager,'steam_bundle_launcher',return_value=pathlib.Path('/existing/launcher')),patch('apk_revival.launcher.runtime_setup.command') as run,patch.object(manager,'ensure',return_value='current:5555') as ensure:
             self.assertEqual(manager.restart_android(),'current:5555')
         commands=[call.args[0] for call in run.call_args_list]
         self.assertEqual(commands[0][-3:],['/usr/bin/waydroid-mount','main','--check-only'])

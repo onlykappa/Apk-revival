@@ -1,3 +1,40 @@
+## Fullscreen follow-up — October 15
+
+User confirmed Lowsee has a normal countdown and has become a child. This is
+physical confirmation of the previous baby timer/growth fix.
+
+New game_window.py requests fullscreen on KDE Wayland only for the exact
+Waydroid game app_id (waydroid.<package>), both existing and newly opened normal
+windows. Play installs a transient KWin script before activity launch; stop
+unloads that script. No permanent KDE rules, resolution, input mapping or saves
+are changed. Existing Android immersive policy remains package-scoped. Phone
+ADB devices and Gaming Mode do not receive KDE requests. Host D-Bus is blocked
+inside the development sandbox; actual fullscreen must be confirmed via normal
+Play outside the sandbox. The UI title bar and KDE panel in the user's photo
+were desktop presentation, which Android immersive settings cannot remove.
+
+The updated package remains version 0.3.20 (fullscreen hotfix). Candidate:
+dist/APK-Revival-0.3.20-fullscreen-candidate. Executable SHA256:
+a74636b55010fb83dc9b0ef86ec8f88acda09d0f96b053caaf7471ac866ccf51.
+253 packaged tests passed, including all five new fullscreen checks.
+Prior harvest archive below predates fullscreen. Initial JS test required
+QtQml absent from the minimal bundle; the corrected test executes real JS using
+the Deck's existing Duktape library. Runtime preflight ordering test now isolates
+privilege routing instead of assuming the optional helper is absent.
+
+Offline timers already use saved timestamps and catch up on reopen; no network
+or always-running Deck is needed. Work/food catch-up is capped at 24 hours;
+birthdays remain absolute dates (2h baby, 10h adult under current local policy).
+Construction, production and solo-adventure stages still require their normal
+assignments/resources/claims. This is local restoration policy, not recovered
+proof of original server balance.
+
+The password-free runtime helper and sudoers file now exist on the host;
+actual unattended cold-start/reboot success is still unverified here. Do not
+interpret sandbox sudo failure as proof the host helper failed.
+
+---
+
 # Deck integration handoff — 0.3.20
 
 Use `deck-0.3.20-launcher-meego` for the complete merged launcher, gameplay,
