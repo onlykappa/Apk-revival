@@ -46,7 +46,7 @@ def redact(params):
         else:result[key]=redact(value)
     return result
 
-def native_payload(value, game_state=None):
+def native_payload(value, game_state=None, depleted_nodes=()):
     """Project saved building timers onto the native no-expiry wire contract.
 
     JMBuilding treats a missing expire_date as NSDate.distantFuture. Sending
@@ -57,7 +57,20 @@ def native_payload(value, game_state=None):
     if isinstance(value, dict):
         if {'all_villagers', 'buildings'} <= value.keys():game_state=value
         elif isinstance(value.get('game_state'), dict):game_state=value['game_state']
-        result = {key: native_payload(item, game_state) for key, item in value.items()}
+        result = {key: native_payload(item, game_state, depleted_nodes) for key, item in value.items()}
+        if type(value.get('last_update')) is int:
+            # JMBinding's NSDate branch accepts NSDecimalNumber, not the
+            # integer NSNumber produced for JSON integers. Aging intentionally
+            # keeps an integral clock/deadline in saves; emit 123.0 so the
+            # native job receives a date instead of NSDate.distantFuture.
+            result['last_update'] = float(value['last_update'])
+        if ({'all_villagers', 'buildings'} <= value.keys()
+                and value.get('name') in ('village', 'local')):
+            # The same merge-only dictionary contract applies to buildings.
+            # Omitting a depleted tree leaves its last count cached on screen.
+            for ident in depleted_nodes:
+                if ident not in value['buildings']:
+                    result['buildings'][ident] = None
         if {'all_villagers', 'buildings'} <= value.keys() and value.get('name') == 'village':
             # JMGameState.localInstance is registered as "local". Login assigns
             # that name explicitly, but JMDungeonPacket.onPostModelUpdate binds
@@ -91,7 +104,7 @@ def native_payload(value, game_state=None):
                     job['gather_rate']=count
         return result
     if isinstance(value, list):
-        return [native_payload(item, game_state) for item in value]
+        return [native_payload(item, game_state, depleted_nodes) for item in value]
     return value
 
 def initial_village(seed, when=None, rules=None):
@@ -309,7 +322,7 @@ class Handler(BaseHTTPRequestHandler):
     def reply(self, code, value):
         state=getattr(getattr(self,'server',None),'state',None)
         if state is not None:
-            with state.lock:projected=native_payload(value,state.data['game_state'])
+            with state.lock:projected=native_payload(value,state.data['game_state'],state.data.get(ecology.REMOVED_KEY, {}))
         else:projected=native_payload(value)
         body = json.dumps(projected, separators=(',', ':')).encode()
         self.send_response(code); self.send_header('Content-Type', 'application/json')

@@ -36,7 +36,9 @@ def parameters(person, job_id, rules, data=None, now=0, *, gather_seconds=8, tra
         overlay=effects.production_modifiers(data,person,job_id,now,rules)
         modifier+=overlay['rate_modifier'];multiplier*=overlay['rate_multiplier']
         time_modifier+=overlay['time_modifier'];time_multiplier*=overlay['time_multiplier']
-    base=min(5.0,1.0+max(0,value-10)/100)
+    # Requested local balance: two basic resources per trip, before existing
+    # strength/tool/booster bonuses. Research keeps its separate one-point base.
+    base=min(5.0,(2.0 if job_id in (16,17,18) else 1.0)+max(0,value-10)/100)
     rate=max(.001,(base+modifier)*multiplier)
     gather=max(1,math.ceil(max(.001,(gather_seconds+time_modifier)*time_multiplier)))
     return {'gather_rate':rate,'gather_time':gather,'trip_time':gather+travel_seconds}

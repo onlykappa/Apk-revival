@@ -223,6 +223,7 @@ def _advance_segment(data, now=None):
                         source['count'] = available - credited
                         source['last_update'] = now
                         if source['count'] == 0:
+                            ecology.remember_depletion(new, source, now)
                             del buildings[str(source['building_id'])]
                             person['job'] = g.idle_job(now)
                             break

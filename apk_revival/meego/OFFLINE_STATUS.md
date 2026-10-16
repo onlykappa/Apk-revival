@@ -1,5 +1,11 @@
 # Meego offline restoration — 0.3.19 review branch
 
+Latest harvest/aging follow-up: basic resources now have a requested two-unit
+base; depleted trees, bushes and rocks send explicit native deletion markers;
+integral last_update timestamps are projected as decimal JSON to satisfy the
+native NSDate parser and prevent the596523-hour baby timer. Existing birthdays,
+growth deadlines and saves remain intact. See `HARVEST_AGING_RULES.md`.
+
 This is a playable local reconstruction candidate, not recovered server code or
 verified complete original-server parity. It requires the player's original APK
 and the existing Waydroid runtime. No proprietary APK, save or signing key is

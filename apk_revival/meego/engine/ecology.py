@@ -18,6 +18,20 @@ DEFAULT_STOCKS = {2: 40, 3: 30, 4: 75}
 MAX_ID = 2147483647
 MAX_SITES = 64
 BUSH_STOCK_MIGRATION = 'bush-stock-75-v1'
+REMOVED_KEY = 'local_depleted_nodes'
+
+
+def remember_depletion(data, node, now):
+    """Retain bounded native deletion markers, never resource stock or rewards."""
+    if node.get('building_type') not in RESOURCE_LIMITS:
+        return
+    removed = data.setdefault(REMOVED_KEY, {})
+    removed[str(node['building_id'])] = now
+    # A long-running village must not grow every HTTP response indefinitely.
+    # IDs currently in use are filtered again on the wire (IDs can be reused).
+    if len(removed) > 512:
+        for ident in sorted(removed, key=removed.get)[:-512]:
+            del removed[ident]
 
 
 def upgrade_bush_stock(data):
