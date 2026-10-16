@@ -28,11 +28,13 @@ three restoration paths and existing gameplay/camera controls.
 
 ## What actually ran
 
-121 original-rule Meego source regressions passed;52 related aging, trip,
-simulation and skill tests passed;248 packaged launcher/gameplay tests passed
+121 original-rule Meego source regressions passed;100 related checks passed
+(52 aging/trip/simulation/skill plus48 effect/production/wire/ecology);
+248 packaged launcher/gameplay tests passed
 without source overrides. The earlier merged build also passed offscreen Qt
 preview at1280x800 and1000x650 and actual archive staging/probe checks.
-The final gameplay hotfix rebuilt successfully and passed its packaged suite.
+The final gameplay hotfix rebuilt successfully, passed its packaged suite, and
+passed actual archive extraction/staging plus the child version/certificate probe.
 Physical timer/resource cleanup confirmation after reopening is still pending.
 
 On this Deck, full launcher0.3.20 is installed at

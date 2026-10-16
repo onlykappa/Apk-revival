@@ -1091,3 +1091,22 @@ Blocked/pending:
 - Native timer/final-node display confirmation pending. Lowsee's birthdate was
   preserved, so elapsed offline time may already make her a child on next Play.
   A fresh baby's finite nursing countdown remains the strongest physical check.
+
+
+### Final publication / verification
+- Full source integration branch deck-0.3.20-launcher-meego published at
+  ba15e6b977f3dc1679af71606ffdfb1f93e42f1c. Verified all112 changed source/build/
+  test/doc file hashes in the remote Git tree after push. Upstream LICENSE kept;
+  private raw evidence, APKs, saves and signing keys excluded.
+- Concise next-AI entry: docs/AI_HANDOFF.md on that branch. Core game patch-only
+  branch deck-0.3.19-meego remains atdf0ff6eec648e1c122a793b0d4e7eaeea491dad7.
+- Final248 packaged checks and121 shipped source regressions PASS;52 aging/trip/
+  simulation/skill plus48 effect/production/wire/ecology checks PASS (100related).
+- Final hotfix archive staging/extraction + actual child version/certificate
+  probe PASS using the previous0.3.19 updater with a temporary isolated home.
+  Canonical tar SHA256
+  3b3741d376629043bd5f722bf375dcba9baf0d0f9d99c43def3abec4d9d76b37.
+- Installed0.3.20 executable stillmatchesd7a11c...a4573. No additional installed
+  code or data changes after the verified application replacement.
+- Host root helper NOT installed by sandbox. One-time Setup authorization and
+  physical baby timer/node-tail/cold-start confirmation remain pending.
