@@ -222,6 +222,11 @@ class State:
             result.update(game_user=copy.deepcopy(self.data['game_user']),
                           game_state=copy.deepcopy(self.data['game_state']),
                           server_time=time.time(), host_ip_address='127.0.0.1')
+            # The native Dock menu reads this login table rather than the
+            # building's quest_villagers field. Old prepared seeds have {}.
+            # Derive current limits at runtime, without rewriting signed inputs
+            # or private prepared config files on existing installations.
+            result.setdefault('config', {})['questing_villager_limit'] = islands.traveller_limits(g.RULES)
             return result
     def mod_timers(self):
         from . import mods

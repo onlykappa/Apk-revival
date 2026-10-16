@@ -1,4 +1,4 @@
 """APK Revival: evidence before claims."""
-__version__ = "0.3.25"
+__version__ = "0.3.26"
 
 

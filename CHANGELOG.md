@@ -2,6 +2,11 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.26] — Repair Launch Dock 0/0 capacity
+
+- Populate login/resume questing_villager_limit from original completed Dock rules (4/8/12/16). The native menu reads this separate configuration table, which old prepared seeds left empty.
+- Apply at response time without changing the signed APK, existing private configuration, island or progress. Add cached-seed and all-upgrade-level regressions.
+
 ## [0.3.25] — Three offline Launch Dock islands (pilot)
 
 - Add Pebble Bay, Timber Cove and Berry Haven through the original neighbour and visited-island screens. Separate remote snapshots from home state; validate island identities.

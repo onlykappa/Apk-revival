@@ -5,7 +5,12 @@ islands. No cloud model, accounts, internet or former server is used. Layouts,
 names, rewards and charisma gains are authored restoration policies. This is
 not a claim that original server travel has been fully recovered or reproduced.
 
-Use the original Launch Dock Send menu to choose a local neighbour. A completed
+Use the original Launch Dock Send menu to choose a local neighbour. Drag an
+available adult onto the Dock first. The Dock menu requires the login config
+questing_villager_limit keyed by questing_level;0.3.26 derives4/8/12/16 from
+the original completed building states, repairing old empty prepared seeds
+without editing private configuration or APKs. Restart the game after updating
+to clear the previously cached0/0 limit. A completed
 Launch Dock is required; available living adults can travel. The original
 character-send screen requests7200 seconds (two hours). Backend accepts60–86400
 seconds for supported callers; the pilot preserves the screen's original timer.

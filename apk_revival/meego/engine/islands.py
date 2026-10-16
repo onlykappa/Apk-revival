@@ -23,6 +23,18 @@ MIN_DURATION = 60
 MAX_DURATION = 86400
 
 
+def traveller_limits(rules):
+    """Native Dock menu indexes login config by questing_level, not state ID."""
+    limits = {}
+    for state in rules.get('buildings', {}).get('9', {}).get('state_data', {}).values():
+        if state.get('active_job') != 7:
+            continue
+        level, capacity = state.get('questing_level'), state.get('quest_villagers')
+        if type(level) is int and level > 0 and type(capacity) is int and capacity > 0:
+            limits[str(level)] = max(limits.get(str(level), 0), capacity)
+    return limits
+
+
 def definition(ident):
     for entry in ISLANDS:
         if entry[0] == ident:

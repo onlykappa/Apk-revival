@@ -1,3 +1,23 @@
+## 0.3.26 Dock 0/0 capacity — installed
+
+User native test found Dock0/0 despite an existing completed level-one Dock.
+Read-only live record: building1811/type9/state1; no local_islands departures.
+Native JFUIQuestBuildingDetailMenu.updateQuestingInformation0x877d9c reads the
+building questing_level then JMConfig.questing_villager_limit[string(level)]
+(0x8781d8–0x8782a4), not quest_villagers directly. Prepared seed table was{}.
+New packet() projection derives {'1':4,'2':8,'3':12,'4':16} from the original
+completed Dock rules. Existing private starter-packet/config files, signed APK,
+current island, building state and progress remain untouched. Both login/resume
+receive the table, so a clean relaunch is required to replace cached JMConfig.
+Added empty-old-seed login/resume and original four-upgrade-level regressions;
+source23 island tests PASS; final frozen434 tests PASS in26.564s. Candidate dist/APK-Revival-0.3.26-dock-capacity;
+packaged results build/dock-capacity-tests.log. Installed after user confirmed closed. All17 protected game/config/APK/save
+files remained byte-identical. Probe0.3.26/certificates true; executable SHA256:
+79a120c7c6b25dc9c42ff799ba50e15e0e0fda97756afcf80d1a8c63cf157bf7
+Receipt build/installed-dock-capacity-update.json; previous app backup:
+~/.local/share/apk-revival-app-backups/merged-dock-capacity-20261016-064507/APK-Revival-app. Expect0/4, then drag an available adult to
+the Dock and use Send. Three-island native travel acceptance remains pending.
+
 ## 0.3.25 three local islands — installed pilot
 
 Implemented Pebble Bay/Timber Cove/Berry Haven through native neighbour, remote

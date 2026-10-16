@@ -24,7 +24,7 @@ class OfflineIslandTests(unittest.TestCase):
             '8':{'type':9,'active':True}},'buildings':{
             '1':{'state_data':{'1':{'villager_slots':5,'temple_level':1,
                 'resource_caps':{str(i):100 for i in range(1,6)}}}},
-            '9':{'state_data':{'0':{'active_job':5},'1':{'active_job':7,'quest_villagers':4}}},
+            '9':{'state_data':{'0':{'active_job':5},'1':{'active_job':7,'quest_villagers':4,'questing_level':1}}},
             **{str(i):{'state_data':{'1':{'active_job':15+i,'default_length':1}}} for i in (2,3,4)}}}
         self.rules_patch=patch.object(g,'RULES',self.rules);self.rules_patch.start()
         self.addCleanup(self.rules_patch.stop)
@@ -50,6 +50,18 @@ class OfflineIslandTests(unittest.TestCase):
         _,empty=islands.handle(self.data,'game/village/get_neighbour_list',params(size=0),self.rules,self.seed,self.now)
         self.assertEqual(empty,[])
         self.assertEqual(self.data,before)
+
+    def test_login_and_resume_repair_old_empty_capacity_table_without_editing_seed(self):
+        seed_before=copy.deepcopy(self.seed)
+        self.assertEqual(self.seed['config']['questing_villager_limit'],{})
+        with tempfile.TemporaryDirectory() as directory,patch.object(server.time,'time',return_value=self.now):
+            server.atomic_json(Path(directory)/'saves/village.json',self.data)
+            state=server.State(directory,self.seed)
+            for route in ('game/login/oauth','game/login/resume_connection'):
+                packet,status=state.handle(route,{})
+                self.assertEqual(packet['config']['questing_villager_limit'],{'1':4})
+            self.assertEqual(state.seed,seed_before)
+            self.assertEqual(self.seed,seed_before)
 
     def test_remote_snapshots_are_isolated_and_each_has_its_specialty(self):
         before=copy.deepcopy(self.data)
@@ -257,6 +269,12 @@ class OriginalIslandContractTests(unittest.TestCase):
             wire=server.native_payload(gs)
             self.assertEqual(wire['name'],'remote')
             self.assertEqual(len(wire['all_villagers']),2)
+
+    def test_every_original_completed_dock_level_has_native_menu_capacity(self):
+        self.assertEqual(islands.traveller_limits(self.rules),{'1':4,'2':8,'3':12,'4':16})
+        for state in self.rules['buildings']['9']['state_data'].values():
+            if state.get('active_job')==7:
+                self.assertEqual(islands.traveller_limits(self.rules)[str(state['questing_level'])],state['quest_villagers'])
 
 
 if __name__=='__main__':unittest.main()
