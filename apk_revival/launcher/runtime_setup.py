@@ -24,6 +24,14 @@ class RuntimeManager:
                     if stat.S_ISSOCK(metadata.st_mode) and metadata.st_uid==os.getuid():sockets.append(path.name)
                 except OSError:pass
             if len(sockets)==1:env['WAYLAND_DISPLAY']=sockets[0]
+        # The Deck's tested direct display must survive a cold launch from its
+        # .desktop entry, which does not inherit the development shell's opt-in.
+        # The shell launcher separately validates the supplied socket owner and
+        # falls back safely if it is unavailable. Respect explicit overrides.
+        if (env.get('XDG_SESSION_TYPE')=='wayland' and
+                'KDE' in env.get('XDG_CURRENT_DESKTOP','').split(':') and
+                env.get('WAYLAND_DISPLAY')):
+            env.setdefault('APKR_RUNTIME_DISPLAY','desktop')
         from ..util import external_env
         return external_env(env)
     def discover(self,connect=True,probe_timeout=12):

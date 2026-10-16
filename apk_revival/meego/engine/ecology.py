@@ -12,7 +12,8 @@ from . import local_game as g
 
 INTERVAL_SECONDS = 15 * 60
 STATE_KEY = 'local_ecology'
-POLICY = 'local-resource-replenishment-15m-v1'
+LEGACY_POLICY = 'local-resource-replenishment-15m-v1'
+POLICY = 'local-resource-replenishment-per-kind-15m-v2'
 RESOURCE_LIMITS = {2: 4, 3: 3, 4: 3}
 DEFAULT_STOCKS = {2: 40, 3: 30, 4: 75}
 MAX_ID = 2147483647
@@ -127,15 +128,17 @@ def _sites(buildings, existing, rules):
 
 
 def advance(data, now, *, rules=None, stocks=None):
-    """Update an already-copied save and return a spawned node ID, or None.
+    """Update a copied save and return the first spawned node ID, or None.
 
     Call before worker depletion, under the save lock, then persist the returned
     save normally. That remembers the native client's valid resource positions
     before depleted nodes disappear. Metadata stays outside ``game_state``.
 
     Migration observes existing nodes and waits a full interval. Each overdue
-    check creates at most one missing node, rotating types, and schedules from
-    the current time. No stored backlog, rollback reward, resource bank refill,
+    check creates at most one missing node PER TYPE and schedules from the
+    current time. The old shared rotation could leave trees absent for45min
+    before farms/tools were available. Preserve its existing deadline on upgrade.
+    No stored backlog, rollback reward, resource bank refill,
     or alteration to existing nodes occurs. Occupied sites are skipped; unknown
     terrain is never guessed. The native startup recovery path remains intact.
     """
@@ -157,7 +160,7 @@ def advance(data, now, *, rules=None, stocks=None):
                               next_kind=2, replenishment_count=0,
                               sites=_sites(buildings, [], rules))
         return None
-    if (not isinstance(state, dict) or state.get('policy') != POLICY or
+    if (not isinstance(state, dict) or state.get('policy') not in (POLICY, LEGACY_POLICY) or
             not isinstance(state.get('sites'), list) or
             state.get('next_kind') not in RESOURCE_LIMITS or
             isinstance(state.get('replenishment_count'), bool) or
@@ -168,13 +171,14 @@ def advance(data, now, *, rules=None, stocks=None):
     checked = _clock(state.get('last_checked_at'))
     if now <= checked:
         return None
+    state['policy'] = POLICY
     sites = _sites(buildings, state['sites'], rules)
     if now < due:
         state.update(sites=sites, last_checked_at=now)
         return None
     kinds = tuple(RESOURCE_LIMITS)
     start = kinds.index(state['next_kind'])
-    candidate = None
+    first_ident = None
     for offset in range(len(kinds)):
         kind = kinds[(start + offset) % len(kinds)]
         limit = (rules.get('client_data', {}).get('0', {})
@@ -184,9 +188,8 @@ def advance(data, now, *, rules=None, stocks=None):
             continue
         candidate = next((s for s in sites if s['kind'] == kind and
                           _available(s, buildings, rules)), None)
-        if candidate:
-            break
-    if candidate:
+        if not candidate:
+            continue
         ident = _next_id(buildings, state.get('next_building_id'))
         kind = candidate['kind']
         default_state = rules['buildings'][str(kind)].get('default_state', 1)
@@ -198,6 +201,8 @@ def advance(data, now, *, rules=None, stocks=None):
                      next_kind=kinds[(kinds.index(kind) + 1) % len(kinds)],
                      replenishment_count=state['replenishment_count'] + 1,
                      last_replenished_at=now)
+        if first_ident is None:
+            first_ident = ident
     state.update(sites=sites, last_checked_at=now,
                  next_due=now + INTERVAL_SECONDS)
-    return ident if candidate else None
+    return first_ident

@@ -5,6 +5,17 @@ from apk_revival.launcher.runtime_setup import RuntimeManager
 from apk_revival.util import RevivalError,external_env,command
 
 class RuntimeSetupTests(unittest.TestCase):
+    def test_cold_kde_launch_selects_direct_supplied_display_and_respects_override(self):
+        base={'XDG_SESSION_TYPE':'wayland','XDG_CURRENT_DESKTOP':'KDE','WAYLAND_DISPLAY':'actual-parent-7'}
+        with patch.dict(os.environ,base,clear=True):
+            env=RuntimeManager().environment()
+            self.assertEqual(env['APKR_RUNTIME_DISPLAY'],'desktop')
+            self.assertEqual(env['WAYLAND_DISPLAY'],'actual-parent-7')
+        with patch.dict(os.environ,{**base,'APKR_RUNTIME_DISPLAY':'nested'},clear=True):
+            self.assertEqual(RuntimeManager().environment()['APKR_RUNTIME_DISPLAY'],'nested')
+        with patch.dict(os.environ,{**base,'XDG_CURRENT_DESKTOP':'gamescope'},clear=True):
+            self.assertNotIn('APKR_RUNTIME_DISPLAY',RuntimeManager().environment())
+
     def test_direct_kde_display_uses_native_protocol_not_wlr_management(self):
         manager=RuntimeManager()
         env={'WAYLAND_DISPLAY':'verified-parent-7','XDG_SESSION_TYPE':'wayland','XDG_CURRENT_DESKTOP':'KDE'}

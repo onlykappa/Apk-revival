@@ -13,7 +13,7 @@ system/Android settings and is deliberately not used as a shortcut.
 
 Setup -> Enable password-free startup requests ONE administrator authorization
 to install `/etc/apk-revival/runtime-helper` (root-owned0755) and
-`/etc/sudoers.d/apk-revival-runtime` (root-owned0440). The rule names the invoking
+`/etc/sudoers.d/zzzzzzzzzz-apk-revival-runtime` (root-owned0440). The rule names the invoking
 account, root as the only target account, NOSETENV, and exactly five commands:
 probe, preflight, mount, start-container and post-start. There are no wildcard
 arguments, password-free shells, user-selected paths or other runtime profiles.
@@ -23,7 +23,12 @@ kernel settings, Android security settings or file permissions in game storage.
 
 The installer validates account identity, dependency ownership, protected target
 directories, shell and sudoers syntax. It refuses symlinks/unrelated files and
-restores its previous files if validation fails. It does not start, stop, reset
+restores its previous files if validation fails. It migrates only its own old
+`apk-revival-runtime` rule. The late filename prevents earlier general SteamOS
+wheel rules from overriding the narrow NOPASSWD exceptions. After syntax
+validation, it drops to the invoking account with runuser and tests
+`sudo -k -n -- /etc/apk-revival/runtime-helper probe`; ignoring cached
+credentials proves that noninteractive access actually works. It does not start, stop, reset
 or reinstall Android. It does not store your password or change global sudo
 timeout/security policy. Root dependencies must already exist.
 

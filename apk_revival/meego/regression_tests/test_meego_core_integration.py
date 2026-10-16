@@ -335,6 +335,33 @@ class CoreIntegrationTests(unittest.TestCase):
                 self.assertEqual(sim.gather_amount(person,job_id,data,self.now),3)
         self.assertEqual(sim.gather_amount(self.data['game_state']['all_villagers']['1'],20,self.data,self.now),1)
 
+    def test_original_safe_sites_replenish_all_three_kinds_after_json_restart(self):
+        data=copy.deepcopy(self.data)
+        buildings=data['game_state']['buildings']
+        # Fresh seed has only the temple; the native client supplies sites.
+        for ident,kind,location in ((2,2,20*g.MAP_SIZE+20),(3,3,30*g.MAP_SIZE+30),(4,4,40*g.MAP_SIZE+40)):
+            buildings[str(ident)]=g.building(ident,kind,1,location,self.now)
+        ecology.advance(data,self.now+1,rules=g.RULES)
+        old_bank=copy.deepcopy(data['game_state']['resources'])
+        old_people=copy.deepcopy(data['game_state']['all_villagers'])
+        for ident in list(buildings):
+            if buildings[ident]['building_type'] in ecology.RESOURCE_LIMITS:
+                ecology.remember_depletion(data,buildings[ident],self.now)
+                del buildings[ident]
+        data[ecology.STATE_KEY]['policy']=ecology.LEGACY_POLICY
+        data=json.loads(json.dumps(data))
+        when=data[ecology.STATE_KEY]['next_due']
+        self.assertIsNotNone(ecology.advance(data,when,rules=g.RULES))
+        nodes=[b for b in data['game_state']['buildings'].values() if b['building_type'] in ecology.RESOURCE_LIMITS]
+        self.assertEqual(sorted((b['building_type'],b['count']) for b in nodes),[(2,40),(3,30),(4,75)])
+        self.assertEqual(data['game_state']['resources'],old_bank)
+        self.assertEqual(data['game_state']['all_villagers'],old_people)
+        packet=server.native_payload(data['game_state'],depleted_nodes=data[ecology.REMOVED_KEY])
+        for node in nodes:self.assertIsNotNone(packet['buildings'][str(node['building_id'])])
+        unchanged=copy.deepcopy(data)
+        self.assertIsNone(ecology.advance(data,when,rules=g.RULES))
+        self.assertEqual(data,unchanged)
+
     def test_bush_upgrade_preserves_harvested_food_and_runs_once(self):
         data = self.source(4, 18, 5)
         data['local_migrations'].remove(ecology.BUSH_STOCK_MIGRATION)

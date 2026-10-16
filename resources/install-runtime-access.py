@@ -10,6 +10,9 @@ import tempfile
 
 MARKER = b'APK Revival fixed main-profile runtime helper v1'
 ETC = pathlib.Path('/etc')
+# sudo applies the last matching rule, including general SteamOS wheel rules.
+# Keep our narrow exceptions after those files; verify effective access below.
+RULE_NAME = 'zzzzzzzzzz-apk-revival-runtime'
 
 
 def policy(username):
@@ -74,24 +77,35 @@ def install(username):
     folder.mkdir(mode=0o755, exist_ok=True)
     safe_directory(folder)
     helper = folder / 'runtime-helper'
-    rule_file = sudoers / 'apk-revival-runtime'
-    for target, marker in ((helper, MARKER), (rule_file, b'# APK Revival dedicated runtime access v1')):
+    rule_file = sudoers / RULE_NAME
+    legacy_rule = sudoers / 'apk-revival-runtime'
+    for target, marker in ((helper, MARKER), (rule_file, b'# APK Revival dedicated runtime access v1'), (legacy_rule, b'# APK Revival dedicated runtime access v1')):
         if target.is_symlink(): raise ValueError('Refusing a symlink: ' + str(target))
         if target.exists():
             info = target.stat()
             if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022 or marker not in target.read_bytes():
                 raise ValueError('Refusing to replace an unrelated or unprotected file: ' + str(target))
-    previous = {p: (p.read_bytes(), stat.S_IMODE(p.stat().st_mode)) if p.exists() else None for p in (helper, rule_file)}
+    previous = {p: (p.read_bytes(), stat.S_IMODE(p.stat().st_mode)) if p.exists() else None for p in (helper, rule_file, legacy_rule)}
     try:
         atomic_file(helper, content, 0o755)
         atomic_file(rule_file, rules, 0o440)
+        legacy_rule.unlink(missing_ok=True)
         subprocess.run(['/usr/bin/visudo', '-cf', '/etc/sudoers'], check=True, env={'PATH': '/usr/bin:/bin'})
+        # Syntax alone cannot prove NOPASSWD: later matching rules can override
+        # it. Drop to the actual invoking account, ignore cached credentials,
+        # and execute only the helper's side-effect-free identity probe.
+        probe = subprocess.run(['/usr/bin/runuser', '-u', username, '--',
+                                '/usr/bin/sudo', '-k', '-n', '--', str(helper), 'probe'],
+                               check=True, capture_output=True, text=True, timeout=15,
+                               env={'PATH': '/usr/bin:/bin'})
+        if probe.stdout.strip() != 'apk-revival-runtime-v1':
+            raise ValueError('Dedicated runtime access did not pass its noninteractive account probe')
     except BaseException:
         for p, old in previous.items():
             if old is None: p.unlink(missing_ok=True)
             else: atomic_file(p, *old)
         raise
-    print('Installed dedicated password-free runtime access. No runtime was restarted and no game data changed.')
+    print('Installed and verified dedicated password-free runtime access for ' + username + '. No runtime was restarted and no game data changed.')
 
 
 if __name__ == '__main__':

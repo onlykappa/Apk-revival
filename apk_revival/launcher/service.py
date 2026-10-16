@@ -146,7 +146,11 @@ class Launcher:
         if ctx:ctx.step('Stopping the selected game')
         try:
             if self.android:self.android.stop()
-        finally:self.android=None;self.active=None;self.connection_failures=0
+        finally:
+            try:
+                if ctx:ctx.step('Closing the game runtime started by APK Revival')
+                self.runtime_manager.stop_owned_session()
+            finally:self.android=None;self.active=None;self.connection_failures=0
         return {'stopped':True}
     def monitor(self):
         if not self.android or not self.active:return None

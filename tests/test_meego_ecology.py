@@ -48,19 +48,35 @@ class MeegoEcologyTests(unittest.TestCase):
         self.assertIsNone(self.advance(self.now + 30 * e.INTERVAL_SECONDS))
         self.assertEqual(len(self.data['game_state']['buildings']), 1)
 
-    def test_long_absence_adds_one_node_and_json_restart_keeps_deadline(self):
+    def test_long_absence_adds_one_of_each_type_and_json_restart_keeps_deadline(self):
         self.advance(self.now)
         for ident in ('2', '3', '4'):
             del self.data['game_state']['buildings'][ident]
         when = self.now + 200 * e.INTERVAL_SECONDS
         self.assertEqual(self.advance(when), 5)
+        nodes=[b for b in self.data['game_state']['buildings'].values() if b['building_type'] in e.RESOURCE_LIMITS]
+        self.assertEqual(sorted((b['building_type'],b['count']) for b in nodes),[(2,40),(3,30),(4,75)])
+        self.assertEqual(self.data[e.STATE_KEY]['replenishment_count'],3)
         self.data = json.loads(json.dumps(self.data))
         before = copy.deepcopy(self.data)
         self.assertIsNone(self.advance(when))
         self.assertEqual(self.data, before)
         self.assertIsNone(self.advance(when + 1))
-        self.assertEqual(self.advance(when + e.INTERVAL_SECONDS), 6)
-        self.assertEqual(self.data['game_state']['buildings']['6']['building_type'], 3)
+        del self.data['game_state']['buildings']['6']
+        self.assertEqual(self.advance(when + e.INTERVAL_SECONDS), 8)
+        self.assertEqual(self.data['game_state']['buildings']['8']['building_type'], 3)
+
+    def test_old_shared_policy_upgrades_without_resetting_due_or_refilling_bank(self):
+        self.advance(self.now)
+        self.data[e.STATE_KEY]['policy']=e.LEGACY_POLICY
+        for ident in ('2','3','4'):del self.data['game_state']['buildings'][ident]
+        bank=copy.deepcopy(self.data['game_state']['resources'])
+        self.assertIsNone(self.advance(self.now+e.INTERVAL_SECONDS-1))
+        self.assertEqual(self.data[e.STATE_KEY]['next_due'],self.now+e.INTERVAL_SECONDS)
+        self.assertEqual(self.data[e.STATE_KEY]['policy'],e.POLICY)
+        self.assertEqual(self.advance(self.now+e.INTERVAL_SECONDS),5)
+        self.assertEqual(len(self.data['game_state']['buildings']),4)
+        self.assertEqual(self.data['game_state']['resources'],bank)
 
     def test_occupied_sites_skipped_and_full_map_does_not_overwrite_buildings(self):
         self.advance(self.now)

@@ -53,8 +53,48 @@ class RuntimeAccessTests(unittest.TestCase):
                 with self.assertRaises(subprocess.CalledProcessError):installer.install(account.pw_name)
             self.assertFalse((etc/'apk-revival/runtime-helper').exists())
             self.assertFalse((etc/'sudoers.d/apk-revival-runtime').exists())
+            self.assertFalse((etc/'sudoers.d'/installer.RULE_NAME).exists())
             self.assertEqual(sentinel.read_text(),'keep this configuration')
             self.assertTrue(all(c.args[0][0] in ('/bin/bash','/usr/bin/visudo') for c in run.call_args_list))
+
+    def test_success_requires_uncached_probe_as_invoking_user_and_late_rule(self):
+        self.assertGreater(installer.RULE_NAME,'zzzzzzzz-waydroid')
+        self.assertGreater(installer.RULE_NAME,'wheel')
+        account=pwd.getpwuid(os.getuid())
+        with tempfile.TemporaryDirectory() as temp:
+            etc=Path(temp)/'etc';etc.mkdir();(etc/'sudoers.d').mkdir()
+            real_stat=Path.stat
+            def protected(path,*args,**kwargs):
+                if str(path).startswith('/usr/'):return Mock(st_uid=0,st_mode=0o100755)
+                return real_stat(path,*args,**kwargs)
+            def execute(args,**kwargs):
+                return subprocess.CompletedProcess(args,0,'apk-revival-runtime-v1\n','')
+            with patch.object(installer,'ETC',etc),patch.object(installer.os,'geteuid',return_value=0),patch.dict(os.environ,{'PKEXEC_UID':str(account.pw_uid)}),patch.object(installer,'safe_directory'),patch.object(Path,'stat',protected),patch.object(installer.subprocess,'run',side_effect=execute) as run:
+                installer.install(account.pw_name)
+            probe=run.call_args.args[0]
+            self.assertEqual(probe[:8],['/usr/bin/runuser','-u',account.pw_name,'--','/usr/bin/sudo','-k','-n','--'])
+            self.assertEqual(probe[-1],'probe')
+            self.assertEqual(run.call_args.kwargs['timeout'],15)
+            self.assertTrue((etc/'sudoers.d'/installer.RULE_NAME).is_file())
+            self.assertFalse((etc/'sudoers.d/apk-revival-runtime').exists())
+
+    def test_effective_access_failure_rolls_back_even_when_visudo_passes(self):
+        account=pwd.getpwuid(os.getuid())
+        with tempfile.TemporaryDirectory() as temp:
+            etc=Path(temp)/'etc';etc.mkdir();(etc/'sudoers.d').mkdir()
+            sentinel=etc/'sudoers.d/wheel';sentinel.write_text('unrelated host policy')
+            real_stat=Path.stat
+            def protected(path,*args,**kwargs):
+                if str(path).startswith('/usr/'):return Mock(st_uid=0,st_mode=0o100755)
+                return real_stat(path,*args,**kwargs)
+            def execute(args,**kwargs):
+                if args[0]=='/usr/bin/runuser':raise subprocess.CalledProcessError(1,args,stderr='sudo: a password is required')
+                return subprocess.CompletedProcess(args,0)
+            with patch.object(installer,'ETC',etc),patch.object(installer.os,'geteuid',return_value=0),patch.dict(os.environ,{'PKEXEC_UID':str(account.pw_uid)}),patch.object(installer,'safe_directory'),patch.object(Path,'stat',protected),patch.object(installer.subprocess,'run',side_effect=execute):
+                with self.assertRaises(subprocess.CalledProcessError):installer.install(account.pw_name)
+            self.assertFalse((etc/'sudoers.d'/installer.RULE_NAME).exists())
+            self.assertFalse((etc/'apk-revival/runtime-helper').exists())
+            self.assertEqual(sentinel.read_text(),'unrelated host policy')
 
     def test_unsafe_directory_and_symlink_are_rejected(self):
         with tempfile.TemporaryDirectory() as temp:

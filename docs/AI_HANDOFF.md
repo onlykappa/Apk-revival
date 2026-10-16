@@ -1,3 +1,49 @@
+## Respawn, runtime permission and cold-display follow-up
+
+Supersedes the earlier pending password/startup notes below. User completed the
+corrected Setup installer at20:36, which verifies actual uncached sudo access
+as their non-root account. The next Play reached a running game; the initial
+black window was startup, then the game opened. Reboot remains untested.
+
+The old sudoers rule sorted before SteamOS general rules. Syntax passed while
+noninteractive Play failed with `sudo: a password is required`. The installer
+now migrates only its own rule to zzzzzzzzzz-apk-revival-runtime and, after
+visudo, runs the fixed helper's probe through runuser -> sudo -k -n. Failed
+verification rolls back dedicated files. Corrected installer was installed
+separately in the existing application so the user could recover immediately.
+No unrelated sudo policy or game data was modified.
+
+That cold launch exposed another defect: the .desktop entry does not inherit
+APKR_RUNTIME_DISPLAY=desktop from the prior development launch, so Cage opened
+instead of the previously tested direct KDE game window. The transient
+fullscreen request succeeded but matched no host game window inside Cage.
+RuntimeManager now defaults to the explicitly supplied KDE Wayland socket;
+the shell still validates ownership. Explicit nested overrides and Gaming Mode
+remain untouched. Stop now releases the launcher's owned Android session after
+stopping the app/backend; externally shared sessions remain protected.
+
+Resource scarcity: old ecology spawned ONE TOTAL node every15min, so a resource
+kind could wait45min. It now spawns up to one missing node OF EACH KIND per15min:
+rock40, tree30, food bush75. Existing node contents and bank balances are never
+refilled, original pool ceilings remain, occupied/unknown sites are skipped,
+valid previously observed positions are reused, and old deadlines survive
+migration. No unlimited offline backlog. These times are local balance policy,
+not verified original server timing. Native startup also restores missing
+pools: the user's latest reopened save had full pools (4/3/3), which the new
+scheduler correctly left alone. On a read-only copy, simulated depletion of
+one each restored all three together without changing the real save or bank.
+
+Latest candidate: dist/APK-Revival-0.3.20-respawn-stop-candidate.
+This candidate is now installed. All17 protected save/profile/APK files
+remained hash-identical during the atomic replacement, and the installed
+version/certificate probe passed. Native fullscreen, Stop-window cleanup
+and on-screen respawn confirmation remain pending the user relaunch. New focused ecology checks10 passed;
+original-APK-rule replenishment integration passed. Packaging succeeded.
+All269 packaged checks passed. Executable SHA256:
+a8c9a3016ccc5068e40e5cff2a5227acdb0f0c89fbc813cd53e9db3107b6ebdb.
+
+---
+
 ## Fullscreen follow-up — October 15
 
 User confirmed Lowsee has a normal countdown and has become a child. This is

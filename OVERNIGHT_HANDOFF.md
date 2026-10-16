@@ -1126,3 +1126,35 @@ already catches up from saved dates, with a 24h cap on work/food. See AI_HANDOFF
 Verification: 253 packaged checks passed; five fullscreen checks passed, with
 real JavaScript execution and mocked host D-Bus boundaries. Packaging repack
 succeeded. Native fullscreen behavior is pending the user reopening Play.
+
+
+## Respawn and host startup follow-up
+
+User's old shared15min resource clock could rotate one kind to45min. Added
+one-per-kind checks with unchanged site validation, pool caps, stock sizes,
+no offline backlog and deadline-preserving legacy migration. Ten ecology checks
+and a private original-rule integration check passed; a copy of the live save
+also proved safe replenishment without writing it. Latest reopened island had
+full4/3/3 pools via native startup recovery; no manual resource refill applied.
+
+One-time setup initially reported success but Play failed sudo-n. Moved only
+the dedicated rule after SteamOS wheel configuration and added an uncached
+non-root effective-access probe with rollback. Corrected Setup installer was
+atomically installed in the existing app; the user ran it and normal Play
+opened. Host setup now verified at least one cold startup, reboot pending.
+
+Game opened after a black startup window but was not fullscreen. Logs showed
+the initial default nested Cage path, not the previous direct KDE display.
+Made direct supplied KDE socket the cold-start default, retaining socket
+validation and explicit nested/Gaming Mode behavior. Stop now closes only
+owned runtime sessions after stopping the game/backend. Candidate is
+0.3.20-respawn-stop-candidate; actual new fullscreen/Stop behavior pending.
+
+All269 packaged regression checks passed on this candidate, including the
+new ecology, effective-access rollback, display selection and Stop lifecycle
+checks. Packaged test logs: build/respawn-stop-packaged-tests.log.
+
+Installed respawn/Stop/direct-display candidate at20:41 with all17 protected
+files hash-identical, including the live save and original/prepared APKs.
+Version/certificate probe passed; user physical feedback pending. Installed
+SHA256 a8c9a3016ccc5068e40e5cff2a5227acdb0f0c89fbc813cd53e9db3107b6ebdb.

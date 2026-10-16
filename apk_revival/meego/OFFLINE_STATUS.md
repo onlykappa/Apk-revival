@@ -13,6 +13,12 @@ included in this branch. The existing launcher design is preserved.
 
 ## Implemented source workflow
 
+- Wild resources replenish independently: at most one rock40, tree30 and bush75
+  per15-minute check, at previously observed unoccupied sites, up to the original
+  pool caps (4 rocks/3 trees/3 bushes). Old shared deadlines survive migration;
+  offline backlog never adds more than one per type per check. Local timing
+  is a restoration policy; original server timing remains unverified.
+
 - Existing farm/quarry/sawmill activation, stocking, finite harvesting and depot
   validation; owned tools and temporary boosts affect actual work. Wild bushes
   hold75 food, and final-unit pickups are clipped on the wire without changing
