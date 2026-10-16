@@ -117,6 +117,40 @@ class MeegoFoodTests(unittest.TestCase):
             f.advance(self.data, self.now, self.now + 60)
         self.assertEqual(self.data, before)
 
+class FoodSessionPolicyTests(unittest.TestCase):
+    setUp = MeegoFoodTests.setUp
+    add = MeegoFoodTests.add
+
+    def test_resume_preserves_balance_fraction_and_other_offline_clocks(self):
+        self.data['last_simulated_at'] = self.now
+        f.advance(self.data, self.now, self.now + 15)
+        before = copy.deepcopy(self.data)
+        f.resume(self.data, self.now + 3 * 86400)
+        self.assertEqual(self.data['game_state']['resources'], before['game_state']['resources'])
+        self.assertEqual(self.data['food_fraction'], before['food_fraction'])
+        self.assertEqual(self.data['last_simulated_at'], before['last_simulated_at'])
+        self.assertEqual(self.data['game_state']['all_villagers'], before['game_state']['all_villagers'])
+        self.assertFalse(self.data[f.STATE_KEY]['offline_consumption'])
+        self.assertEqual(f.advance(self.data, self.now + 3*86400, self.now + 3*86400 + 15), 1)
+
+    def test_food_flag_tracks_stock_and_recovers_after_harvesting(self):
+        self.assertEqual(self.data['game_state']['global_state']['mood_state'], 2)
+        self.data['game_state']['resources']['3']['count'] = 1
+        f.advance(self.data, self.now, self.now + 60)
+        self.assertEqual(self.data['game_state']['global_state']['mood_state'], 1)
+        self.data['game_state']['resources']['3']['count'] = 390
+        f.advance(self.data, self.now + 60, self.now + 60)
+        self.assertEqual(self.data['game_state']['global_state']['mood_state'], 2)
+        self.assertEqual(self.data['game_state']['resources']['3']['count'], 390)
+
+    def test_old_policy_and_stale_hungry_flag_migrate_without_food_loss(self):
+        self.data[f.STATE_KEY]['policy'] = f.LEGACY_POLICY
+        self.data['game_state']['global_state']['mood_state'] = 0
+        f.resume(self.data, self.now + 7 * 86400)
+        self.assertEqual(self.data['game_state']['resources']['3']['count'], 100)
+        self.assertEqual(self.data['game_state']['global_state']['mood_state'], 2)
+        self.assertEqual(self.data[f.STATE_KEY]['policy'], f.POLICY)
+
 
 if __name__ == '__main__':
     unittest.main()

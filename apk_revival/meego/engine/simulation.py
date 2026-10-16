@@ -99,7 +99,7 @@ def migrate_economy(data, now):
     data.setdefault('local_migrations', []).append('completed-trips-2')
 
 
-def advance(data,now=None):
+def advance(data,now=None,*,food_active=True):
     """Settle modifier expiry boundaries without applying boosts retroactively."""
     now=time.time() if now is None else now
     working=copy.deepcopy(data)
@@ -108,12 +108,12 @@ def advance(data,now=None):
         previous=max(previous,now-SETTINGS['maximum_offline_seconds'])
         working['last_simulated_at']=previous
         for boundary in effects.change_times(working,previous,now)+[now]:
-            working=_advance_segment(working,boundary)
+            working=_advance_segment(working,boundary,food_active=food_active)
         return working
-    return _advance_segment(working,now)
+    return _advance_segment(working,now,food_active=food_active)
 
 
-def _advance_segment(data, now=None):
+def _advance_segment(data, now=None, *, food_active=True):
     now = time.time() if now is None else now
     new = copy.deepcopy(data)
     gs = new['game_state']
@@ -176,6 +176,13 @@ def _advance_segment(data, now=None):
             person['job'] = g.idle_job(now)
         elif (rule.get('type') == 3 or job_id == 20) and source is not None:
             resource = g.RESOURCE_IDS.get(int(rule.get('product_type') or 0))
+            if resource == 3 and not food_active:
+                # The user requested a frozen food balance while closed.
+                # Pause food trips too: never discard a credited harvest or
+                # deplete a bush/farm while restoring the bank afterwards.
+                job.update(last_update=now, update_interval=SETTINGS['gather_update_seconds'])
+                person['last_update'] = now
+                continue
             if resource:
                 if rule.get('type')==3 and rule.get('product_type'):
                     try:production.validate_depot(gs,int(job.get('destination_id',0)),job_id,g.RULES)
@@ -267,7 +274,10 @@ def _advance_segment(data, now=None):
                        if p['job']['job_id'] == 5 and p['job']['source_id'] == b['building_id'])
             b['expire_date'] = now + max(0, length - b.get('progress', 0)) / rate if rate else 0
     catalog.advance_research(new, g.RULES, now)
-    food.advance(new, previous, now, maximum_elapsed=SETTINGS['maximum_offline_seconds'])
+    if food_active:
+        food.advance(new, previous, now, maximum_elapsed=SETTINGS['maximum_offline_seconds'])
+    else:
+        food.resume(new, now)
     new['last_simulated_at'] = now
     community.advance(new, now, housing_capacity=housing(gs), rules=g.RULES, hours_per_age=SETTINGS['hours_per_age'])
     birthstones.discover_owned(new, g.RULES.get('birthsigns', {}))

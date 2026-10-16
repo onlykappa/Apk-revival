@@ -1,3 +1,40 @@
+## 0.3.23 food freeze and temple hunger — installed
+
+User requested food freeze on exit and asked why Temple remains hungry with
+food. Read-only live snapshot showed390 food and global_state.mood_state0.
+Original native JFVillageService hunger helpers0x8f6b60/0x8f6bf0 test mood<2;
+JFTempleHead chooses neutral2, unhappy1 and mad0. Food accounting never synced
+that starter flag. New food policy publishes2 for stocked food and1 when empty,
+without granting food or a permanent productivity bonus.
+
+local-resident-food-active-session-v2 preserves v1 balance and active fractional
+minutes. State startup, first native request, login/resume and paused/logout
+polls freeze food; food trips also pause without depleting bush/farm stock.
+Aging, wood/stone gathering, resource ecology and production preparation retain
+other offline progress. World last_simulated_at is not fast-forwarded to hide
+closed time. Active food consumption and harvesting resume normally. Details:
+docs/MEEGO_FOOD_POLICY.md. User policy is local, not claimed original balance.
+
+17 focused food tests PASS. Final frozen build380 tests PASS in26.965s, build1
+PASS, version/certificate probe0.3.23/true. Temporary-save restart tests cover
+clean logout, background polls, unclean host restart, first request without
+login, food source conservation, simultaneous wood gathering and retained child
+aging. Preliminary runs exposed old tests assuming unchanged session metadata /
+unstarted sessions or stale mood after funding; fixed clocks and explicit login
+now test those invariants. Final native controls and existing game regressions
+pass. No new APK build:0.3.22 native Skip/camera controls remain current.
+
+Installed SHA256a8ff2fb61d71cf0f3e154ccb58e220fedf1d1a3f7e94e1e722bb9a50f046f230.
+Receipt build/installed-food-session-update.json. All17 protected files unchanged
+across install; no live island edits/reset/refill. Previous app retained under
+~/.local/share/apk-revival-app-backups/merged-food-session-20261016-061407/.
+User was asked to reopen normally for visual confirmation. Closed checkpoint
+/tmp/apkr-food-reopen-checkpoint.json recorded479 food, old mood0; actual Temple
+appearance is now user-confirmed: hunger message stopped after normal Play.
+Live backend reports positive food, mood2 and v2 policy. Food freeze across
+closed intervals passed automated session/restart tests; a manually timed closed
+interval was not observed in this session.
+
 ## 0.3.22 native Skip timer / focused audit — installed and user-confirmed
 
 Supersedes the earlier launcher-only Mods interaction. Details and known gaps:

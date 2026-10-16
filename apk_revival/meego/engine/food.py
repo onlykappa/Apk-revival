@@ -2,12 +2,14 @@
 
 The client displays an integer consumption rate per minute; its original
 server's per-villager coefficient and guest/traveller policy are unrecovered.
-One food per owned, present, living resident per minute is the local policy.
+One food per owned, present, living resident per active minute is the local
+policy. State resets the charge baseline on startup/resume; closed time is free.
 """
 import math
 
 STATE_KEY = 'local_food'
-POLICY = 'local-resident-food-per-minute-v1'
+LEGACY_POLICY = 'local-resident-food-per-minute-v1'
+POLICY = 'local-resident-food-active-session-v2'
 FOOD_PER_RESIDENT_PER_MINUTE = 1
 TIME_UNITS = 1_000_000
 UNITS_PER_FOOD = 60 * TIME_UNITS
@@ -67,7 +69,8 @@ def advance(data, previous, now, *, maximum_elapsed=86400,
     interval under the former hourly policy. Clock rollback and repeated
     intervals never charge twice.
 
-    Offline elapsed is bounded, empty stores accumulate no debt, and the native
+    The caller supplies an active interval; session boundaries must call resume.
+    Elapsed is bounded, empty stores accumulate no debt, and the native
     global_state rate always uses the same per-minute units as actual charging.
     All bookkeeping stays outside the native game-state payload.
     """
@@ -86,7 +89,7 @@ def advance(data, previous, now, *, maximum_elapsed=86400,
         state = dict(policy=POLICY, original_server_policy_verified=False,
                      last_charged_at=max(previous, now),
                      fraction_units=round(fraction * UNITS_PER_FOOD))
-    elif not isinstance(state, dict) or state.get('policy') != POLICY:
+    elif not isinstance(state, dict) or state.get('policy') not in (POLICY, LEGACY_POLICY):
         raise ValueError('Invalid local food policy. Save was not changed.')
     charged = _clock(state.get('last_charged_at'))
     fraction_units = _integer(state.get('fraction_units'), 'fraction')
@@ -105,8 +108,25 @@ def advance(data, previous, now, *, maximum_elapsed=86400,
             resource.update(count=balance, last_update=now)
     else:
         consumed = 0
-    state.update(last_charged_at=max(charged, now), fraction_units=fraction_units)
+    state.update(policy=POLICY, last_charged_at=max(charged, now), fraction_units=fraction_units,
+                 offline_consumption=False)
     data[STATE_KEY] = state
     data['food_fraction'] = fraction_units / UNITS_PER_FOOD
-    data['game_state'].setdefault('global_state', {})['food_consumption_rate'] = rate
+    global_state = data['game_state'].setdefault('global_state', {})
+    global_state['food_consumption_rate'] = rate
+    # Recovered JFVillageService.villagersAreHungry tests mood_state < 2.
+    # The client has a fed/neutral animation at2 and unhappy at1. Original
+    # server thresholds for further mood tiers are unknown: this is a local
+    # stocked-versus-empty rule, not a permanent happiness/productivity bonus.
+    global_state['mood_state'] = 2 if balance > 0 else 1
     return consumed
+
+
+def resume(data, now):
+    """Freeze the saved balance across closed time, preserving partial minutes.
+
+    Do not change last_simulated_at: other offline gameplay still advances.
+    Also repairs an existing stale native hunger flag without granting food.
+    """
+    now = _clock(now)
+    return advance(data, now, now)

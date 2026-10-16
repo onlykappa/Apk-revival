@@ -2,6 +2,12 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.23] — Correct temple hunger and freeze closed-game food
+
+- Derive native hunger from the actual food bank instead of leaving the starter mood flag permanently hungry.
+- Freeze passive food consumption and harvesting while closed/paused; keep bush/farm stock intact and resume normal active food use on return. Preserve other offline progress and existing supplies.
+- Add food-session regressions covering clean/unclean restart, paused polls, fractional accounting and concurrent offline wood gathering. No new native APK preparation is required.
+
 ## [0.3.22] — In-game Skip timer
 
 - Place Skip timer beside X in Meego's shared baby, child and building countdown panel. Explicit clicks finish selected supported work without skull cost; normal timers remain unchanged.

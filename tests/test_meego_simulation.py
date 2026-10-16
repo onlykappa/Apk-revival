@@ -7,7 +7,7 @@ from apk_revival.store import Store
 from apk_revival.launcher.service import Launcher
 from apk_revival.util import atomic_json,digest
 from test_pipeline import make_apk
-from apk_revival.meego.engine import server,simulation as sim,local_game as g
+from apk_revival.meego.engine import server,simulation as sim,local_game as g,food
 
 def params(**values):return {k:[str(v)] for k,v in values.items()}
 
@@ -22,7 +22,9 @@ class MeegoSimulationTests(unittest.TestCase):
         # villages now start without the former test supplies and skulls.
         funded=copy.deepcopy(self.state.data)
         funded['game_state']['resources']=copy.deepcopy(seed['game_state']['resources'])
-        funded['game_state']['points']=25;self.state.persist(funded)
+        funded['game_state']['points']=25
+        food.resume(funded,funded['local_food']['last_charged_at'])
+        self.state.persist(funded)
         self.data=copy.deepcopy(self.state.data);self.now=self.data['last_simulated_at']
     def tearDown(self):self.temp.cleanup()
     def dispatch(self,route,**values):
@@ -63,12 +65,15 @@ class MeegoSimulationTests(unittest.TestCase):
         code,value=self.dispatch('game/village/breed',father_id=1,mother_id=2,token=value['token'])
         self.assertEqual(code,200);self.assertEqual(len(value['all_villagers']),3)
     def test_fresh_village_has_no_bonuses_and_restart_does_not_refill(self):
-        state=server.State(pathlib.Path(self.temp.name)/'fresh',self.state.seed)
-        self.assertEqual(len(state.data['game_state']['all_villagers']),2)
-        self.assertTrue(all(r['count']==0 for r in state.data['game_state']['resources'].values()))
-        self.assertEqual(state.data['game_state']['points'],0)
-        self.assertFalse(state.data['start_profile']['original_server_defaults_verified'])
-        self.assertEqual(server.State(state.directory,self.state.seed).data,state.data)
+        # Restart bookkeeping intentionally advances the food-session baseline.
+        # At the same clock, loading remains idempotent and never refills stock.
+        with patch('apk_revival.meego.engine.server.time.time',return_value=self.now):
+            state=server.State(pathlib.Path(self.temp.name)/'fresh',self.state.seed)
+            self.assertEqual(len(state.data['game_state']['all_villagers']),2)
+            self.assertTrue(all(r['count']==0 for r in state.data['game_state']['resources'].values()))
+            self.assertEqual(state.data['game_state']['points'],0)
+            self.assertFalse(state.data['start_profile']['original_server_defaults_verified'])
+            self.assertEqual(server.State(state.directory,self.state.seed).data,state.data)
     def test_launcher_fresh_start_backs_up_old_village_and_preserves_apk(self):
         store=Store(pathlib.Path(self.temp.name)/'launcher')
         profile=store.import_game(make_apk(pathlib.Path(self.temp.name)/'test.apk'))
@@ -173,7 +178,8 @@ class MeegoSimulationTests(unittest.TestCase):
         self.state.persist(d);loaded=server.State(self.temp.name,self.state.seed)
         self.assertEqual([loaded.data['game_state']['buildings'][str(i)]['count'] for i in (2,3,4)],[40,30,75])
         self.assertEqual(loaded.data['game_state']['resources'],balances)
-        self.assertEqual(server.State(self.temp.name,self.state.seed).data,loaded.data)
+        with patch('apk_revival.meego.engine.server.time.time',return_value=loaded.data['local_food']['last_charged_at']):
+            self.assertEqual(server.State(self.temp.name,self.state.seed).data,loaded.data)
 
     def test_depletion_releases_all_workers_and_full_storage_does_not_grant_stats(self):
         d=sim.mutate(self.data,'game/village/place_resource',params(building_type_id=3,location=3845),self.now)
@@ -233,7 +239,9 @@ class MeegoSimulationTests(unittest.TestCase):
         self.assertIn('377',reloaded.data['game_state']['unlock_information']['unlocked_item_cursors'])
 
     def test_food_route_charges_per_minute_and_repeated_poll_is_not_charged_twice(self):
-        self.now=self.state.data['local_food']['last_charged_at']+60
+        self.now=self.state.data['local_food']['last_charged_at']
+        self.dispatch('game/login/oauth')  # Charge only time after opening the game.
+        self.now+=60
         before=self.state.data['game_state']['resources']['3']['count']
         code,value=self.dispatch('game/village/consume_food')
         self.assertEqual(code,200)

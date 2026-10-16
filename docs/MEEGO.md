@@ -200,3 +200,12 @@ Improved camera smoothness and under-15-ms physical latency remain unverified.
 Static evidence and unresolved recovery/batching questions are in
 `evidence/camera-display-comparison/pinch-code-findings.md`; trial results are
 in `evidence/camera-display-comparison/camera-0319-validation.json`.
+
+
+### 0.3.23 food session policy (supersedes earlier offline-food details)
+
+Food balance now freezes across closed-game intervals. Both food use and food
+trips pause; no bush/farm stock is lost. Other offline progress remains enabled.
+Positive food publishes native fed/neutral mood2, empty food publishes hungry1;
+the old permanent starter0 was a missing synchronization bug. Detailed local
+policy, original-client evidence and test scope: [MEEGO_FOOD_POLICY.md](MEEGO_FOOD_POLICY.md).

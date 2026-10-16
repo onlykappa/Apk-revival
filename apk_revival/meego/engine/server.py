@@ -145,6 +145,8 @@ class State:
         self.lock = threading.RLock()
         self.action_notice = None
         self.native_timer_mod = False
+        self.food_session_active = True
+        self.food_needs_resume = True
         self.logfile = self.directory / 'logs' / 'requests.jsonl'
         self.logfile.parent.mkdir(parents=True, exist_ok=True)
         # Preserve the old retry storm without adding it to every diagnostic ZIP.
@@ -186,8 +188,9 @@ class State:
             ecology.advance(new, time.time(), rules=g.RULES, stocks=SETTINGS['resource_stocks'])
         if community.STATE_KEY not in new:
             community.advance(new, time.time(), housing_capacity=housing(new['game_state']))
-        if food.STATE_KEY not in new:
-            food.advance(new, time.time(), time.time())
+        # New host session: preserve saved food instead of charging the hours
+        # since exit. Other work/aging retain their own original clock.
+        food.resume(new, time.time())
         birthstones.discover_owned(new, g.RULES.get('birthsigns', {}))
         if new != self.data:self.persist(new)
     def record(self, route, params, status, error=None):
@@ -232,7 +235,11 @@ class State:
         from . import mods
         with self.lock:
             now = time.time()
-            current = advance(self.data, now)
+            baseline = self.data
+            if self.food_needs_resume or not self.food_session_active:
+                baseline = copy.deepcopy(self.data)
+                food.resume(baseline, now)
+            current = advance(baseline, now, food_active=not (self.food_needs_resume or not self.food_session_active))
             new, title = mods.skip(current, token, now)
             self.persist(new)
             return title
@@ -240,9 +247,18 @@ class State:
         route = route.strip('/')
         with self.lock:
             now = time.time()
-            current = advance(self.data, now)
+            resuming = route in ('game/login/oauth', 'game/login/resume_connection')
+            baseline = self.data
+            food_active = not (resuming or self.food_needs_resume or not self.food_session_active)
+            if not food_active:
+                baseline = copy.deepcopy(self.data)
+                food.resume(baseline, now)
+            current = advance(baseline, now, food_active=food_active)
             if current != self.data:
                 self.persist(current)
+            self.food_needs_resume = False
+            if resuming:self.food_session_active = True
+            elif route == 'game/logout':self.food_session_active = False
             try:
                 from . import mods
                 if (self.native_timer_mod and route in mods.NATIVE_ROUTES
