@@ -1,7 +1,7 @@
 from __future__ import annotations
 import hashlib,json,pathlib,plistlib,struct,sys,zipfile
 from ..util import RevivalError,atomic_json,digest
-from . import camera
+from . import camera, timer_mod
 ORIGINAL_SHA='030613cbc63bd03786545999c3590456a264796866127898928a4d59988d29a2'
 PACKAGE='ata.apkrv.meego'
 
@@ -19,7 +19,11 @@ class MeegoAdapter:
                 if struct.unpack_from('<I',raw,offset)[0]!=old:raise RevivalError('Native patch precondition does not match Meego v1.32')
                 patches.append({'offset':offset,'old':struct.pack('<I',old).hex(),'new':struct.pack('<I',new).hex(),'reason':reason})
             patches.extend(camera.patches(raw,p['runtime'].get('meego_timer_hz',60)))
+            patches.extend(timer_mod.native_patches(raw))
             operations.append(self.bytes_op('lib/armeabi/libverde.so',raw,patches))
+            timer_mod.patched_panel(z.read(timer_mod.ASSET))  # Validate the exact original before planning.
+            operations.append(dict(type='meego_timer_panel',file=timer_mod.ASSET,
+                expected_sha256=timer_mod.ASSET_SHA,revision=timer_mod.REVISION))
             for name,old,new in [('AndroidManifest.xml','ata.squid.meego',PACKAGE),('resources.arsc','Meego\0','Reviv\0')]:
                 raw=z.read(name);patches=[]
                 for encoding in ['utf-8','utf-16le']:

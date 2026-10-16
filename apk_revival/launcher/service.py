@@ -116,7 +116,7 @@ class Launcher:
         if camera.prepared(p.get('restoration',{}),hz):return p
         if not health()['preparation_ready']:
             raise RevivalError('Meego needs its camera client update, but preparation tools are missing. Open Setup and select Install preparation tools. The previous APK and saves are preserved.')
-        ctx.step('Preparing the Meego camera update ('+str(hz)+' Hz)')
+        ctx.step('Preparing Meego client controls ('+str(hz)+' Hz)')
         p['runtime']['meego_timer_hz']=hz;self.store.save(p)
         # Restorer keeps the previous working artifact if preparation fails;
         # successful preparation records the revision/rate in the signed plan.
@@ -153,7 +153,9 @@ class Launcher:
             finally:self.android=None;self.active=None;self.connection_failures=0
         return {'stopped':True}
     def mod_state(self, game):
-        p = self.store.load(game)
+        # Play already validates original/prepared APK hashes. A timer-picker
+        # refresh needs metadata only, not synchronous hashing on the UI thread.
+        p = self.store.load(game, check=False)
         if p.get('adapter') != 'meego-1.32':
             raise RevivalError('Skip timer is currently available for Meego only.')
         if not self.active or self.active['game'] != game:

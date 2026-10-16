@@ -44,6 +44,11 @@ class Restorer:
                 if not f.is_file() or f.is_symlink() or decoded.resolve() not in f.resolve().parents:raise RevivalError('Patch target missing or unsafe')
                 raw=f.read_bytes()
                 if hashlib.sha256(raw).hexdigest()!=op['expected_sha256']:raise RevivalError('Patch precondition hash mismatch: '+op['file'])
+                if op['type']=='meego_timer_panel':
+                    from .meego import timer_mod
+                    f.write_bytes(timer_mod.patched_panel(raw))
+                    reviews.append('Reviewed Meego countdown panel: move bound completion button beside X and add Skip timer label.\n')
+                    continue
                 if op['type']=='patch_bytes':
                     changed=bytearray(raw)
                     for patch in op['patches']:
@@ -104,6 +109,14 @@ class Restorer:
         if len(plan.get('operations',[]))>100:raise RevivalError('Too many operations')
         for op in plan.get('operations',[]):
             rel=safe_member(op.get('file',''));ext=rel.suffix.lower()
+            if op.get('type')=='meego_timer_panel':
+                from .meego import timer_mod
+                from .meego.adapter import ORIGINAL_SHA
+                if (p.get('adapter')!='meego-1.32' or p['apk_sha256']!=ORIGINAL_SHA or
+                        op['file']!=timer_mod.ASSET or op.get('expected_sha256')!=timer_mod.ASSET_SHA or
+                        op.get('revision')!=timer_mod.REVISION):
+                    raise RevivalError('Timer panel operation requires the exact reviewed Meego asset.')
+                continue
             if op.get('type')=='patch_bytes':
                 if p.get('adapter')!='meego-1.32' or op['file'] not in {'lib/armeabi/libverde.so','AndroidManifest.xml','resources.arsc'} or not re_hash(op.get('expected_sha256','')):raise RevivalError('Binary operation is restricted to reviewed Meego targets')
                 if not op.get('patches') or len(op['patches'])>100:raise RevivalError('Invalid binary patch set')

@@ -42,6 +42,7 @@ class ModsUITests(unittest.TestCase):
         self.dialog.skip_button.click()
         self.service.skip_timer.assert_not_called()
         self.dialog.enabled.setChecked(True)
+        self.dialog.choices.setCurrentIndex(0)
         self.dialog.skip_button.click()
         self.assertFalse(self.dialog.close_button.isEnabled())
         self.wait()
@@ -53,6 +54,7 @@ class ModsUITests(unittest.TestCase):
     def test_stale_timer_failure_visible_and_can_refresh(self):
         self.service.skip_timer.side_effect = RevivalError('Timer changed; refresh')
         self.dialog.enabled.setChecked(True)
+        self.dialog.choices.setCurrentIndex(0)
         self.dialog.skip_button.click()
         self.wait()
         self.assertEqual(self.dialog.status.text(), 'Timer changed; refresh')
@@ -81,3 +83,38 @@ class ModsUITests(unittest.TestCase):
         with self.assertRaisesRegex(RevivalError, 'Press Play'):service.mod_timers('meego')
         service.active = {'game':'meego'}
         with self.assertRaisesRegex(RevivalError, 'unavailable'):service.mod_timers('meego')
+        service.store.load.assert_called_with('meego', check=False)
+
+    def test_new_baby_appears_automatically_without_reopening_or_resetting(self):
+        self.service.mod_timers.return_value = []
+        self.dialog.refresh()
+        self.assertEqual(self.dialog.choices.count(), 0)
+        self.dialog.enabled.setChecked(True)
+        self.service.mod_timers.return_value = [dict(title='Nooni: baby to child', seconds=7100, token='baby-6')]
+        self.dialog.refresh_timer.setInterval(10)
+        end = time.monotonic() + 2
+        while self.dialog.choices.count() == 0 and time.monotonic() < end:
+            self.app.processEvents();time.sleep(.01)
+        self.assertEqual(self.dialog.choices.itemData(0), 'baby-6')
+        self.assertIn('Nooni', self.dialog.choices.itemText(0))
+        self.assertFalse(self.dialog.skip_button.isEnabled())
+        self.dialog.choices.setCurrentIndex(0)
+        self.assertTrue(self.dialog.skip_button.isEnabled())
+        self.service.skip_timer.assert_not_called()
+
+    def test_refresh_preserves_selection_and_never_substitutes_different_task(self):
+        self.dialog.enabled.setChecked(True)
+        self.dialog.choices.setCurrentIndex(0)
+        self.dialog.refresh(automatic=True)
+        self.assertEqual(self.dialog.choices.currentData(), 'selected-generation')
+        self.service.mod_timers.return_value = [dict(title='Other task', seconds=15, token='unselected-task')]
+        self.dialog.refresh(automatic=True)
+        self.assertIsNone(self.dialog.choices.currentData())
+        self.assertFalse(self.dialog.skip_button.isEnabled())
+        self.assertIn('finished or changed', self.dialog.status.text())
+        self.service.skip_timer.assert_not_called()
+
+    def test_closing_mods_stops_background_refresh(self):
+        self.assertTrue(self.dialog.refresh_timer.isActive())
+        self.dialog.reject()
+        self.assertFalse(self.dialog.refresh_timer.isActive())

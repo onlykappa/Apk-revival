@@ -2,6 +2,13 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.22] — In-game Skip timer
+
+- Place Skip timer beside X in Meego's shared baby, child and building countdown panel. Explicit clicks finish selected supported work without skull cost; normal timers remain unchanged.
+- Keep the launcher picker optional, refresh new tasks automatically, clear stale selections and bound state-lock waits. Avoid redundant APK integrity hashing on picker refresh while retaining Play checks.
+- Validate the exact native library and panel asset; preserve the existing signing identity and village. User confirmed in-game Skip timer worked on the Deck.
+- Record the focused audit and ten offline NPC-island feasibility work in docs/MEEGO_SMALL_AUDIT_0322.md. Launch Dock visits/rewards are not implemented yet.
+
 ## [0.3.21] — Optional Meego timer mod
 
 - Add Meego's Mods menu in the launcher with an explicit Enable Skip timer switch and a selected-task picker. Nothing is skipped automatically.

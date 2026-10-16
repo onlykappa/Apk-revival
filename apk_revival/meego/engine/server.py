@@ -144,6 +144,7 @@ class State:
         self.save = self.directory / 'saves' / 'village.json'
         self.lock = threading.RLock()
         self.action_notice = None
+        self.native_timer_mod = False
         self.logfile = self.directory / 'logs' / 'requests.jsonl'
         self.logfile.parent.mkdir(parents=True, exist_ok=True)
         # Preserve the old retry storm without adding it to every diagnostic ZIP.
@@ -221,8 +222,12 @@ class State:
             return result
     def mod_timers(self):
         from . import mods
-        with self.lock:
+        if not self.lock.acquire(timeout=0.05):
+            raise ActionError('Game is updating. Timer list will retry shortly.')
+        try:
             return mods.timers(self.data, time.time())
+        finally:
+            self.lock.release()
     def skip_timer(self, token):
         from . import mods
         with self.lock:
@@ -239,6 +244,12 @@ class State:
             if current != self.data:
                 self.persist(current)
             try:
+                from . import mods
+                if (self.native_timer_mod and route in mods.NATIVE_ROUTES
+                        and g.integer(params, 'expected_cost', default=-1, low=-1) == 0):
+                    new, _ = mods.skip_native(self.data, route, params, now)
+                    self.persist(new)
+                    return copy.deepcopy(self.data['game_state']), 'local-mod-skip-timer'
                 if route in adventures.ROUTES:
                     new,response=adventures.handle(self.data,route,params,g.RULES,now)
                     g.synchronize(new,now)

@@ -6,6 +6,36 @@ import math
 
 from . import ecology, effects, local_game as g, production, simulation, skills
 
+NATIVE_ROUTES = frozenset(('game/points/speed_up_parenting',
+                          'game/points/speed_up_child_aging', 'game/points/finish_building'))
+
+
+def skip_native(data, route, params, now):
+    """Adapt existing countdown callbacks only for a verified modded client."""
+    gs = data['game_state']
+    if g.text(params, 'partial').lower() == 'true':
+        raise g.ActionError('Use Skip timer to finish the selected task.')
+    if route.endswith('/finish_building'):
+        ident = str(g.integer(params, 'building_id', low=1))
+        kind = 'building'
+    else:
+        ident = str(g.integer(params, 'villager_id', low=1))
+        person = gs['all_villagers'].get(ident)
+        if route.endswith('/speed_up_parenting'):
+            baby_id = str(g.integer(params, 'baby_id', low=1))
+            baby = gs['all_villagers'].get(baby_id)
+            if (person is None or baby is None or person['job']['job_id'] != 3
+                    or str(person['job'].get('target_id')) != baby_id or baby['job']['job_id'] != 1):
+                raise g.ActionError('This nursing timer finished or changed. Reopen the baby panel.')
+            ident = baby_id
+        elif person is None or person['job']['job_id'] != 2:
+            raise g.ActionError('This childhood timer finished or changed. Reopen the child panel.')
+        kind = 'growth'
+    choice = next((t for t in timers(data, now) if t['kind'] == kind and t['ident'] == ident), None)
+    if choice is None:
+        raise g.ActionError('This timer is no longer active. Reopen its panel.')
+    return skip(data, choice['token'], now)
+
 
 def timers(data, now):
     """Read-only choices; tokens identify a task generation, not a moving countdown."""

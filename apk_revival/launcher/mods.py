@@ -1,5 +1,5 @@
 """Optional per-game modifications, separate from normal Play and game options."""
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 
@@ -29,13 +29,14 @@ class ModsDialog(QDialog):
         title = QLabel('Mods')
         title.setObjectName('title')
         box.addWidget(title)
-        description = QLabel('Optional local game changes. Normal timers keep running until you choose Skip timer. No crystal skulls are charged.')
+        description = QLabel('Skip timer mod: use Skip timer beside the X in Meego’s baby, child and building countdown panels. Normal timers keep running until you click it. No crystal skulls are charged. The launcher picker below is optional.')
         description.setWordWrap(True)
         box.addWidget(description)
-        self.enabled = QCheckBox('Enable Skip timer')
+        self.enabled = QCheckBox('Enable launcher timer picker')
         box.addWidget(self.enabled)
         self.choices = QComboBox()
         self.choices.setMinimumHeight(44)
+        self.choices.setPlaceholderText('Choose a timer to skip')
         box.addWidget(self.choices)
         self.status = QLabel('')
         self.status.setWordWrap(True)
@@ -57,29 +58,42 @@ class ModsDialog(QDialog):
         self.skip_button.clicked.connect(self.skip)
         self.close_button.clicked.connect(self.reject)
         self.enabled.toggled.connect(self.update_controls)
+        self.choices.currentIndexChanged.connect(self.update_controls)
         self.refresh()
+        self.refresh_timer = QTimer(self)
+        self.refresh_timer.setInterval(1000)
+        self.refresh_timer.timeout.connect(lambda: self.refresh(automatic=True))
+        self.refresh_timer.start()
 
     def update_controls(self):
         busy = self.worker is not None
-        self.skip_button.setEnabled(not busy and self.enabled.isChecked() and self.choices.count() > 0)
+        self.skip_button.setEnabled(not busy and self.enabled.isChecked() and bool(self.choices.currentData()))
         for widget in (self.refresh_button, self.close_button, self.enabled, self.choices):
             widget.setEnabled(not busy)
 
-    def refresh(self):
-        if self.worker is not None:
+    def refresh(self, automatic=False):
+        if self.worker is not None or (automatic and self.choices.view().isVisible()):
             return
         previous = self.choices.currentData()
-        self.choices.clear()
         try:
             timers = self.service.mod_timers(self.game)
+            self.choices.blockSignals(True)
+            self.choices.clear()
             for timer in timers:
                 minutes, seconds = divmod(timer['seconds'], 60)
                 self.choices.addItem(f"{timer['title']} — {minutes}m {seconds:02d}s", timer['token'])
             index = self.choices.findData(previous)
-            if index >= 0:
-                self.choices.setCurrentIndex(index)
-            self.status.setText('Choose one timer to finish.' if timers else 'No supported active timers. Assign a worker or start a timed task, then refresh.')
+            self.choices.setCurrentIndex(index)
+            self.choices.blockSignals(False)
+            if not automatic or not self.status.text():
+                self.status.setText('Select a timer from the dropdown, then press Skip timer. The switch alone skips nothing.' if timers else 'No supported active timers. New tasks appear automatically while this menu is open.')
+            elif previous and index < 0:
+                self.status.setText('The selected task finished or changed. Choose another timer to skip.')
+            elif timers and self.status.text().startswith(('No supported', 'Game is updating')):
+                self.status.setText('New timers available. Select one from the dropdown, then press Skip timer.')
         except Exception as error:
+            self.choices.blockSignals(False)
+            self.choices.clear()
             self.status.setText(str(error))
         self.update_controls()
 
@@ -103,6 +117,7 @@ class ModsDialog(QDialog):
 
     def done(self, result):
         if self.worker is None:
+            self.refresh_timer.stop()
             super().done(result)
 
     def closeEvent(self, event):

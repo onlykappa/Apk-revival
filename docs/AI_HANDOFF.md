@@ -1,3 +1,34 @@
+## 0.3.22 native Skip timer / focused audit — installed and user-confirmed
+
+Supersedes the earlier launcher-only Mods interaction. Details and known gaps:
+docs/MODS.md and docs/MEEGO_SMALL_AUDIT_0322.md. Native shared baby/child/building
+countdown panel now has Skip timer beside X, using the original bound completion
+button, no skull charge and scoped exact-library patches. Backend native adapter
+is enabled only for prepared timer-mod revision1; ordinary clients retain paid
+completion. No global time skip. Native partial/stale/duplicate callbacks reject.
+
+363 final packaged regressions PASS (27.165s), isolated signed native APK build
+PASS (7.686s), same original local signing identity and exact planned five-member
+APK diff. Initial signed build rejected variable-length panel binary operation;
+repaired using dedicated exact-file/hash/revision asset operation, preserving
+existing binary restrictions. Auto-refresh new picker tasks; clear old selection;
+stop timer on close; no repeated UI-thread APK hashes;50ms bounded snapshot wait.
+
+Installed0.3.22 SHA256a27e5eb3e24d3e614214256db2fe7cd2f6551aa8858c0596803496916672d3b3.
+Receipt build/installed-native-timer-update.json. All17 protected files unchanged
+across install; user closed apps first. Previous app retained under
+~/.local/share/apk-revival-app-backups/merged-native-timer-20261016-055820/.
+User reopened through normal Play and confirmed "skip timer worked!!". Only the
+exercised native path is physically confirmed; no all-menu/reboot/latency claim.
+
+Ten offline NPC islands are feasible but not implemented. Neighbour list currently
+empty, send_villager/get_remote_village unsupported; existing get_village ignores
+village_id. Recover/isolate native remote packet shapes before enabling visits.
+Need persistent traveller return, one-time rewards and explicit local balancing.
+Do not claim former-server feature parity or ten working AI islands. Current
+focus/audit notes distinguish observed healthy backend from unresolved transient
+visual freeze report. Preserve current live island; do not rerun fresh scripts.
+
 ## 0.3.21 optional Mods / Skip timer (2026-10-15)
 
 ### Installation completed after user closed game

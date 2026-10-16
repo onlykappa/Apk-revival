@@ -6,7 +6,7 @@ from .engine import server,local_game,birthstones
 _lock=threading.Lock()
 
 class MeegoBackend:
-    def __init__(self,data,config,port,*,apk=None):self.data=pathlib.Path(data);self.config=pathlib.Path(config);self.port=port;self.apk=apk;self.token=uuid.uuid4().hex;self.server=None;self.thread=None;self.owned=False
+    def __init__(self,data,config,port,*,apk=None,native_timer_mod=False):self.data=pathlib.Path(data);self.config=pathlib.Path(config);self.port=port;self.apk=apk;self.native_timer_mod=native_timer_mod;self.token=uuid.uuid4().hex;self.server=None;self.thread=None;self.owned=False
     def start(self):
         if not _lock.acquire(False):raise RevivalError('Another Meego local service is running in this application')
         self.owned=True
@@ -23,6 +23,7 @@ class MeegoBackend:
             seed=read_json(self.config/'starter-packet.json')
             birthstones.populate_packet(seed,rules.get('birthsigns',{}))
             local_game.RULES=rules;state=server.State(self.data,seed);token=self.token
+            state.native_timer_mod=self.native_timer_mod
             class Handler(server.Handler):
                 def dispatch(inner):
                     if urlsplit(inner.path).path=='/health':inner.reply(200,{'token':token,'package':server.PACKAGE,'status':'experimental-local-simulation'});return
