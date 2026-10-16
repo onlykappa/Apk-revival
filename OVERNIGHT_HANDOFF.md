@@ -1,4 +1,4 @@
-## 0.3.24 strength carrying — candidate pending install
+## 0.3.24 strength carrying — installed
 
 User reports Wee Wizz still delivers two items despite STR above20. Read-only
 live snapshot confirmed saved STR24 (subsequently25), no worn items/effects,
@@ -18,8 +18,14 @@ Source trip tests10 PASS; skills21 PASS. Final frozen candidate411 tests
 PASS in26.757s; build1 PASS in0.707s. Initial run caught an incorrect new
 chainsaw expectation: original item has +2.32 production, zero STR; restored
 its existing assertion and all tests passed. No tool bonus was changed. Candidate dist/APK-Revival-0.3.24-strength-final; frozen test log
-build/strength-packaged-tests-final.log. Installation pending clean game/launcher
-close; live in-game yield has not yet been observed. No claim of hardware proof.
+build/strength-packaged-tests-final.log. Installed after user confirmed closed.
+All17 protected game/config/APK/save files byte-identical across installation.
+Installed executable SHA256:
+7ee7e9f99bad95ddb58406dd26b2b626921a9facf2e89f3732c14eec76ef759d
+Installed version/certificate probe returned0.3.24/true. Receipt:
+build/installed-strength-update.json. Previous app backup:
+~/.local/share/apk-revival-app-backups/merged-strength-20261016-062305/APK-Revival-app.
+Live in-game yield has not yet been observed. No claim of hardware proof.
 
 ## 0.3.23 food freeze and temple hunger — installed
 
