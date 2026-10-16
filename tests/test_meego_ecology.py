@@ -66,9 +66,10 @@ class MeegoEcologyTests(unittest.TestCase):
         self.assertEqual(self.advance(when + e.INTERVAL_SECONDS), 8)
         self.assertEqual(self.data['game_state']['buildings']['8']['building_type'], 3)
 
-    def test_old_shared_policy_upgrades_without_resetting_due_or_refilling_bank(self):
+    def test_old_shared_policy_shortens_due_without_refilling_bank(self):
         self.advance(self.now)
         self.data[e.STATE_KEY]['policy']=e.LEGACY_POLICY
+        self.data[e.STATE_KEY]['next_due']=self.now+900
         for ident in ('2','3','4'):del self.data['game_state']['buildings'][ident]
         bank=copy.deepcopy(self.data['game_state']['resources'])
         self.assertIsNone(self.advance(self.now+e.INTERVAL_SECONDS-1))
@@ -77,6 +78,23 @@ class MeegoEcologyTests(unittest.TestCase):
         self.assertEqual(self.advance(self.now+e.INTERVAL_SECONDS),5)
         self.assertEqual(len(self.data['game_state']['buildings']),4)
         self.assertEqual(self.data['game_state']['resources'],bank)
+
+    def test_both_old_policies_keep_cycle_start_and_polling_cannot_postpone_respawn(self):
+        baseline=copy.deepcopy(self.data)
+        for old_policy in (e.LEGACY_POLICY,e.PREVIOUS_POLICY):
+            with self.subTest(policy=old_policy):
+                self.data=copy.deepcopy(baseline)
+                self.advance(self.now)
+                for ident in ('2','3','4'):del self.data['game_state']['buildings'][ident]
+                state=self.data[e.STATE_KEY]
+                state.update(policy=old_policy,next_due=self.now+900)
+                for seconds in (1,60,120,299):
+                    self.assertIsNone(self.advance(self.now+seconds))
+                    self.assertEqual(state['next_due'],self.now+300)
+                self.assertIsNotNone(self.advance(self.now+300))
+                self.assertEqual(state['replenishment_count'],3)
+                self.assertEqual(state['next_due'],self.now+600)
+                self.assertEqual(state['policy'],e.POLICY)
 
     def test_occupied_sites_skipped_and_full_map_does_not_overwrite_buildings(self):
         self.advance(self.now)
@@ -110,18 +128,22 @@ class MeegoEcologyTests(unittest.TestCase):
             self.assertEqual(self.data['game_state'][key], before['game_state'][key])
         self.assertEqual(self.data['breeding_tokens'], before['breeding_tokens'])
 
-    def test_original_pool_ceiling_and_lower_private_rule_ceiling(self):
-        for ident, location in ((5, 12), (6, 18), (7, 24)):
-            self.add(ident, 2, 10 * g.MAP_SIZE + location)
+    def test_requested_six_per_kind_cap_is_independent_and_never_adds_a_seventh(self):
+        ident=5
+        for kind in (2,3,4):
+            for offset in range(5):
+                self.add(ident,kind,(10+kind*10)*g.MAP_SIZE+offset*6)
+                ident+=1
         self.advance(self.now)
-        self.data[e.STATE_KEY]['sites'].append({'kind': 2, 'location': 40 * g.MAP_SIZE + 40, 'orientation': 0})
-        # Other types can replenish; the four-rock ceiling must remain.
-        self.advance(self.now + e.INTERVAL_SECONDS)
-        self.assertEqual(sum(b['building_type'] == 2 for b in self.data['game_state']['buildings'].values()), 4)
-        self.rules['client_data'] = {'0': {'resource_buildings': {'2': 1, '3': 1, '4': 1}}}
+        for kind in (2,3,4):
+            self.data[e.STATE_KEY]['sites'].append(dict(kind=kind,location=60*g.MAP_SIZE+(kind-2)*6,orientation=0))
         before = copy.deepcopy(self.data['game_state']['buildings'])
-        self.assertIsNone(self.advance(self.now + 2 * e.INTERVAL_SECONDS))
+        self.assertIsNone(self.advance(self.now+e.INTERVAL_SECONDS))
         self.assertEqual(self.data['game_state']['buildings'], before)
+        del self.data['game_state']['buildings']['2']
+        self.assertIsNotNone(self.advance(self.now+2*e.INTERVAL_SECONDS))
+        for kind in (2,3,4):
+            self.assertEqual(sum(b['building_type']==kind for b in self.data['game_state']['buildings'].values()),6)
 
     def test_native_placed_sites_are_learned_before_future_depletion(self):
         self.advance(self.now)

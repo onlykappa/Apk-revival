@@ -1182,3 +1182,25 @@ left/right slot; do not fabricate traits or reset data. See AI_HANDOFF.md.
 Installed the move/Topper candidate at20:54. All305 packaged tests passed,
 all17 protected files stayed hash-identical, version/certificate probe passed.
 Native physical confirmation and Rabbit slot detail remain pending.
+
+
+## User-requested five-minute resource supply
+
+Reduced per-kind replenishment15min->5min, still one rock40/tree30/bush75
+per due check with safe observed sites and original4/3/3 caps. Both previous
+15min policies migrate using their existing cycle start (next_due minus600),
+without repeated-poll postponement, balance refills or offline backlog. Eleven
+focused tests passed, including exact299/300s bounds and both old policies.
+Candidate0.3.20-five-minute-candidate; physical300-second check pending.
+
+User then requested an absolute ceiling of6 trees,6 bushes and6 rocks.
+Centralized that requested cap for both native startup place_resource requests
+and timer spawning; removed the conflicting original3/3/4 rule clamp. Safe
+site checks remain unchanged, and existing stocks are not deleted/refilled.
+Tests exercise repeated due cycles at saturation, native seventh-spawn denial,
+independent counts for all types, and recovery back to6 after a depletion.
+Final candidate:0.3.20-five-minute-six-candidate.
+
+Installed the5-minute/6-cap candidate at20:59. All307 packaged tests passed;
+all17 protected files remained hash-identical; version/certificate probe passed.
+Native wall-clock five-minute respawn observation remains pending.

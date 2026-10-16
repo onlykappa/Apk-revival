@@ -14,8 +14,8 @@ included in this branch. The existing launcher design is preserved.
 ## Implemented source workflow
 
 - Wild resources replenish independently: at most one rock40, tree30 and bush75
-  per15-minute check, at previously observed unoccupied sites, up to the original
-  pool caps (4 rocks/3 trees/3 bushes). Old shared deadlines survive migration;
+  per5-minute check, at previously observed unoccupied sites, up to the requested
+  cap of6 rocks/6 trees/6 bushes, shared by native spawn requests and timers. Old15-minute deadlines are shortened from the same cycle start;
   offline backlog never adds more than one per type per check. Local timing
   is a restoration policy; original server timing remains unverified.
 

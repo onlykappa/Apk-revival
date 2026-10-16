@@ -1,3 +1,31 @@
+## Requested five-minute resource supply
+
+Ecology policy is now local-resource-replenishment-per-kind-5m-v3. At most one
+missing rock40, tree30 and food bush75 appears together per300-second check,
+using the same observed safe sites, with the requested cap of6 of each type. This is user-requested
+local balance; original server timing is still unverified. Standing stock,
+bank balances, saves and APKs are not refilled/reset.
+
+Both old15-minute policies migrate their next_due by subtracting600 seconds,
+retaining the cycle start rather than restarting a fresh timer on every poll.
+Once overdue, a single bounded per-kind check runs; no accumulated offline
+backlog. Tests check299s has no spawn,300s replenishes all three, next due600s,
+no deadline postponement by polling, both legacy migrations, occupied sites,
+the shared6-per-kind ceiling and unchanged bank/villagers. Eleven ecology tests passed. The native place_resource route uses the same
+central cap, so startup placement cannot bypass it. Existing stock is never
+deleted to enforce the ceiling; saturated types skip new placement. More
+than the native original3/3/4 sites can be used only when previously observed
+additional safe sites exist. Never guess new terrain coordinates.
+Candidate: dist/APK-Revival-0.3.20-five-minute-six-candidate.
+All307 packaged tests passed. Executable SHA256:
+740cf94ce94fc37101e783a1abb9ba4957a26701a583bb95ca6eaee20a6e4260.
+Full test/install evidence is recorded in build/five-minute-six-*.log and
+installed-five-minute-six-update.json. Installed with all17 protected save/profile/APK files hash-identical and
+installed version/certificate probe passing. Native five-minute respawn observation
+remains pending normal play; no physical wall-clock test is claimed.
+
+---
+
 ## Building moves and Turtle Topper follow-up
 
 Confirmed native requests move_building building_id=675 -> to_position2693

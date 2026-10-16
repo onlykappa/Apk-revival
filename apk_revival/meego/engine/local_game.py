@@ -197,7 +197,7 @@ def mutate(data, route, params, now=None):
         # for the same node must return the saved node, not allocate another ID.
         if any(b['building_type'] == kind and b['location'] == location for b in houses.values()):
             return new
-        limits = {2: 4, 3: 3, 4: 3}  # original client_data.resource_buildings
+        from .ecology import RESOURCE_LIMITS as limits
         if sum(b['building_type'] == kind for b in houses.values()) >= limits[kind]:
             return new
         check_placement(gs, kind, location)

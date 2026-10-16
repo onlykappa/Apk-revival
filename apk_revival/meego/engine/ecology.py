@@ -1,8 +1,8 @@
 """Bounded local replenishment of the original client's resource node pools.
 
-The original 1.32 client recovers missing resource nodes on startup and limits
-them to four rocks, three trees and three bushes. Its server's periodic timing
-is unavailable. Fifteen-minute replenishment is an explicit local policy, not
+The original 1.32 client recovers missing resource nodes on startup. The local
+requested cap is six of each type (original caps were4/3/3). Its server's timing
+is unavailable. Five-minute replenishment is a requested local policy, not
 an original timer. Only previously observed resource sites are reused: guessing
 free coordinates without the client's terrain mask can place nodes off-island.
 """
@@ -10,11 +10,12 @@ import math
 
 from . import local_game as g
 
-INTERVAL_SECONDS = 15 * 60
+INTERVAL_SECONDS = 5 * 60
 STATE_KEY = 'local_ecology'
 LEGACY_POLICY = 'local-resource-replenishment-15m-v1'
-POLICY = 'local-resource-replenishment-per-kind-15m-v2'
-RESOURCE_LIMITS = {2: 4, 3: 3, 4: 3}
+PREVIOUS_POLICY = 'local-resource-replenishment-per-kind-15m-v2'
+POLICY = 'local-resource-replenishment-per-kind-5m-v3'
+RESOURCE_LIMITS = {2: 6, 3: 6, 4: 6}
 DEFAULT_STOCKS = {2: 40, 3: 30, 4: 75}
 MAX_ID = 2147483647
 MAX_SITES = 64
@@ -136,8 +137,8 @@ def advance(data, now, *, rules=None, stocks=None):
 
     Migration observes existing nodes and waits a full interval. Each overdue
     check creates at most one missing node PER TYPE and schedules from the
-    current time. The old shared rotation could leave trees absent for45min
-    before farms/tools were available. Preserve its existing deadline on upgrade.
+    current time. Migrate older15min policies to5min from the same cycle start,
+    so frequent polling cannot postpone the shortened deadline.
     No stored backlog, rollback reward, resource bank refill,
     or alteration to existing nodes occurs. Occupied sites are skipped; unknown
     terrain is never guessed. The native startup recovery path remains intact.
@@ -160,7 +161,7 @@ def advance(data, now, *, rules=None, stocks=None):
                               next_kind=2, replenishment_count=0,
                               sites=_sites(buildings, [], rules))
         return None
-    if (not isinstance(state, dict) or state.get('policy') not in (POLICY, LEGACY_POLICY) or
+    if (not isinstance(state, dict) or state.get('policy') not in (POLICY, LEGACY_POLICY, PREVIOUS_POLICY) or
             not isinstance(state.get('sites'), list) or
             state.get('next_kind') not in RESOURCE_LIMITS or
             isinstance(state.get('replenishment_count'), bool) or
@@ -171,6 +172,9 @@ def advance(data, now, *, rules=None, stocks=None):
     checked = _clock(state.get('last_checked_at'))
     if now <= checked:
         return None
+    if state['policy'] != POLICY:
+        due -= 15 * 60 - INTERVAL_SECONDS
+        state['next_due'] = due
     state['policy'] = POLICY
     sites = _sites(buildings, state['sites'], rules)
     if now < due:
@@ -181,9 +185,7 @@ def advance(data, now, *, rules=None, stocks=None):
     first_ident = None
     for offset in range(len(kinds)):
         kind = kinds[(start + offset) % len(kinds)]
-        limit = (rules.get('client_data', {}).get('0', {})
-                 .get('resource_buildings', {}).get(str(kind)))
-        limit = min(RESOURCE_LIMITS[kind], _ident(limit) or RESOURCE_LIMITS[kind])
+        limit = RESOURCE_LIMITS[kind]
         if sum(b.get('building_type') == kind for b in buildings.values()) >= limit:
             continue
         candidate = next((s for s in sites if s['kind'] == kind and

@@ -362,6 +362,25 @@ class CoreIntegrationTests(unittest.TestCase):
         self.assertIsNone(ecology.advance(data,when,rules=g.RULES))
         self.assertEqual(data,unchanged)
 
+    def test_six_node_cap_applies_to_native_spawn_requests_and_timer_without_refills(self):
+        for kind in (2,3,4):
+            with self.subTest(kind=kind):
+                data=copy.deepcopy(self.data)
+                for index in range(6):
+                    data=g.mutate(data,'game/village/place_resource',params(building_type_id=kind,location=20*g.MAP_SIZE+index*6,orientation=0),self.now)
+                buildings=data['game_state']['buildings']
+                self.assertEqual(sum(b['building_type']==kind for b in buildings.values()),6)
+                before=copy.deepcopy(data)
+                rejected=g.mutate(data,'game/village/place_resource',params(building_type_id=kind,location=40*g.MAP_SIZE+40,orientation=0),self.now)
+                self.assertEqual(rejected,before)
+                ecology.advance(data,self.now+1,rules=g.RULES)
+                data[ecology.STATE_KEY]['sites'].append(dict(kind=kind,location=40*g.MAP_SIZE+40,orientation=0))
+                bank=copy.deepcopy(data['game_state']['resources'])
+                for cycle in range(1,5):
+                    ecology.advance(data,self.now+cycle*300+1,rules=g.RULES)
+                    self.assertEqual(sum(b['building_type']==kind for b in buildings.values()),6)
+                self.assertEqual(data['game_state']['resources'],bank)
+
     def test_native_move_uses_source_position_then_persists_id_and_orientation(self):
         data=copy.deepcopy(self.data)
         data['game_state']['buildings']['16']=g.building(16,6,1,675,self.now)
