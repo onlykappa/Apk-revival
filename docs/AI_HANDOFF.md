@@ -1,5 +1,11 @@
 ## 0.3.21 optional Mods / Skip timer (2026-10-15)
 
+### Installation completed after user closed game
+
+Installed0.3.21 after the normal launcher --quit request6b62cbef65654b45a49f93775a190c3d returned succeeded. The earlier lock blocker below is resolved. All17 protected game/configuration files, including current village and APKs, were byte-identical across the atomic application swap. Receipt: build/installed-mods-update.json. Retained previous app: /home/deck/.local/share/apk-revival-app-backups/merged-mods-20261015-213016/APK-Revival-app. Installed SHA256:7f3eba66b15895bc207ddea3858b6f28f61d0d32c5c9af0d429c13bdd4b4326e. Version/certificate probe0.3.21/true. No live timer skipped; physical in-game verification remains pending.
+
+User asked about farms: original TechTree max_count_by_state_meter_unit allows Grub Grub Farm at Temple5, Sawmill at Temple6, Quarry at Temple7. Existing save currently Temple3, no production buildings placed. All three production pathways already implemented. Baseline preparation/output: Farm900s/6500food, Sawmill1080s/19500wood, Quarry1350s/17000stone; original finite stock quantities, local stocked initialization policy as documented in production.py. They require construction, activation/preparation worker and normal harvesting, not passive bank deposits. Respawns serve early gathering, production provides later repeatable supplies. No unlocks/resources/save edits were granted.
+
 Implemented launcher Meego -> Mods -> Enable Skip timer -> choose task -> Skip
 timer. The switch defaults off for each menu opening. This first version is a
 launcher dialog, not a button injected into native Meego menus. Existing design,
