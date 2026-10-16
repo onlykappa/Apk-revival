@@ -77,5 +77,35 @@ class FinalHarvestWireTests(BuildingExpiryWireTests):
             self.assertEqual(self.wire(state)['all_villagers']['7']['job']['gather_rate'],1.02)
 
 
+class BirthsignWireTests(unittest.TestCase):
+    wire = BuildingExpiryWireTests.wire
+
+    def test_birthsign_ids_match_string_catalog_keys_on_every_villager_response(self):
+        person = {'villager_id':6,'stats':{'strength':13,'intelligence':10,
+                  'charisma':11,'birthsigns':[11,4]}}
+        state = {'name':'local','buildings':{},'all_villagers':{'6':person},
+                 'unlock_information':{'birthsign_collections':{'1':[11,4]}}}
+        catalog = {'11':{'name':'OWL'},'4':{'name':'RABBIT'}}
+        for payload,path in ((person,()),(state,('all_villagers','6')),
+                             ({'game_state':state},('game_state','all_villagers','6')),
+                             ({'dungeon_game_state':state},('dungeon_game_state','all_villagers','6'))):
+            before = copy.deepcopy(payload)
+            result = self.wire(payload)
+            for key in path:result=result[key]
+            self.assertEqual(result['stats']['birthsigns'],['11','4'])
+            self.assertEqual([catalog[i]['name'] for i in result['stats']['birthsigns']],['OWL','RABBIT'])
+            self.assertEqual(result['stats']['strength'],13)
+            self.assertEqual(payload,before)
+        projected=self.wire(state)
+        self.assertEqual(projected['unlock_information']['birthsign_collections']['1'],[11,4])
+
+    def test_existing_string_ids_empty_slots_and_unknown_ids_are_preserved(self):
+        for signs,expected in ((['4','11'],['4','11']),([],[]),([999],['999'])):
+            person={'villager_id':1,'stats':{'birthsigns':signs}}
+            self.assertEqual(self.wire(person)['stats']['birthsigns'],expected)
+        unrelated={'birthsigns':[4],'catalog':{'4':{'techtree_id':4}}}
+        self.assertEqual(self.wire(unrelated),unrelated)
+
+
 if __name__ == '__main__':
     unittest.main()

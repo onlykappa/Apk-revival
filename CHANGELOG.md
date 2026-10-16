@@ -2,6 +2,11 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.27] — Repair villager birthsign card lookup
+
+- Send villager birthsign IDs as strings at the native HTTP boundary, matching original card-menu dictionary lookups. Preserve saved numeric genetics and collection membership IDs.
+- Cover all 35 original card records, full/partial responses and JSON roundtrip; no native APK patch or trait replacement. Nooni's saved Owl remains Owl.
+
 ## [0.3.26] — Repair Launch Dock 0/0 capacity
 
 - Populate login/resume questing_villager_limit from original completed Dock rules (4/8/12/16). The native menu reads this separate configuration table, which old prepared seeds left empty.

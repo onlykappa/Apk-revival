@@ -116,9 +116,11 @@ Rabbit. Login/resume now supplies a versioned original-table refresh (local
 revision 2.9401) because the native client ignores equal-version patches.
 Discovered collections add only stones carried by owned villagers, grouped by
 their original common/uncommon/rare tiers; unseen stones stay undiscovered.
-Existing prepared files and APK signatures remain unchanged. Empty saved
-collections were confirmed; the reported blank Rabbit popup still requires
-a native visual check. See [birthstone evidence](../evidence/meego-birthstones.md).
+Existing prepared files and APK signatures remain unchanged. In0.3.27,
+villager birthsign IDs are sent as strings to match the native card dictionary
+lookup; saved genetics and discovered collection IDs remain numeric. This
+repairs the separate blank villager-popup lookup. Native visual acceptance
+remains pending. See [birthstone evidence](../evidence/meego-birthstones.md).
 
 The original client recovers missing resources during startup toward pools of
 four rocks, three trees and three berry bushes. A supplemental local check now

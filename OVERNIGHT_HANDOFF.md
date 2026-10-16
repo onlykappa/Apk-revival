@@ -1,3 +1,39 @@
+## 0.3.27 villager birthsign card lookup — installed
+
+User again reports blank Rabbit popup, citing Nooni. Read-only save inspection:
+Nooni/villager6 actually owns original sign11 (OWL), not4 (RABBIT). No genetics,
+base stats, collections or artwork changed. Original35 records and all images
+exist; the earlier table/version fix did not correct this separate lookup.
+
+Native villager menu setBirthstoneDisplay0x759a84 and onBirthstoneOne0x75e8a8
+pass stats.birthsigns elements directly to NSDictionary.objectForKey: on the
+TechTree birthsign dictionary. Travel menu onBirthstoneOne0x80b4f8 uses the same
+lookup. JSON table keys are NSString values, but saved/sent IDs were integers
+(NSNumber); the lookup fails, leaving the existing/default icon and nil popup
+model. initWithBirthsign0x712590 reads name/description/texture from that model.
+This explains why a displayed/default Rabbit icon need not match Nooni's saved
+Owl. Original ELF/metadata inspection is static evidence, not runtime capture.
+
+native_payload now converts positive integer IDs to strings ONLY in villager
+stats.birthsigns at the HTTP boundary. Keep saved numeric IDs and discovery tier
+arrays numeric. Shared projection covers login/resume, individual villager,
+full-state actions, dungeon/remote snapshots and travel returns. No native APK
+patch, new birthsign, trait swap or reward grant. Blank visited-island rendering
+is separate and still unresolved. Yata's active Berry Haven trip remains saved.
+
+Source wire11 tests PASS; birthstone10 tests PASS including all35 original
+records resolving after JSON roundtrip. Final frozen437 tests PASS in26.253s; build1 PASS in0.701s.
+Initial broad run caught a scripted-gift snapshot assertion that expected old
+numeric wire IDs; updated its expected native projection while retaining the
+full unchanged-villager assertion. Final suite passed. Candidate dist/APK-Revival-0.3.27-birthsign-cards-verified; log
+build/birthsign-cards-tests-verified.log. Installed after user confirmed closed.
+All17 protected game/config/APK/save files byte-identical, including active
+Yata trip and Nooni's original Owl genetics. Installed SHA256:
+ae3086250606f2ae29b4b130a0466c6ead7dd33e5964ffd8c5a7c061eae5e919
+Probe0.3.27/certificates true. Receipt build/installed-birthsign-cards-update.json.
+Previous app: /home/deck/.local/share/apk-revival-app-backups/merged-birthsign-cards-20261016-070032/APK-Revival-app.
+Physical icon/text acceptance remains pending.
+
 ## 0.3.26 Dock 0/0 capacity — installed
 
 User native test found Dock0/0 despite an existing completed level-one Dock.

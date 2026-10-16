@@ -240,7 +240,10 @@ class SoloWireIntegrationTests(unittest.TestCase):
         code, response = self.request('game/gift/open_gift', dict(gift_id=42, villager_ids='[]'))
         self.assertEqual(code, 200)
         self.assertEqual(response['game_state']['gifts'], {})
-        self.assertEqual(response['game_state']['all_villagers'], people)
+        expected_people=copy.deepcopy(people)
+        for person in expected_people.values():
+            person['stats']['birthsigns']=[str(i) for i in person['stats']['birthsigns']]
+        self.assertEqual(response['game_state']['all_villagers'],expected_people)
         self.assertEqual(self.request('game/gift/open_gift', dict(gift_id=42, villager_ids='[]'))[0], 409)
 
 

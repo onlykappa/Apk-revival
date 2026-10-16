@@ -40,7 +40,12 @@ class CoreIntegrationTests(unittest.TestCase):
         self.assertEqual(packet['game_state']['name'], 'local')
         self.assertEqual(packet['dungeon_game_state']['name'], 'dungeon')
         self.assertEqual(packet['game_state']['buildings'], server.native_payload(self.data['game_state'])['buildings'])
-        self.assertEqual(packet['game_state']['all_villagers'], self.data['game_state']['all_villagers'])
+        expected=copy.deepcopy(self.data['game_state']['all_villagers'])
+        for person in expected.values():
+            person['stats']['birthsigns']=[str(i) for i in person['stats']['birthsigns']]
+            person['last_update']=float(person['last_update'])
+            person['job']['last_update']=float(person['job']['last_update'])
+        self.assertEqual(packet['game_state']['all_villagers'],expected)
         self.assertEqual(self.data, before)
 
     def test_death_resurrection_and_restart_retain_identity_and_inventory(self):

@@ -58,6 +58,15 @@ def native_payload(value, game_state=None, depleted_nodes=()):
         if {'all_villagers', 'buildings'} <= value.keys():game_state=value
         elif isinstance(value.get('game_state'), dict):game_state=value['game_state']
         result = {key: native_payload(item, game_state, depleted_nodes) for key, item in value.items()}
+        if 'villager_id' in value and isinstance(value.get('stats'), dict):
+            signs = value['stats'].get('birthsigns')
+            if isinstance(signs, list):
+                # Villager/detail/travel menus pass each ID directly to
+                # NSDictionary.objectForKey:. TechTree's JSON keys are strings;
+                # NSNumber IDs miss the model and leave the default icon/blank
+                # popup. Keep saved genetics and collection NSNumber IDs intact.
+                result['stats']['birthsigns'] = [
+                    str(sign) if type(sign) is int and sign > 0 else sign for sign in signs]
         if type(value.get('last_update')) is int:
             # JMBinding's NSDate branch accepts NSDecimalNumber, not the
             # integer NSNumber produced for JSON integers. Aging intentionally

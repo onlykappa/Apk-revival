@@ -98,6 +98,19 @@ class BirthstoneTests(unittest.TestCase):
 
 @unittest.skipUnless(os.getenv('APKR_MEEGO_APK'), 'Supply the privately owned original Meego APK')
 class OriginalBirthstoneTests(unittest.TestCase):
+    def test_all_original_villager_cards_resolve_after_json_wire_roundtrip(self):
+        from apk_revival.meego.engine import server
+        metadata=b.load_catalog(os.environ['APKR_MEEGO_APK'])
+        for key,record in metadata.items():
+            person={'villager_id':1,'stats':{'birthsigns':[int(key)]}}
+            before=copy.deepcopy(person)
+            wire=json.loads(json.dumps(server.native_payload(person)))
+            resolved=metadata[wire['stats']['birthsigns'][0]]
+            self.assertEqual(resolved,record)
+            self.assertTrue(resolved['name'] and resolved['description'] and resolved['image'])
+            self.assertEqual(person,before)
+        self.assertEqual(metadata['11']['name'],'OWL')
+
     def test_all_original_records_and_images_including_rabbit_are_present(self):
         apk = pathlib.Path(os.environ['APKR_MEEGO_APK'])
         metadata = b.load_catalog(apk)
