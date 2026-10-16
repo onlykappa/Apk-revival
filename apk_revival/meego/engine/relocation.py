@@ -27,6 +27,8 @@ def move(data, ident, location, orientation, now):
             job['source_id']=new
             if job.get('target_id')==old:job['target_id']=new
         if job.get('destination_id')==old:job['destination_id']=new
+    for trip in data.get('local_islands', {}).get('trips', {}).values():
+        if trip.get('dock_id')==old:trip['dock_id']=new
     for other in buildings.values():
         if other.get('destination')==old:other['destination']=new
     for key in ('school_sessions','school_reports'):

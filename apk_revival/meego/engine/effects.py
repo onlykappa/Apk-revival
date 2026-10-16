@@ -208,7 +208,7 @@ def use_item(data, person_id, item_id, rules, now, *, hours_per_age=1, child_age
         raise g.ActionError('Choose one of your Meegos.')
     if person.get('job', {}).get('job_id') == 6:
         raise g.ActionError('Choose a living Meego.')
-    if person.get('location_type', 0) != 0:
+    if not g.at_home(person):
         raise g.ActionError('This Meego is away on an adventure. Finish the adventure first.')
     rule = rules.get('items', {}).get(str(item_id))
     if not rule or int(rule.get('type', -1)) != 4:

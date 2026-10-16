@@ -57,6 +57,12 @@ def villager(ident, name, gender, appearance, user_id, now):
                            birthsigns=[1]))
 
 
+def at_home(person):
+    """Native travelling uses location_type0 with a different location_id."""
+    return (person.get('location_type', 0) == 0 and
+            person.get('location_id', person.get('user_id')) == person.get('user_id'))
+
+
 def building(ident, kind, state, location, now, orientation=0):
     return dict(building_id=ident, building_type=kind, state=state,
                 location=location, orientation=orientation, progress=0,

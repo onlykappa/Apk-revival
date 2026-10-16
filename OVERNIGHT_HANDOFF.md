@@ -1,3 +1,28 @@
+## 0.3.25 three local islands — installed pilot
+
+Implemented Pebble Bay/Timber Cove/Berry Haven through native neighbour, remote
+view, departure, return and reward APIs. Native profile/game_state remote wrapper
+and local completion contracts recovered from the owned ELF. No native APK
+patch or player save edit. islands.py holds local policy, saved trips and current
+per-villager receipts; original7200s Send duration retained. Reward5/minute up
+to100 of destination resource, clipped to storage, +1 CHR once on collection.
+Home bed reserved; absent traveller cannot work/breed/activate items or eat at
+home. Dock moves remap trip source; pending reward cannot be discarded by job
+assignment. Late collection applies saved deathday instead of resurrecting.
+
+Details and explicit limitations: docs/MEEGO_LOCAL_ISLANDS.md. Source21 island
+tests PASS including original APK-rule two-hour fixed-clock test and footprint
+checks; initial frozen427 tests PASS. Final frozen432 tests PASS in25.751s;
+build1 PASS in0.641s. Installed with launcher lock exclusively held; all17
+protected game/config/APK/save files remained byte-identical. Installed probe:
+0.3.25/certificates true. SHA256:
+26e2e55f97be8d5fab2f3eff47ac9a4e69ccf033ef8b9122e913d7399941f12b
+Receipt build/installed-three-islands-update.json; previous app backup:
+~/.local/share/apk-revival-app-backups/merged-three-islands-20261016-063622/APK-Revival-app.
+Physical native island/Send/reward UI remains unverified; do not claim completed
+hardware acceptance or install while launcher/game is running. Candidate:
+dist/APK-Revival-0.3.25-three-islands-final. No bot social gifts or live networking.
+
 ## 0.3.24 strength carrying — installed
 
 User reports Wee Wizz still delivers two items despite STR above20. Read-only

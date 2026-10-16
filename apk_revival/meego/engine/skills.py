@@ -26,6 +26,8 @@ def _person(data, ident):
     person = data['game_state']['all_villagers'].get(str(ident))
     if person is None:
         raise g.ActionError('That Meego does not exist.')
+    if not g.at_home(person):
+        raise g.ActionError('This Meego is away. Wait for their return first.')
     return person
 
 

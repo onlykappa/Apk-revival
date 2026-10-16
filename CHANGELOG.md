@@ -2,6 +2,12 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.25] — Three offline Launch Dock islands (pilot)
+
+- Add Pebble Bay, Timber Cove and Berry Haven through the original neighbour and visited-island screens. Separate remote snapshots from home state; validate island identities.
+- Persist adult departures, timed offline returns, storage-limited resource rewards and one-time charisma gains. Preserve villagers, inventory, home housing and saved deadlines; prevent duplicate claims within a trip.
+- Respect original Dock guest capacities; update trip references when moving the Dock. No cloud model, external server, game reset or APK patch. Native UI acceptance remains pending.
+
 ## [0.3.24] — Make strength affect resource carrying
 
 - Increase local resource-yield scaling from one per100 extra STR to one per10. STR24 now averages3.4 basic resources per trip, with a five-unit base cap before original equipment/effect bonuses. Research INT behavior is unchanged.

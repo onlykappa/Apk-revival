@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 from .local_game import migrate, synchronize, ActionError, integer
 from .simulation import advance, mutate, migrate_economy, housing, refresh_aging_jobs, SETTINGS
-from . import community, catalog, ecology, skills, food, birthstones, treasure, scripted_items, adventures, relocation, local_game as g
+from . import community, catalog, ecology, skills, food, birthstones, treasure, scripted_items, adventures, relocation, islands, local_game as g
 
 HERE = Path(__file__).resolve().parent
 PACKAGE = 'ata.apkrv.meego'
@@ -266,6 +266,21 @@ class State:
                     new, _ = mods.skip_native(self.data, route, params, now)
                     self.persist(new)
                     return copy.deepcopy(self.data['game_state']), 'local-mod-skip-timer'
+                if route in islands.ROUTES:
+                    new,response=islands.handle(self.data,route,params,g.RULES,self.seed,now)
+                    if new!=self.data:
+                        food.advance(new,now,now)
+                        if route.endswith(('/send_villager','/update_villager_quest')):
+                            response=copy.deepcopy(new['game_state'])
+                        elif route.endswith('/complete_quest'):
+                            response['game_state']=copy.deepcopy(new['game_state'])
+                        self.persist(new)
+                    return response,'local-offline-islands'
+                if route == 'game/village/get_village':
+                    ident=integer(params,'village_id',default=int(self.data['game_user']['user_id']),low=1)
+                    if ident != int(self.data['game_user']['user_id']):
+                        return islands.remote(self.data,ident,self.seed,g.RULES,now)['game_state'],'local-offline-island'
+                    return copy.deepcopy(self.data['game_state']),'local-village'
                 if route in adventures.ROUTES:
                     new,response=adventures.handle(self.data,route,params,g.RULES,now)
                     g.synchronize(new,now)
@@ -285,6 +300,8 @@ class State:
                     new,response=helper(self.data,params,g.RULES,now)
                     if new!=self.data:self.persist(new)
                     return response,'local-treasure-session'
+                if 'village_id' in params and integer(params,'village_id',low=1)!=int(self.data['game_user']['user_id']):
+                    raise ActionError('Visited offline islands are read-only; return home to change your village.')
                 new = mutate(self.data, route, params, now)
                 if new is not None:
                     birthstones.discover_owned(new, g.RULES.get('birthsigns', {}))
@@ -308,7 +325,7 @@ class State:
                         'rate': self.data['game_state']['global_state'].get('food_consumption_rate', 0)}, 'local-food-rate'
             if route in ('game/relationship/get_friends', 'game/relationship/get_followers',
                          'game/relationship/get_followed', 'game/privacy/get_blocked_users',
-                         'game/village/get_neighbour_list', 'game/message/get_comments',
+                         'game/message/get_comments',
                          'game/message/get_private_message_preview', 'game/task_list/get_tasks',
                          'game/village/get_quests'):
                 return [], 'empty-offline-list'
@@ -317,11 +334,21 @@ class State:
             if route in ('game/gcm/enable_gcm','game/gcm/disable_gcm'):
                 return {}, 'no-push-notifications'
             if route == 'game/user/get_user':
-                return copy.deepcopy(self.data['game_user']), 'local-profile'
+                try:
+                    ident=integer(params,'user_id',default=int(self.data['game_user']['user_id']),low=1)
+                    if ident!=int(self.data['game_user']['user_id']):return islands.profile(self.data,ident),'local-offline-profile'
+                    return copy.deepcopy(self.data['game_user']), 'local-profile'
+                except ActionError as e:
+                    return {'exception': {'type':6,'title':'Local Village','message':str(e)}},'rejected-local-action'
             if route == 'game/village/get_villager':
                 try:
                     ident = str(integer(params, 'villager_id', low=1))
                     person = self.data['game_state']['all_villagers'].get(ident)
+                    if person is None:
+                        for island in islands.ISLANDS:
+                            remote=islands.remote(self.data,island[0],self.seed,g.RULES,now)
+                            person=remote['game_state']['all_villagers'].get(ident)
+                            if person is not None:break
                     if person is None: raise ActionError('Villager does not exist.')
                     return copy.deepcopy(person), 'local-villager'
                 except ActionError as e:
@@ -334,8 +361,6 @@ class State:
                 new['game_user']['username'] = username[:40]
                 self.persist(new)
                 return self.packet(), 'saved-local-profile'
-            if route == 'game/village/get_village':
-                return copy.deepcopy(self.data['game_state']), 'local-village'
             if route == 'game/village/get_research_progress':
                 # JFUIResearchBuilding success block (0x69ef9c–0x69f128)
                 # reads these three fields directly; it does not bind a state.
