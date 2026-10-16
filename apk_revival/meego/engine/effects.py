@@ -5,7 +5,8 @@ from the selected original APK. Composition is an explicit LOCAL overlay:
 add modifiers, multiply multipliers, match explicit job IDs OR boost groups;
 reusable lifetime is a cooldown measured from activation. The former server's
 stacking/cooldown-start policy is not recovered. Production modifiers are
-published only in final per-job values, without a second global boost. The
+published only in final per-job values; native effect records identify the
+visible icon/expiry and are not added to backend modifiers a second time. The
 recovered child-play script uses native effect_id/expire_date records; its
 once-per-activation child stat award is explicitly a local policy.
 
@@ -114,6 +115,20 @@ def adventure_bonus(data, person_id, now):
                       and entry['started_at'] <= now < entry['expires_at']])
 
 
+def publish_production_effect(data, entry, rules):
+    """Publish the native effect indicator; backend math still uses receipts."""
+    rule=rules.get('items',{}).get(str(entry['item_id']),{})
+    if entry.get('wire_effect') is not None or _values(rule)==DEFAULTS:
+        return
+    if entry.get('target')=='self':
+        entry['wire_owner']=entry['villager_id']
+        target=data['game_state']['all_villagers'][str(entry['villager_id'])]
+    else:
+        target=data['game_state'].setdefault('global_state',{})
+    entry['wire_effect']=dict(effect_id=entry['item_id'],expire_date=math.ceil(entry['expires_at']))
+    target.setdefault('effects',[]).append(copy.deepcopy(entry['wire_effect']))
+
+
 def advance(data, now, rules):
     """Expire owned receipts/cooldowns AFTER prior harvesting has been settled."""
     now = _number(now, 'effect clock')
@@ -124,6 +139,8 @@ def advance(data, now, rules):
     # JMEffect's recovered native shape is effect_id + Unix expire_date. Remove
     # only a record created by our own receipt; retain unrelated village effects.
     for entry in state['active']:
+        if entry['expires_at']>now:
+            publish_production_effect(data,entry,rules)
         owned_wire = entry.get('wire_effect')
         if owned_wire is not None and entry['expires_at'] <= now:
             if entry.get('wire_owner') is not None:
@@ -331,6 +348,7 @@ def use_item(data, person_id, item_id, rules, now, *, hours_per_age=1, child_age
             entry['wire_effect'] = dict(effect_id=item_id, expire_date=now + duration)
             data['game_state'].setdefault('global_state', {}).setdefault('effects', []).append(
                 copy.deepcopy(entry['wire_effect']))
+        publish_production_effect(data,entry,rules)
         state['active'].append(entry)
     if lifetime:
         state['cooldowns'][cooldown_key] = dict(owner=owner, item_id=item_id, ready_at=now + lifetime)

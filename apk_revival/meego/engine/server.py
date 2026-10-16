@@ -64,6 +64,13 @@ def native_payload(value, game_state=None, depleted_nodes=()):
             # keeps an integral clock/deadline in saves; emit 123.0 so the
             # native job receives a date instead of NSDate.distantFuture.
             result['last_update'] = float(value['last_update'])
+        if {'item_id','cooldown','last_update'} <= value.keys():
+            remaining=value['cooldown'];updated=value['last_update']
+            if (type(remaining) in (int,float) and type(updated) in (int,float)
+                    and math.isfinite(remaining) and math.isfinite(updated)):
+                # JMVillagerItem.cooldown is NSDate, compared directly with
+                # now. Saves retain remaining seconds as of last_update.
+                result['cooldown']=float(updated+remaining) if remaining>0 else 0.0
         if ({'all_villagers', 'buildings'} <= value.keys()
                 and value.get('name') in ('village', 'local')):
             # The same merge-only dictionary contract applies to buildings.

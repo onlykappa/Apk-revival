@@ -2,7 +2,8 @@
 
 Stat-to-yield and additive/multiplicative stacking are documented restoration
 policies. Item job restrictions and each modifier come from the user's APK.
-Final per-job values are emitted once; no duplicate native global boost added.
+Final per-job values are emitted once; native effect indicators are not added
+to backend modifiers a second time.
 """
 import math
 from . import effects

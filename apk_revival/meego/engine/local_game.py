@@ -245,7 +245,14 @@ def mutate(data, route, params, now=None):
         completed = int(state.get('auto_transition', rule['default_state']))
         houses[str(ident)] = building(ident, kind, completed, location, now, orientation)
     elif route in ('game/village/move_building', 'game/village/change_building', 'game/village/delete_building'):
-        ident = str(integer(params, 'building_id', low=1))
+        ident = str(integer(params, 'building_id', low=0 if route.endswith('/move_building') else 1))
+        if route == 'game/village/move_building':
+            # Native moveBuilding:from:to: sends its FROM POSITION under
+            # building_id (unlike upgrade/delete). Resolve that exact occupied
+            # position first; retain ID lookup for existing local API clients.
+            matches=[key for key,node in houses.items() if node.get('location')==int(ident)]
+            if len(matches)>1:raise ActionError('More than one building occupies the source position.')
+            if matches:ident=matches[0]
         b = houses.get(ident)
         if b is None:
             raise ActionError('Building does not exist.')

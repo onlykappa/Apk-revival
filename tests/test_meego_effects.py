@@ -51,7 +51,9 @@ class EffectsTests(unittest.TestCase):
             self.assertEqual(e.production_modifiers(data, data['game_state']['all_villagers'][str(ident)], job,
                                                      100001, tree)['rate_modifier'], 0)
         self.assertEqual(data['unrelated'], ['preserved'])
-        self.assertEqual(data['game_state']['all_villagers']['1']['effects'], [])
+        self.assertEqual(data['game_state']['all_villagers']['1']['effects'],
+                         [dict(effect_id=398,expire_date=103600)])
+        self.assertEqual(data['game_state']['all_villagers']['2']['effects'], [])
 
     def test_expiry_and_json_restart_exact_boundary_no_permanent_stat_change(self):
         data, tree = village(), rules()

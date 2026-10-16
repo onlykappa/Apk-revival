@@ -1158,3 +1158,27 @@ Installed respawn/Stop/direct-display candidate at20:41 with all17 protected
 files hash-identical, including the live save and original/prepared APKs.
 Version/certificate probe passed; user physical feedback pending. Installed
 SHA256 a8c9a3016ccc5068e40e5cff2a5227acdb0f0c89fbc813cd53e9db3107b6ebdb.
+
+
+## Building moves, Topper and Rabbit card follow-up
+
+Move failure675 was the native source location, while the building's realID
+was16. Corrected only the move endpoint's resolution; identity, jobs, balances,
+placement validation and upgrade/delete contracts remain intact. Reproduced the
+exact failing request on a memory-only copy without changing the live island.
+
+Topper was mechanically active (saved rate3.06 and backend cooldown rejection),
+but native cooldown expects absolute NSDate rather than remaining seconds.
+Added wire-only decimal absolute expiry and missing native buff indicator
+records, retaining existing backend math and save format. Core26 checks pass,
+including repeated moves, expiry, restart, single1.5x math and icon migration.
+
+Rabbit original metadata/artwork is present. User says villager's own card.
+None of the current villagers actually carries Rabbit4; they have only one
+stone each, and original UI draws two slots. Missing second-slot artwork is a
+supported hypothesis, not a verified final fix. Awaiting which villager and
+left/right slot; do not fabricate traits or reset data. See AI_HANDOFF.md.
+
+Installed the move/Topper candidate at20:54. All305 packaged tests passed,
+all17 protected files stayed hash-identical, version/certificate probe passed.
+Native physical confirmation and Rabbit slot detail remain pending.

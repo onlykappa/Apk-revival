@@ -8,7 +8,7 @@ import unittest
 import zipfile
 from unittest.mock import patch
 
-from apk_revival.meego.engine import ecology, local_game as g, server, simulation as sim
+from apk_revival.meego.engine import ecology, effects, local_game as g, server, simulation as sim
 
 
 def params(**values):
@@ -361,6 +361,62 @@ class CoreIntegrationTests(unittest.TestCase):
         unchanged=copy.deepcopy(data)
         self.assertIsNone(ecology.advance(data,when,rules=g.RULES))
         self.assertEqual(data,unchanged)
+
+    def test_native_move_uses_source_position_then_persists_id_and_orientation(self):
+        data=copy.deepcopy(self.data)
+        data['game_state']['buildings']['16']=g.building(16,6,1,675,self.now)
+        before=copy.deepcopy(data)
+        moved=sim.mutate(data,'game/village/move_building',params(building_id=675,to_position=2693,orientation=1),self.now+1)
+        self.assertEqual(data,before)
+        self.assertEqual(moved['game_state']['buildings']['16']['location'],2693)
+        self.assertEqual(moved['game_state']['buildings']['16']['building_id'],16)
+        self.assertEqual(moved['game_state']['buildings']['16']['orientation'],1)
+        moved=sim.mutate(json.loads(json.dumps(moved)),'game/village/move_building',params(building_id=2693,to_position=2088,orientation=0),self.now+2)
+        self.assertEqual(moved['game_state']['buildings']['16']['location'],2088)
+        self.assertEqual(moved['game_state']['resources'],before['game_state']['resources'])
+
+    def test_native_move_does_not_allow_overlap_or_unknown_source(self):
+        data=copy.deepcopy(self.data)
+        data['game_state']['buildings']['16']=g.building(16,6,1,675,self.now)
+        before=copy.deepcopy(data)
+        for source,destination in ((675,0),(674,2088)):
+            with self.assertRaises(g.ActionError):
+                sim.mutate(data,'game/village/move_building',params(building_id=source,to_position=destination,orientation=1),self.now+1)
+            self.assertEqual(data,before)
+
+    def test_topper_native_absolute_cooldown_and_visible_single_boost_survive_restart(self):
+        data=self.source(3,17,30)
+        person=data['game_state']['all_villagers']['1']
+        person['items']['371']=dict(item_id=371,count=1,layer=4,cooldown=0,last_update=self.now)
+        data=sim.mutate(data,'game/village/use_villager_item',params(villager_id=1,item_id=371),self.now)
+        self.assertEqual(data['game_state']['all_villagers']['1']['job']['gather_rate'],3)
+        expected=dict(effect_id=371,expire_date=self.now+180)
+        self.assertEqual(data['game_state']['global_state']['effects'],[expected])
+        for offset in (0,10,179):
+            if offset:data=sim.advance(json.loads(json.dumps(data)),self.now+offset)
+            before=copy.deepcopy(data)
+            packet=server.native_payload(data['game_state'])
+            item=packet['all_villagers']['1']['items']['371']
+            self.assertIs(type(item['cooldown']),float)
+            self.assertEqual(item['cooldown'],self.now+720)
+            self.assertEqual(data,before)
+            self.assertEqual(data['game_state']['global_state']['effects'],[expected])
+        data=sim.advance(data,self.now+180)
+        self.assertEqual(data['game_state']['global_state']['effects'],[])
+        with self.assertRaisesRegex(g.ActionError,'cooling down'):
+            sim.mutate(data,'game/village/use_villager_item',params(villager_id=1,item_id=371),self.now+719)
+        data=sim.advance(data,self.now+720)
+        self.assertEqual(server.native_payload(data['game_state'])['all_villagers']['1']['items']['371']['cooldown'],0.0)
+
+    def test_old_active_topper_receipt_gains_indicator_without_reset_or_duplicate(self):
+        data=copy.deepcopy(self.data)
+        entry=dict(item_id=371,villager_id=1,target='village',started_at=self.now,expires_at=self.now+180)
+        data[effects.STATE_KEY]=dict(policy=effects.POLICY,active=[entry],cooldowns={})
+        for offset in (1,2):
+            effects.advance(data,self.now+offset,g.RULES)
+            self.assertEqual(data['game_state']['global_state']['effects'],[dict(effect_id=371,expire_date=self.now+180)])
+        effects.advance(data,self.now+180,g.RULES)
+        self.assertEqual(data['game_state']['global_state']['effects'],[])
 
     def test_bush_upgrade_preserves_harvested_food_and_runs_once(self):
         data = self.source(4, 18, 5)

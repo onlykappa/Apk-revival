@@ -1,3 +1,49 @@
+## Building moves and Turtle Topper follow-up
+
+Confirmed native requests move_building building_id=675 -> to_position2693
+failed while the real building ID was16 at location675. Native
+JMVillageClient moveBuilding:from:to:withCallback:andOrientation: at0xa35990
+sends FROM POSITION as building_id. The local handler now resolves the exact
+current position for moves, with existing ID fallback when no position matches.
+Upgrade/delete retain their real ID contract. Two successive position-based
+moves, overlap rejection, preserved identity/bank and JSON restart are tested.
+The exact failed request succeeded on a read-only copy of the user's island;
+no live move or save rewrite was performed.
+
+Turtle Topper had activated successfully: logs showed cooldown rejection on a
+second press and saved gather_rate3.06. Native JMVillagerItem.cooldown is an
+NSDate (getter0x8dcf68; isOnCooldown0x8dce2c compares with now), while the server
+emitted remaining seconds. Wire-only projection now sends a decimal absolute
+expiry (last_update+remaining); the stored save format is unchanged. The
+native JMEffect record for visible buff indicators was also absent. Production
+receipts now publish the original item ID/expiry into the appropriate village
+or villager effects list. Existing active receipts gain the icon on refresh;
+owned expired icons alone are removed. Backend work multipliers still read
+only the existing receipts, avoiding double application. Original Topper is
+1.5x for180s and reusable after720s under documented local cooldown policy.
+
+Rabbit card remains under investigation, NOT claimed fixed. All35 original
+records and images exist, including Rabbit4. User clarified the blank card is
+on a villager screen, not the Temple collection. Current saved traits are
+Lizard1 for the three adults and Turtle3 for Lowsee, one per villager; none has
+Rabbit. Native setBirthstoneDisplay always draws two slots; a nil second stone
+leaves default UI artwork, and a click may initialize a nil detail popup.
+The user was asked which villager/left-or-right icon to distinguish that case
+from an actual catalog lookup failure. Do not invent a second trait, grant
+Rabbit, reset the island or claim metadata completeness proves native UI works.
+
+Candidate: dist/APK-Revival-0.3.20-move-topper-final-candidate.
+Executable SHA256:
+6896c30ac19edf2a49ec61db034d8a756d697ae8339a32192bc2ad71cfaa28a9.
+Source core original-rule regressions26 passed; all305 frozen packaged tests
+passed. Frozen full-suite results and
+installation receipt are in build/move-topper-*.log and installed-move-topper-update.json.
+Candidate is installed; all17 protected files were hash-identical across the
+replacement and the installed version/certificate probe passed. Native
+move/Topper screen confirmation remains pending normal Play.
+
+---
+
 ## Respawn, runtime permission and cold-display follow-up
 
 Supersedes the earlier pending password/startup notes below. User completed the
