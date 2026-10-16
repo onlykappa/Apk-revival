@@ -2,6 +2,13 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.21] — Optional Meego timer mod
+
+- Add Meego's Mods menu in the launcher with an explicit Enable Skip timer switch and a selected-task picker. Nothing is skipped automatically.
+- Finish active construction/upgrades, industrial preparation, Skool classes, baby/child growth, item cooldowns, or the next capped resource respawn without charging skulls or advancing the island clock.
+- Reject expired/replaced task selections and duplicate completions. Persist each chosen change atomically through the running game's existing local service, with a bounded mod history.
+- Preserve the native APK, saves, normal timer policies, reward-collection actions and launcher design. This first menu is in APK Revival, not injected into native Meego panels.
+
 ## [0.3.20] — Merged launcher candidate
 
 - Integrate the upstream v0.3.8 launcher redesign with the tested Deck Meego engine and runtime fixes. Keep all game data separate from this candidate build.

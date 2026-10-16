@@ -1,3 +1,46 @@
+## 0.3.21 optional Mods / Skip timer (2026-10-15)
+
+Implemented launcher Meego -> Mods -> Enable Skip timer -> choose task -> Skip
+timer. The switch defaults off for each menu opening. This first version is a
+launcher dialog, not a button injected into native Meego menus. Existing design,
+Play, runtime policy and APK remain unchanged. Details: docs/MODS.md.
+
+Supported: assigned construction/upgrades, industrial preparation, Skool class,
+baby-to-child/child-to-adult (one stage), recorded item cooldown, next normal
+resource respawn. Construction and classes release the corresponding workers;
+classes leave report cards for normal collection. Production creates original
+finite stock rather than free bank balances. Growth releases nursing, keeps
+other people and absolute death dates unchanged. Cooldown skips do not activate
+or extend buffs. Ecology reuses safe sites and retains six-per-kind caps.
+Research is earned-point work, not a countdown; dungeon jobs, commercial service
+expiry, arrivals, death and rewards are not accelerated. No global fast-forward.
+
+The running backend exposes in-process mod_timers/skip_timer methods only, gated
+by selected running Meego in Launcher. No HTTP cheat endpoint or out-of-process
+save editing. Read-only picker does not save. Under the existing State lock,
+skip first settles ordinary elapsed time, validates task-generation token, copies
+the state, finishes the selected supported transition and atomically persists
+with existing backups. Bounded local_mod_history keeps the last100 skips. Stale
+or replayed choices reject; task tokens include worker start/cycle identity and
+resource-generation count. Ordinary Play never invokes skip logic.
+
+Verification: final frozen0.3.21 package ran343 tests, all PASS in25.622s;
+build/mods-packaged-tests-final.log. Includes15 new backend/UI checks, real Qt
+opt-in/worker/status controls, original TechTree rules, selected-only completion,
+class reports, original output stocks, parenting, cooldown/buff ownership,
+respawn caps, durable temporary-save restart and replay rejection. Build1 PASS;
+version/certificate probe0.3.21/true. No live island timer was skipped. Native
+on-screen refresh/user gameplay verification remains pending.
+
+Candidate: dist/APK-Revival-0.3.21-mods-final/APK-Revival
+SHA256:7f3eba66b15895bc207ddea3858b6f28f61d0d32c5c9af0d429c13bdd4b4326e.
+Installation attempt stopped at nonblocking launcher.lock (app open), before
+copying/replacing app or reading/writing game saves. User was asked to close when
+convenient. Once closed, /tmp/install-apkr-merged-mods.py guards installed previous
+SHA9d811f7ff4ce7e609fa25aec5c20be604d96eae5df5db339da343fcb9fc978c5,
+retains entire old app and verifies protected files unchanged. Do not overwrite a
+running application or manually edit the live island. No public release created.
+
 ## Native relocation lifecycle and rotation follow-up
 
 Supersedes the earlier position-only move fix. User confirmed green-check

@@ -152,6 +152,21 @@ class Launcher:
                 self.runtime_manager.stop_owned_session()
             finally:self.android=None;self.active=None;self.connection_failures=0
         return {'stopped':True}
+    def mod_state(self, game):
+        p = self.store.load(game)
+        if p.get('adapter') != 'meego-1.32':
+            raise RevivalError('Skip timer is currently available for Meego only.')
+        if not self.active or self.active['game'] != game:
+            raise RevivalError('Press Play on this Meego entry before using Mods.')
+        state = getattr(getattr(getattr(self.android, 'backend', None), 'server', None), 'state', None)
+        if state is None:
+            raise RevivalError('The local Meego service is unavailable. Stop the game and press Play again.')
+        return state
+    def mod_timers(self, game):
+        return self.mod_state(game).mod_timers()
+    def skip_timer(self, game, token, ctx):
+        ctx.step('Skipping only the selected timer')
+        return self.mod_state(game).skip_timer(token)
     def monitor(self):
         if not self.android or not self.active:return None
         if self.android.backend and not self.android.backend.thread.is_alive():

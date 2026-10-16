@@ -59,3 +59,17 @@ class OpenerUITests(unittest.TestCase):
         self.assertIsNone(self.window.worker);operation.assert_not_called()
         self.window.monitor_finished();self.app.processEvents();self.wait()
         operation.assert_called_once();self.assertIsNone(self.window.pending_submission)
+
+    def test_mods_button_is_only_enabled_for_selected_running_meego(self):
+        self.window.open_apk(str(make_apk(self.root/'ordinary.apk',fixture=False)));self.wait()
+        self.assertFalse(self.window.mods_button.isVisible())
+        p=self.window.profile();p['adapter']='meego-1.32';self.window.service.store.save(p);self.window.refresh()
+        self.assertTrue(self.window.mods_button.isVisible());self.assertFalse(self.window.mods_button.isEnabled())
+        self.window.service.active={'game':'different','kind':'android'};self.window.update_details()
+        self.assertFalse(self.window.mods_button.isEnabled())
+        self.window.service.active={'game':p['id'],'kind':'android'};self.window.update_details()
+        self.assertTrue(self.window.mods_button.isEnabled())
+        with patch('apk_revival.launcher.mods.ModsDialog') as dialog:
+            self.window.mods_button.click();dialog.assert_called_once_with(self.window.service,p['id'],self.window)
+            dialog.return_value.exec.assert_called_once()
+        self.window.service.active=None

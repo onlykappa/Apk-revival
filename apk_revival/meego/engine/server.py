@@ -219,6 +219,18 @@ class State:
                           game_state=copy.deepcopy(self.data['game_state']),
                           server_time=time.time(), host_ip_address='127.0.0.1')
             return result
+    def mod_timers(self):
+        from . import mods
+        with self.lock:
+            return mods.timers(self.data, time.time())
+    def skip_timer(self, token):
+        from . import mods
+        with self.lock:
+            now = time.time()
+            current = advance(self.data, now)
+            new, title = mods.skip(current, token, now)
+            self.persist(new)
+            return title
     def handle(self, route, params):
         route = route.strip('/')
         with self.lock:

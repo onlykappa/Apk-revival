@@ -206,6 +206,7 @@ class Window(QMainWindow):
         self.readiness_label=label('Start with an APK','readiness',True);info.addWidget(self.readiness_label);self.description=label('Choose a game file. APK Revival checks what it needs and keeps the original untouched.','muted',True);info.addWidget(self.description);right.addWidget(self.infobar)
         self.prepare_button=button('Prepare game',self.prepare,'play','package');self.prepare_button.setMinimumHeight(46);right.addWidget(self.prepare_button);self.play_button=button('Play',self.play,'play','play');self.play_button.setMinimumHeight(46);right.addWidget(self.play_button);self.stop_button=button('Stop game',self.stop,None,'stop');self.stop_button.setMinimumHeight(46);right.addWidget(self.stop_button)
         self.options_button=button('Game options',self.options,None,'more');right.addWidget(self.options_button)
+        self.mods_button=button('Mods',self.show_mods);right.addWidget(self.mods_button)
         self.divider=QFrame();self.divider.setObjectName('divider');right.addWidget(self.divider);self.details_heading=label('Details','strong');right.addWidget(self.details_heading)
         self.meta=QGridLayout();self.meta.setHorizontalSpacing(16);self.meta.setVerticalSpacing(7);self.meta.setColumnStretch(1,1);right.addLayout(self.meta)
         right.addStretch();controls=QHBoxLayout();controls.setSpacing(8);controls.addWidget(icon_label('gamepad',16,'#9d9d9d'),0,Qt.AlignmentFlag.AlignTop);self.controls_label=label('Touch, trackpad and controller-aware browsing.','caption',True);controls.addWidget(self.controls_label,1);right.addLayout(controls)
@@ -291,6 +292,7 @@ class Window(QMainWindow):
             k=label(key,'meta_key');v=label(value,'meta_value',True);v.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse);self.meta.addWidget(k,index,0,Qt.AlignmentFlag.AlignTop);self.meta.addWidget(v,index,1)
         self.details_heading.setVisible(bool(rows))
     def update_details(self):
+        self.mods_button.hide()
         if not self.current:
             for w in [self.play_button,self.prepare_button,self.stop_button]:w.hide();w.setEnabled(False)
             self.options_button.setEnabled(False);self.options_button.hide();self.divider.hide();self.show_metadata([])
@@ -310,6 +312,8 @@ class Window(QMainWindow):
         # Preparation state lives in the saved
         # profile, not in the current Android connection or launcher UI session.
         playing_here=bool(active and active['game']==p['id'])
+        self.mods_button.setVisible(p.get('adapter')=='meego-1.32')
+        self.mods_button.setEnabled(bool(not busy and playing_here))
         self.prepare_button.setVisible(bool(ready['prepare'] and not active))
         self.play_button.setVisible(bool(ready['play'] and not active))
         self.stop_button.setVisible(playing_here)
@@ -318,6 +322,10 @@ class Window(QMainWindow):
         self.stop_button.setEnabled(bool(not busy and playing_here))
         self.options_button.setEnabled(bool(not busy and not active))
         control=CONTROL_PROFILES.get(p.get('adapter'),{'description':'Controls are unknown until this game is investigated.'});self.controls_label.setText('Controls: A / Enter collects. B / Esc returns.' if p['restoration']['path']=='rebuild' else 'Controls: touch or trackpad.' if p.get('adapter') in {'tapquest-v1','meego-1.32'} else 'Controls need game-specific investigation.')
+    def show_mods(self):
+        if not self.current:return
+        from .mods import ModsDialog
+        ModsDialog(self.service,self.current,self).exec()
     def submit(self,title,operation,callback=None):
         if self.worker:return
         if self.monitor_worker and self.monitor_worker.isRunning():
