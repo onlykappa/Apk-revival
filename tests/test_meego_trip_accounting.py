@@ -108,7 +108,7 @@ class CompletedTripAccountingTests(unittest.TestCase):
         self.assertEqual(result['skill_progress']['1']['strength'], 2)
 
     def test_fractional_yields_are_independent_of_poll_segmentation_and_restart(self):
-        for strength, trips, expected in [(35, 12, 27), (60, 10, 25), (25, 20, 43)]:
+        for strength, trips, expected in [(12, 12, 26), (15, 10, 25), (13, 10, 23)]:
             with self.subTest(strength=strength):
                 self.add_worker(1, strength=strength)
                 single = sim.advance(self.data, self.now + trips * 12)
@@ -118,6 +118,24 @@ class CompletedTripAccountingTests(unittest.TestCase):
                 self.assertEqual(many['skill_progress'], single['skill_progress'])
                 self.assertAlmostEqual(many['game_state']['all_villagers']['1']['job']['local_fraction'],
                                        single['game_state']['all_villagers']['1']['job']['local_fraction'])
+
+    def test_strength_24_delivers_17_over_five_trips_without_losing_fraction(self):
+        self.add_worker(1, strength=24)
+        self.assertAlmostEqual(sim.gather_amount(self.data['game_state']['all_villagers']['1'],16),3.4)
+        result = self.advance_segments(self.data, [12] * 5, restart=True)
+        self.assertEqual(self.totals(result), (17,83))
+        self.assertEqual(result['skill_progress']['1']['strength'],17)
+        self.assertEqual(result['game_state']['all_villagers']['1']['job']['local_fraction'],0)
+
+    def test_strength_progression_and_cap_do_not_change_research(self):
+        person = self.data['game_state']['all_villagers']['1']
+        for strength, expected in ((0,2),(10,2),(20,3),(24,3.4),(30,4),(40,5),(1799,5)):
+            person['stats']['strength']=strength
+            for job in (16,17,18):
+                self.assertAlmostEqual(sim.gather_amount(person,job),expected)
+            self.assertEqual(sim.gather_amount(person,20),1)
+        person['stats']['intelligence']=110
+        self.assertEqual(sim.gather_amount(person,20),2)
 
     def test_rollback_and_repeated_clock_never_credit_or_rewind_trip_progress(self):
         result = sim.advance(self.data, self.now + 15)
@@ -136,7 +154,7 @@ class CompletedTripAccountingTests(unittest.TestCase):
         single = sim.advance(self.data, self.now + 160 * 12)
         split = self.advance_segments(self.data, [720, 1200], restart=True)
         frequent = self.advance_segments(self.data, [11, 1] * 160, restart=True)
-        self.assertEqual(self.totals(single), (323, 9677))
+        self.assertEqual(self.totals(single), (357, 9643))
         for result in (split, frequent):
             self.assertEqual(self.totals(result), self.totals(single))
             self.assertEqual(result['skill_progress'], single['skill_progress'])

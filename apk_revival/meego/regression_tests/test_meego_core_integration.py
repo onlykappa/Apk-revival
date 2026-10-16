@@ -331,7 +331,7 @@ class CoreIntegrationTests(unittest.TestCase):
                 settled=sim.advance(data,self.now+12)
                 self.assertEqual(settled['game_state']['resources'][resource]['count'],2)
                 self.assertEqual(settled['game_state']['buildings']['9']['count'],8)
-                person['stats']['strength']=110
+                person['stats']['strength']=20
                 self.assertEqual(sim.gather_amount(person,job_id,data,self.now),3)
         self.assertEqual(sim.gather_amount(self.data['game_state']['all_villagers']['1'],20,self.data,self.now),1)
 

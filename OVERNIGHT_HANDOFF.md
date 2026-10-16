@@ -1,3 +1,26 @@
+## 0.3.24 strength carrying — candidate pending install
+
+User reports Wee Wizz still delivers two items despite STR above20. Read-only
+live snapshot confirmed saved STR24 (subsequently25), no worn items/effects,
+and published basic food gather_rate2.14 (then2.15). Cause is the local /100
+stat slope, not a missing saved stat. Resource carrying now adds one per10 STR
+above10 instead of per100, retaining basic base2 and base cap5 before tools and
+effects. Other resource jobs keep base1; research INT retains /100. STR24 ->3.4
+(17 items over five completed trips); STR25 ->3.5. Fractional yields accumulate,
+so individual trips use whole units. Last-stock and storage constraints apply.
+This is an explicit local balance adjustment, not recovered original-server math.
+
+No live saves edited, stats inflated, resources granted or APK rebuilt. Existing
+assigned jobs refresh normally on next Play/poll using the existing parameters
+path. Work points still require60 actual delivered resources. Earlier closed-game
+food freeze, timer mod, camera/input and original tool/effect fields are retained.
+Source trip tests10 PASS; skills21 PASS. Final frozen candidate411 tests
+PASS in26.757s; build1 PASS in0.707s. Initial run caught an incorrect new
+chainsaw expectation: original item has +2.32 production, zero STR; restored
+its existing assertion and all tests passed. No tool bonus was changed. Candidate dist/APK-Revival-0.3.24-strength-final; frozen test log
+build/strength-packaged-tests-final.log. Installation pending clean game/launcher
+close; live in-game yield has not yet been observed. No claim of hardware proof.
+
 ## 0.3.23 food freeze and temple hunger — installed
 
 User requested food freeze on exit and asked why Temple remains hungry with

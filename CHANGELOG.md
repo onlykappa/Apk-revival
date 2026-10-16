@@ -2,6 +2,11 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.3.24] — Make strength affect resource carrying
+
+- Increase local resource-yield scaling from one per100 extra STR to one per10. STR24 now averages3.4 basic resources per trip, with a five-unit base cap before original equipment/effect bonuses. Research INT behavior is unchanged.
+- Preserve fractional trip accounting, finite last-unit collection, storage limits and delivered-unit skill growth. No save edits or APK preparation required.
+
 ## [0.3.23] — Correct temple hunger and freeze closed-game food
 
 - Derive native hunger from the actual food bank instead of leaving the starter mood flag permanently hungry.
