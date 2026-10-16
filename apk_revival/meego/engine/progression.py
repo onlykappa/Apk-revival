@@ -107,7 +107,11 @@ def record_production_cycle(data, building_type, building_id, event_id, now, rul
                   if str(key).isdigit() and int(key) > 0 and isinstance(value, dict)}
     if not thresholds:
         return False
-    key = f'{kind}:{building_id}'
+    source=data['game_state'].get('buildings',{}).get(str(building_id),{})
+    stable_id=source.get('local_instance_id',building_id)
+    if event_id.startswith(str(building_id)+':'):
+        event_id=str(stable_id)+event_id[len(str(building_id)):]
+    key = f'{kind}:{stable_id}'
     production = _state(data)['production'].setdefault(key, {'count': 0, 'events': []})
     if event_id in production['events'] or production['count'] >= max(thresholds):
         return False

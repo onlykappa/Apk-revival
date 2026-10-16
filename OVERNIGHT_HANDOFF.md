@@ -1204,3 +1204,26 @@ Final candidate:0.3.20-five-minute-six-candidate.
 Installed the5-minute/6-cap candidate at20:59. All307 packaged tests passed;
 all17 protected files remained hash-identical; version/certificate probe passed.
 Native wall-clock five-minute respawn observation remains pending.
+
+
+## Green-check relocation lifecycle and orientation2
+
+The position-only fix moved the save but not the native map object: first move
+saved16.location2765, second still sent675. Native uses destination tile IDs
+and does not observe in-place location changes. Added per-move model rekey,
+explicit old-model deletion, destination creation, referenced worker/depot and
+school-key remapping, stable local reward/progression identities and collision
+rejection. No bulk save migration. Native1/2 facings plus legacy0 are accepted
+across placement/movement/ecology; previous high1 rejected real orientation2.
+Source31 original-rule checks pass. Current-island memory-only check proves
+old16 deletion/new2391 creation with facing2 and unchanged real save bytes.
+Candidate0.3.20-relocation-candidate. Native screen validation pending.
+
+Optional per-timer in-game Skip button feasibility explained; not implemented
+in this hotfix, and no global fast-forward/aging or food changes were made.
+
+Installed at21:11 after the user closed both apps. All328 frozen packaged
+tests passed; all17 protected save/profile/APK files remained hash-identical.
+Installed version/certificate probe passed. SHA256:
+9d811f7ff4ce7e609fa25aec5c20be604d96eae5df5db339da343fcb9fc978c5.
+User asked to verify two consecutive moves plus both facings on the screen.

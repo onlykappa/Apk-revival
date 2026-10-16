@@ -108,10 +108,11 @@ class MeegoSimulationTests(unittest.TestCase):
             self.assertEqual(value['all_villagers']['1']['job']['job_id'],0)
             self.now+=1
         code,value=self.dispatch('game/village/move_building',building_id=ident,to_position=750,orientation=0)
-        self.assertEqual(code,200);self.assertEqual(value['buildings'][str(ident)]['state'],1)
+        self.assertEqual(code,200);self.assertEqual(value['buildings']['750']['state'],1)
+        self.assertNotIn(str(ident),value['buildings'])
         self.assertEqual(sim.housing(value),6)
         saved=server.State(self.temp.name,self.state.seed).data
-        self.assertEqual(saved['game_state']['buildings'][str(ident)]['state'],1)
+        self.assertEqual(saved['game_state']['buildings']['750']['state'],1)
     def test_successful_native_pairing_has_token_and_creates_one_baby(self):
         d=copy.deepcopy(self.state.data)
         d['game_state']['buildings']['2']=g.building(2,5,21,676,self.now)
@@ -121,7 +122,10 @@ class MeegoSimulationTests(unittest.TestCase):
         code,value=self.dispatch('game/village/breed',father_id=1,mother_id=2,token=token)
         self.assertEqual(code,200);self.assertEqual(len(value['all_villagers']),3)
         self.assertEqual(self.dispatch('game/village/breed',father_id=1,mother_id=2,token=token),(code,value))
-        self.assertEqual(server.State(self.temp.name,self.state.seed).data,self.state.data)
+        # Match the request clock: a real second elapsing during the suite
+        # legitimately reduces the restored infant's countdown by one.
+        with patch('apk_revival.meego.engine.server.time.time',return_value=self.now):
+            self.assertEqual(server.State(self.temp.name,self.state.seed).data,self.state.data)
     def test_missing_or_invalid_token_never_creates_a_baby(self):
         d=copy.deepcopy(self.state.data)
         d['game_state']['buildings']['2']=g.building(2,5,21,676,self.now)

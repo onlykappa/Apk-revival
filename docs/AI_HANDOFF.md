@@ -1,3 +1,56 @@
+## Native relocation lifecycle and rotation follow-up
+
+Supersedes the earlier position-only move fix. User confirmed green-check
+acceptance still left the building transparent. Logs proved first move675 ->
+2765 was saved to building16; a second request still used675. Updating location
+on the existing model did not complete the client's relocation lifecycle.
+
+Offline native analysis: JFBuilding.getTileIndex at0x7e7cbc returns the model's
+building_id; JFBuildingStateMovePlacement.placeBuildingWithCallback at0x8c1cac
+looks up map objects using source/destination tile indices. Register observers
+at0x7e89fc track progress/state/type, not location. New relocation helper rekeys
+only a moved building to its destination tile identity, emits a persistent
+explicit old-model deletion and creates the destination model. Handler replies
+combine resource and relocation tombstones (bounded512 each, live reused IDs
+still excluded). No bulk ID/save migration. Normal Play/reopen uses existing
+saved positions; only a user move invokes this lifecycle.
+
+Worker source/target/depot references, building destinations and school session/
+report keys follow the new identity. Building content, progress, paid deadline,
+production-cycle and item inventory remain intact. local_instance_id preserves
+commercial deterministic rolls and progression event/replay identity through
+repeated moves. Identity collisions reject before changing the transaction.
+
+Rotation: original native facing values are1 and2, and legacy local0 remains
+accepted. The previous high=1 validation rejected native2. Updated purchase,
+resource placement, move and ecology-site validation together; unknown3 remains
+rejected. Native initialization at0x7e28c0/0x7e2904 explicitly handles2/1.
+
+Tests include two successive moves with model-cache deletion/addition,
+actual Handler.reply JSON, collision/overlap rejection, orientation2 placement
+and moves, same-position facing change, preserved active work/school/items/
+deadlines, stable reward roll and progression replay denial. Source31 original
+rule checks passed. An in-memory copy of the live island produced old16=null
+and new2391 with matching destination identity/facing2; real save unchanged.
+Candidate: dist/APK-Revival-0.3.20-relocation-candidate.
+Executable SHA256:
+9d811f7ff4ce7e609fa25aec5c20be604d96eae5df5db339da343fcb9fc978c5.
+All328 packaged tests passed, including the added simulation suite. Its
+restart/pairing check now freezes the request clock to prevent a real second
+elapsing from falsely flagging a one-second infant countdown difference.
+Installed with all17 protected files hash-identical; the installed version/
+certificate probe passed. Native green-check move/rotation remains pending
+user confirmation after reopening.
+
+User also asked feasibility of an optional in-game Skip button. This is feasible
+but NOT implemented in this movement hotfix. It must target one selected timer,
+remain opt-in and avoid global clock changes/aging/food side effects. Existing
+finish/speed-up actions provide backend starting points; the new in-game menu
+button needs separate native client/layout work and cannot be claimed from a
+launcher setting or a free premium-action backend alone.
+
+---
+
 ## Requested five-minute resource supply
 
 Ecology policy is now local-resource-replenishment-per-kind-5m-v3. At most one

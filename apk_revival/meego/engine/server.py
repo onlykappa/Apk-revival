@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 from .local_game import migrate, synchronize, ActionError, integer
 from .simulation import advance, mutate, migrate_economy, housing, refresh_aging_jobs, SETTINGS
-from . import community, catalog, ecology, skills, food, birthstones, treasure, scripted_items, adventures, local_game as g
+from . import community, catalog, ecology, skills, food, birthstones, treasure, scripted_items, adventures, relocation, local_game as g
 
 HERE = Path(__file__).resolve().parent
 PACKAGE = 'ata.apkrv.meego'
@@ -329,7 +329,7 @@ class Handler(BaseHTTPRequestHandler):
     def reply(self, code, value):
         state=getattr(getattr(self,'server',None),'state',None)
         if state is not None:
-            with state.lock:projected=native_payload(value,state.data['game_state'],state.data.get(ecology.REMOVED_KEY, {}))
+            with state.lock:projected=native_payload(value,state.data['game_state'],relocation.removed_nodes(state.data))
         else:projected=native_payload(value)
         body = json.dumps(projected, separators=(',', ':')).encode()
         self.send_response(code); self.send_header('Content-Type', 'application/json')

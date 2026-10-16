@@ -28,7 +28,7 @@ def _number(value):
 
 def _roll(data, source, cycle):
     uid = data.get('game_user', {}).get('user_id', 0)
-    seed = f'{POLICY}:{uid}:{source["building_id"]}:{source["building_type"]}:{cycle}'
+    seed = f'{POLICY}:{uid}:{source.get("local_instance_id",source["building_id"])}:{source["building_type"]}:{cycle}'
     return int.from_bytes(hashlib.sha256(seed.encode()).digest()[:8], 'big') % 1_000_000 / 1_000_000
 
 

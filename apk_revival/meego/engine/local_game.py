@@ -192,7 +192,7 @@ def mutate(data, route, params, now=None):
     if route == 'game/village/place_resource':
         kind = integer(params, 'building_type_id', low=2, high=4)
         location = integer(params, 'location', high=MAP_SIZE * MAP_SIZE - 1)
-        orientation = integer(params, 'orientation', default=0, high=1)
+        orientation = integer(params, 'orientation', default=0, high=2)
         # Resource spawns are retried by the original client. Repeated requests
         # for the same node must return the saved node, not allocate another ID.
         if any(b['building_type'] == kind and b['location'] == location for b in houses.values()):
@@ -232,7 +232,7 @@ def mutate(data, route, params, now=None):
         if not rule or not rule.get('active') or kind in (1, 2, 3, 4):
             raise ActionError('This building cannot be bought locally.')
         location = integer(params, 'location', high=MAP_SIZE * MAP_SIZE - 1)
-        orientation = integer(params, 'orientation', default=0, high=1)
+        orientation = integer(params, 'orientation', default=0, high=2)
         state = rule['state_data'][str(rule['default_state'])]
         require_unlocked(gs, state)
         level = gs['achievements']['102']['level']
@@ -259,7 +259,9 @@ def mutate(data, route, params, now=None):
         if route == 'game/village/move_building':
             location = integer(params, 'to_position', high=MAP_SIZE * MAP_SIZE - 1)
             check_placement(gs, b['building_type'], location, ident)
-            b.update(location=location, orientation=integer(params, 'orientation', default=b['orientation'], high=1), last_update=now)
+            orientation=integer(params,'orientation',default=b['orientation'],high=2)
+            from . import relocation
+            relocation.move(new,ident,location,orientation,now)
         elif route == 'game/village/delete_building':
             state = RULES['buildings'][str(b['building_type'])]['state_data'][str(b['state'])]
             if b['building_type'] == 1 or not state.get('can_user_delete'):

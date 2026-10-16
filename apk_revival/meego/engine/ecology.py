@@ -111,7 +111,7 @@ def _sites(buildings, existing, rules):
     sites = []
     for site in existing:
         if (isinstance(site, dict) and site.get('kind') in RESOURCE_LIMITS and
-                site.get('orientation') in (0, 1) and
+                site.get('orientation') in (0, 1, 2) and
                 _footprint(site['kind'], site.get('location'), rules)):
             clean = {key: site[key] for key in ('kind', 'location', 'orientation')}
             if clean not in sites:
@@ -122,7 +122,7 @@ def _sites(buildings, existing, rules):
             continue
         site = dict(kind=kind, location=b.get('location'),
                     orientation=b.get('orientation', 0))
-        if (site['orientation'] in (0, 1) and
+        if (site['orientation'] in (0, 1, 2) and
                 _footprint(kind, site['location'], rules) and site not in sites):
             sites.append(site)
     return sites[-MAX_SITES:]

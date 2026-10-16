@@ -8,7 +8,7 @@ import unittest
 import zipfile
 from unittest.mock import patch
 
-from apk_revival.meego.engine import ecology, effects, local_game as g, server, simulation as sim
+from apk_revival.meego.engine import ecology, effects, relocation, local_game as g, server, simulation as sim
 
 
 def params(**values):
@@ -381,18 +381,30 @@ class CoreIntegrationTests(unittest.TestCase):
                     self.assertEqual(sum(b['building_type']==kind for b in buildings.values()),6)
                 self.assertEqual(data['game_state']['resources'],bank)
 
-    def test_native_move_uses_source_position_then_persists_id_and_orientation(self):
+    def test_native_move_rekeys_destination_model_and_clears_old_cached_building(self):
         data=copy.deepcopy(self.data)
         data['game_state']['buildings']['16']=g.building(16,6,1,675,self.now)
         before=copy.deepcopy(data)
         moved=sim.mutate(data,'game/village/move_building',params(building_id=675,to_position=2693,orientation=1),self.now+1)
         self.assertEqual(data,before)
-        self.assertEqual(moved['game_state']['buildings']['16']['location'],2693)
-        self.assertEqual(moved['game_state']['buildings']['16']['building_id'],16)
-        self.assertEqual(moved['game_state']['buildings']['16']['orientation'],1)
+        self.assertEqual(moved['game_state']['buildings']['2693']['location'],2693)
+        self.assertEqual(moved['game_state']['buildings']['2693']['building_id'],2693)
+        self.assertEqual(moved['game_state']['buildings']['2693']['orientation'],1)
         moved=sim.mutate(json.loads(json.dumps(moved)),'game/village/move_building',params(building_id=2693,to_position=2088,orientation=0),self.now+2)
-        self.assertEqual(moved['game_state']['buildings']['16']['location'],2088)
+        self.assertEqual(moved['game_state']['buildings']['2088']['location'],2088)
         self.assertEqual(moved['game_state']['resources'],before['game_state']['resources'])
+        packet=server.native_payload(moved['game_state'],depleted_nodes=relocation.removed_nodes(moved))
+        self.assertIsNone(packet['buildings']['16'])
+        self.assertIsNone(packet['buildings']['2693'])
+        self.assertEqual(packet['buildings']['2088']['building_id'],2088)
+        # Model-cache removal/addition lets native destination-ID lookup find
+        # the recreated building; merely updating location did not do this.
+        cache=copy.deepcopy(before['game_state']['buildings'])
+        for ident,value in packet['buildings'].items():
+            if value is None:cache.pop(ident,None)
+            else:cache[ident]=value
+        self.assertNotIn('16',cache)
+        self.assertEqual(cache['2088']['location'],2088)
 
     def test_native_move_does_not_allow_overlap_or_unknown_source(self):
         data=copy.deepcopy(self.data)
@@ -402,6 +414,74 @@ class CoreIntegrationTests(unittest.TestCase):
             with self.assertRaises(g.ActionError):
                 sim.mutate(data,'game/village/move_building',params(building_id=source,to_position=destination,orientation=1),self.now+1)
             self.assertEqual(data,before)
+
+    def test_native_second_facing_is_valid_for_placement_and_repeated_moves(self):
+        data=copy.deepcopy(self.data)
+        for resource in data['game_state']['resources'].values():resource['count']=10000
+        data=g.mutate(data,'game/village/place_building',params(building_type_id=5,location=758,orientation=2),self.now)
+        node=next(b for b in data['game_state']['buildings'].values() if b['location']==758)
+        self.assertEqual(node['orientation'],2)
+        data=g.mutate(data,'game/village/move_building',params(building_id=758,to_position=2693,orientation=2),self.now+1)
+        self.assertEqual(data['game_state']['buildings']['2693']['orientation'],2)
+        data=g.mutate(data,'game/village/move_building',params(building_id=2693,to_position=2693,orientation=1),self.now+2)
+        self.assertEqual(data['game_state']['buildings']['2693']['orientation'],1)
+        before=copy.deepcopy(data)
+        with self.assertRaises(g.ActionError):
+            g.mutate(data,'game/village/move_building',params(building_id=2693,to_position=2088,orientation=3),self.now+3)
+        self.assertEqual(data,before)
+
+    def test_move_preserves_active_work_school_records_items_and_paid_timers(self):
+        data=copy.deepcopy(self.data)
+        node=g.building(16,6,1,675,self.now)
+        node.update(progress=25,expire_date=self.now+100,items={'371':{'item_id':371,'count':1}},local_production_cycle=2)
+        data['game_state']['buildings']['16']=node
+        job=data['game_state']['all_villagers']['1']['job']
+        job.update(job_id=20,source_id=16,target_id=16,destination_id=16,local_trip_seconds=3)
+        data['school_sessions']={'16':{'teacher_id':1,'student_ids':[2],'ends_at':self.now+100}}
+        data['school_reports']={'16':{'2':{'success':1}}}
+        before=copy.deepcopy(data)
+        moved=g.mutate(data,'game/village/move_building',params(building_id=675,to_position=2693,orientation=2),self.now+1)
+        node=moved['game_state']['buildings']['2693']
+        for key in ('progress','expire_date','items','local_production_cycle'):
+            self.assertEqual(node[key],before['game_state']['buildings']['16'][key])
+        job=moved['game_state']['all_villagers']['1']['job']
+        for key in ('source_id','target_id','destination_id'):self.assertEqual(job[key],2693)
+        self.assertEqual(job['local_trip_seconds'],3)
+        for key in ('school_sessions','school_reports'):self.assertEqual(moved[key]['2693'],before[key]['16'])
+        self.assertEqual(data,before)
+
+    def test_move_native_reply_emits_old_deletion_and_rejects_identity_collision(self):
+        import io,threading
+        from types import SimpleNamespace
+        data=copy.deepcopy(self.data)
+        data['game_state']['buildings']['16']=g.building(16,6,1,675,self.now)
+        moved=g.mutate(data,'game/village/move_building',params(building_id=675,to_position=2693,orientation=2),self.now+1)
+        class Capture(server.Handler):
+            def send_response(self,*args):pass
+            def send_header(self,*args):pass
+            def end_headers(self):pass
+        handler=Capture.__new__(Capture);handler.wfile=io.BytesIO()
+        handler.server=SimpleNamespace(state=SimpleNamespace(data=moved,lock=threading.RLock()))
+        handler.reply(200,moved['game_state'])
+        wire=json.loads(handler.wfile.getvalue())
+        self.assertIsNone(wire['buildings']['16'])
+        self.assertEqual(wire['buildings']['2693']['building_id'],2693)
+        self.assertEqual(wire['buildings']['2693']['orientation'],2)
+        data['game_state']['buildings']['2693']=g.building(2693,5,1,4000,self.now)
+        before=copy.deepcopy(data)
+        with self.assertRaisesRegex(g.ActionError,'identity'):
+            g.mutate(data,'game/village/move_building',params(building_id=675,to_position=2693,orientation=2),self.now+1)
+        self.assertEqual(data,before)
+
+    def test_move_preserves_commercial_roll_and_production_unlock_replay_identity(self):
+        from apk_revival.meego.engine import commercial,progression
+        data=copy.deepcopy(self.data)
+        node=g.building(16,10,1,675,self.now);data['game_state']['buildings']['16']=node
+        roll=commercial._roll(data,node,3)
+        self.assertTrue(progression.record_production_cycle(data,10,16,'16:1',self.now,g.RULES))
+        moved=g.mutate(data,'game/village/move_building',params(building_id=675,to_position=2693,orientation=2),self.now+1)
+        self.assertEqual(commercial._roll(moved,moved['game_state']['buildings']['2693'],3),roll)
+        self.assertFalse(progression.record_production_cycle(moved,10,2693,'2693:1',self.now+1,g.RULES))
 
     def test_topper_native_absolute_cooldown_and_visible_single_boost_survive_restart(self):
         data=self.source(3,17,30)
