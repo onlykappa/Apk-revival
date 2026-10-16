@@ -16,3 +16,9 @@ userdata/
 verification-artifacts/
 demo/
 source-history.bundle
+
+
+test-support/
+private-analysis/
+/backups/
+/error.log

@@ -31,3 +31,4 @@ class DesktopTests(unittest.TestCase):
                     window.after(150,exercise);return window
                 with patch('tkinter.Tk',side_effect=make_window):run(save)
                 self.assertEqual(Progress(save).get()['coins'],iteration+1)
+

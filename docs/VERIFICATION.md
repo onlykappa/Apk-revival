@@ -49,3 +49,4 @@ Do not flush all rules. Runtime reboot also removes these nonpersistent chains. 
 ## Save restore
 
 Fixture SharedPreferences backups use `run-as` on the debuggable fixture. Unknown private save paths and arbitrary root overwrites are unsupported. Local backend/rebuild saves use atomic JSON. Restore checks original APK hash and selected path and preserves an earlier backup when present. Stop active launchers before restoring through the CLI; the GUI does this automatically.
+

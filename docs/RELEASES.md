@@ -3,7 +3,7 @@
 Download the Linux app from [GitHub Releases](https://github.com/onlykappa/Apk-revival/releases). Published versions have a tag, notes, source archive, Linux installer package and SHA-256 checksums. The repository is private, so sign in with repository access to download.
 
 * **V1 engine / software 0.1.0**: historical source milestone at [the original V1 commit](https://github.com/onlykappa/Apk-revival/tree/7458887bf687eaaf8cf29242ba40be518e761abf). A separate v0.1.0 GitHub release tag was not published.
-* **v0.3.7 / One-click SteamOS Android startup**: starts the existing persistent Android image from Play when needed, reconnects ADB, and avoids re-preparation. Steam Deck runtime verification is still required.\n* **v0.3.6 / SteamOS Konsole startup fix**: cleans inherited packaged Qt plugin settings when launching host Konsole for Waydroid container authorization.
+* **v0.3.8 / Windows-style launcher**: redesigned library, setup and dialogs; game icons, names and details read from each imported APK.\n* **v0.3.7 / One-click SteamOS Android startup**: starts the existing persistent Android image from Play when needed, reconnects ADB, and avoids re-preparation. Steam Deck runtime verification is still required.\n* **v0.3.6 / SteamOS Konsole startup fix**: cleans inherited packaged Qt plugin settings when launching host Konsole for Waydroid container authorization.
 * **v0.3.5 / SteamOS library isolation**: fixes the `OPENSSL_3.4.0 not found` error when running Waydroid/systemctl through an updated packaged launcher. No game data is changed.
 * **v0.3.4 / Prepare once, Play anytime**: streamlined primary game actions, reused prepared artifacts after restart, automatic Android connection at Play, and explicit preparation repair. Physical Waydroid gameplay remains device-dependent.
 * **v0.3.0 / Meego adapter**: original-game preparation and a guided Android test, with no inherited offline verification claim.
@@ -24,3 +24,4 @@ Downloads are unsigned application packages. SHA-256 checksums detect corruption
 ## Historical V1 tag
 
 The historical V1 release backfill returned HTTP 403 because GitHub Actions cannot tag an older commit whose workflow files differ from the default branch with its default token. This does not affect current release downloads. V1 history remains in CHANGELOG and the original commit. Backfilling that tag requires a repository owner using GitHub or a separately authorized maintainer tool. Never move the V1 tag to V2 code to avoid this restriction.
+

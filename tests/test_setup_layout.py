@@ -1,5 +1,6 @@
 """Regression for overlapping Setup controls at Deck-sized viewports."""
 import os,pathlib,tempfile,unittest
+from unittest.mock import patch
 
 @unittest.skipUnless(os.getenv('QT_QPA_PLATFORM')=='offscreen','Qt offscreen layout checks')
 class SetupLayoutTests(unittest.TestCase):
@@ -12,7 +13,8 @@ class SetupLayoutTests(unittest.TestCase):
         app=QApplication.instance() or QApplication([]);app.setStyleSheet(STYLE)
         for size in [(1280,800),(1000,650)]:
             with self.subTest(size=size),tempfile.TemporaryDirectory() as temp:
-                w=Window(Store(pathlib.Path(temp)));w.resize(*size);w.show();app.processEvents();w.updates_button.click();app.processEvents();self.assertIs(w.stack.currentWidget(),w.setup);w.setup_scroll.verticalScrollBar().setValue(0);app.processEvents()
+                with patch.object(Window,'check_runtime'):w=Window(Store(pathlib.Path(temp)))
+                w.check_runtime=lambda:None;w.resize(*size);w.show();app.processEvents();w.updates_button.click();app.processEvents();self.assertIs(w.stack.currentWidget(),w.setup);w.setup_scroll.verticalScrollBar().setValue(0);app.processEvents()
                 content=w.setup_scroll.widget();controls=content.findChildren(QPushButton)+content.findChildren(QComboBox)+content.findChildren(QLineEdit)
                 rectangles=[]
                 for widget in controls:
@@ -25,3 +27,4 @@ class SetupLayoutTests(unittest.TestCase):
                 self.assertGreater(w.setup_scroll.verticalScrollBar().value(),0)
                 mapped=last.mapTo(w.setup_scroll.viewport(),QPoint(0,0));self.assertGreaterEqual(mapped.y(),0);self.assertLessEqual(mapped.y()+last.height(),w.setup_scroll.viewport().height())
                 w.close();app.processEvents()
+

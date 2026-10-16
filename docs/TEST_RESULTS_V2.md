@@ -25,3 +25,4 @@ No V2 gameplay check ran on actual Android. V1's earlier emulator attempt timed 
 Physical gamepad/touch hardware, Steam Gaming Mode, SteamOS-specific Waydroid installation, ARM translation and private save permissions require target-device testing. No commercial game restoration was demonstrated. Unknown games require evidence and a trusted game-specific adapter.
 
 The two optional Tk tests were previously exercised during V1; V2's automated suite focuses on the new Qt launcher. GitHub Actions results must be read from the actual published workflow run and are not assumed from these local results.
+

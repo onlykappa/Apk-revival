@@ -2,6 +2,7 @@
 # Private Cage client. Stop the session if its display loop has disappeared.
 set -Eeuo pipefail
 resources="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$resources/managed-waydroid-privilege.sh"
 randr="$HOME/.local/opt/steamos-waydroid/current/bin/wlr-randr"
 outputs="$(timeout 5 "$randr")"
 count=0
@@ -54,7 +55,7 @@ watch_display() {
 watch_display &
 watcher=$!
 startup_state authorizing
-sudo -A /bin/bash "$resources/managed-waydroid-startup.sh"
+apkr_runtime_privileged post-start
 config="$HOME/Android_Waydroid/config"
 for setting in fake_wifi fake_touch; do
     if [[ -r "$config/$setting" ]]; then

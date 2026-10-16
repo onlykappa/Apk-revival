@@ -68,3 +68,4 @@ public class MainActivity extends Activity {
     private void render(String event) { status.setText("Coins: "+coins+"    Level: "+level);collect.setEnabled(true);event(event); }
     private void event(String name) {Log.i("APKRevival", "APKR_EVENT {\"event\":\""+name+"\",\"coins\":"+coins+",\"level\":"+level+",\"mode\":\""+(offline?"offline":"remote")+"\"}");}
 }
+

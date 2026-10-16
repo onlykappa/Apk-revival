@@ -29,3 +29,4 @@ def build_assets(root=ROOT):
     return value
 
 if __name__=='__main__':print(build_assets())
+

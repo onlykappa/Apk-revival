@@ -120,3 +120,4 @@ class InputRoleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             root=pathlib.Path(t);asset=root/'assets.dat';asset.write_bytes(b'asset');log=root/'launch.log';log.write_text('FATAL EXCEPTION: main\njava.net.UnknownHostException: retired.invalid\n')
             s=Store(root/'data');p=s.import_game(make_apk(root/'game.apk'),[('asset',asset),('log',log)]);p=analyze(s,p['id']);self.assertEqual(p['inputs'][1]['role'],'asset');self.assertEqual(len(p['analysis']['supplied_log_observations']),2)
+

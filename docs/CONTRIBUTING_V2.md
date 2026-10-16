@@ -26,3 +26,4 @@ Linux packaging needs SDL2 and Qt's XCB dependencies on the build host. CI insta
 The CI package is attached to the native-launcher workflow run as an artifact. CI tests are not Android gameplay verification. Use the runtime-specific offline verifier on a compatible guest and record its evidence before claiming Verified Offline.
 
 Publishing uses the Release workflow; see [RELEASES.md](RELEASES.md). EGL and the full XCB dependency set must be present on the build host. The release runner checks actual XCB startup before publishing.
+

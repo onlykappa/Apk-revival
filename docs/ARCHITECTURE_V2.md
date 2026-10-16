@@ -44,3 +44,4 @@ Start with [ADAPTERS.md](ADAPTERS.md). Supply exact APK/version evidence, explic
 ## Meego adapter in 0.3.0
 
 Meego adds a bounded binary-operation type restricted to reviewed native/compiled targets for the exact original APK hash. Backend code is trusted source; rule tables are extracted from user-owned assets into private working copies. Prepared client package metadata is separate from original metadata so prior installs stay intact. Saves, runtime lifecycle and native/source exports support this local-backend adapter. Its guided verifier records explicit user observations plus Android/network/service evidence and refuses a passing claim without the required checks.
+

@@ -17,3 +17,4 @@ Portable `hashes.json` detects corruption and accidental changes; it is **not a 
 The offline verifier changes guest firewall chains temporarily, not the host firewall. It fails rather than certify partial blocking. Abrupt termination may leave guest chains; recovery is documented in VERIFICATION.md. Multiple concurrent workbench processes sharing one private store are not supported.
 
 This project cannot recover missing proprietary server code, authorize redistribution, or guarantee original gameplay. Evidence and testing scope accompany every claim.
+

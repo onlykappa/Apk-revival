@@ -64,3 +64,4 @@ A backend is bound to host loopback. `adb reverse --no-rebind` creates a guest l
 ## Reproducibility limits
 
 Plans are reproducible logical transformations with exact preconditions. Signing keys and ZIP timestamps mean builds are not promised byte-for-byte identical. The user's local signing identity is reused for later exports. External tools can reject unsupported resources/framework versions; a successful tool exit is followed by manifest identity, alignment and signature checks, never substituted for gameplay verification.
+

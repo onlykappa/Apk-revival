@@ -29,3 +29,4 @@ python3 scripts/demo.py
 `build/demo-exports/` contains all three portable packages and a precise demonstration report. `build/demo-data/` is private ignored test work; never commit it. Each rebuilt artifact is actually signed and checked with Android `apksigner`, not renamed from a plain ZIP. The build script uses ephemeral fixture signing keys; the workbench maintains a private local signing identity for restoration exports.
 
 To test Android gameplay, configure a running Waydroid guest in the workbench, prepare a path, and run Verify. To exercise the independent rebuild, prepare that path and press Play, or run its exported `run.py`. The built APK and test exports supplied in a release are self-authored fixtures only.
+

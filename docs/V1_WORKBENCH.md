@@ -119,3 +119,4 @@ No signing keys, accounts, purchase credentials or API key are required to start
 If the supplied repository is not accessible through the GitHub app, use the source archive and [PUBLISHING.md](docs/PUBLISHING.md). This does not block local operation.
 
 MIT license covers this project's source and self-authored fixture. Android SDK, apktool and Eclipse compiler retain their own licenses.
+

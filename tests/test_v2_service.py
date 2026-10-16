@@ -14,8 +14,8 @@ class V2ServiceTests(unittest.TestCase):
     def tearDown(self):self.s.shutdown();self.temp.cleanup()
     def job(self,label,fn):return self.s.jobs.run(label,fn)
     def import_fixture(self):return self.job('import',lambda ctx:self.s.import_game(make_apk(self.root/'game.apk'),[],ctx))
-    def test_unknown_game_never_ready(self):
-        p=self.job('import',lambda ctx:self.s.import_game(make_apk(self.root/'unknown.apk',fixture=False),[],ctx));r=readiness(p,True);self.assertFalse(r['play']);self.assertFalse(r['prepare']);self.assertEqual(r['label'],'Restoration work needed')
+    def test_unknown_game_can_play_original_without_restoration_adapter(self):
+        p=self.job('import',lambda ctx:self.s.import_game(make_apk(self.root/'unknown.apk',fixture=False),[],ctx));r=readiness(p,True);self.assertTrue(r['play']);self.assertFalse(r['prepare']);self.assertEqual(r['label'],'Ready to Play')
         with self.assertRaisesRegex(RevivalError,'game-specific'):self.job('prepare',lambda ctx:self.s.prepare(p['id'],None,ctx))
     def test_rebuild_lifecycle_backup_export_and_private_diagnostics(self):
         p=self.import_fixture();game=p['id'];p=self.job('prepare',lambda ctx:self.s.prepare(game,'rebuild',ctx));self.assertEqual(readiness(p)['label'],'Separate rebuild ready')
@@ -90,7 +90,7 @@ class V2ServiceTests(unittest.TestCase):
     def test_multiple_devices_require_selection(self):
         manager=RuntimeManager();manager.discover=lambda:{'ready':True,'waydroid':False,'devices':[{'serial':'one','state':'device'},{'serial':'two','state':'device'}]}
         with self.assertRaisesRegex(RevivalError,'More than one'):manager.ensure()
-        self.assertEqual(manager.ensure('two'),'two')
+        with patch('apk_revival.launcher.runtime_setup.WaydroidRuntime.shell',side_effect=['1','Display 0','package:/system/framework/framework-res.apk']):self.assertEqual(manager.ensure('two'),'two')
     def test_manual_connection_rejects_shell_payload(self):
         with self.assertRaises(RevivalError):RuntimeManager().connect_manual('1.2.3.4; touch /tmp/never')
     def test_user_local_install_keeps_prior_install(self):
@@ -124,3 +124,4 @@ class NativeExportTests(unittest.TestCase):
                 self.assertIn('Play-Game',z.namelist());self.assertNotIn('_internal/resources/tapquest-original.apk',z.namelist());self.assertFalse(any('/saves/' in x for x in z.namelist()));self.assertIn('START-HERE.txt',z.namelist())
                 import hashlib
                 for name,sha in json.loads(z.read('hashes.json')).items():self.assertEqual(hashlib.sha256(z.read(name)).hexdigest(),sha)
+

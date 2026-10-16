@@ -203,7 +203,8 @@ class RuntimeManager:
         if not askpass.is_file():raise RevivalError('Graphical authorization helper is missing.')
         askpass.chmod(0o700);env=self.environment();env['SUDO_ASKPASS']=str(askpass)
         progress('Checking ownership of the existing Android main profile')
-        command([tool('sudo'),'-A','/usr/bin/waydroid-mount','main','--check-only'],timeout=20,env=env)
+        from .runtime_access import preflight_command
+        command(preflight_command(tool('sudo')),timeout=20,env=env)
         progress('Stopping the stale Android session')
         command([tool('waydroid'),'session','stop'],timeout=15,env=env)
         if self.bundle_process and self.bundle_process.poll() is None:

@@ -35,3 +35,4 @@ git push -u origin main
 Authenticate using your normal Git credential manager or GitHub CLI; do not paste a token into a URL or source file. Never force-push over unrelated history. Review staged contents for imported games, private saves, logs and signing secrets. Workbench data defaults outside the repository and is not part of this commit.
 
 An optional self-authored fixture APK may be uploaded as a release artifact. Proprietary user inputs must not be uploaded automatically.
+

@@ -4,9 +4,11 @@ set -Eeuo pipefail
 source /usr/lib/steamos-waydroid/waydroid-profile.sh
 resolve_waydroid_profile main
 export XDG_DATA_HOME=$WAYDROID_XDG_DATA_HOME
-sudo -A /usr/bin/waydroid-mount main --check-only
-sudo -A /usr/bin/waydroid-mount main
-sudo -A /usr/bin/waydroid-firewall
+resources="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$resources/managed-waydroid-privilege.sh"
+apkr_runtime_privileged preflight
+apkr_runtime_privileged mount
+apkr_runtime_privileged start-container
 bundle="$HOME/.local/opt/steamos-waydroid/current"
 selector="$HOME/Android_Waydroid/select-bundle"
 if [[ -x "$selector" ]]; then "$selector"; fi

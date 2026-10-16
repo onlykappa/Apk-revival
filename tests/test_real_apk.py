@@ -23,3 +23,4 @@ class RealAPKTests(unittest.TestCase):
                 with zipfile.ZipFile(out) as z:
                     self.assertIn('restored.apk',z.namelist());self.assertFalse(any('password' in n or '.p12' in n or '/saves/' in n or '/originals/' in n for n in z.namelist()));self.assertEqual(json.loads(z.read('profile.json'))['status'],'Exported but Unverified')
                 self.assertEqual(digest(original),original_hash)
+

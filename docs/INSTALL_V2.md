@@ -97,3 +97,4 @@ debugging and Always allow from this computer, then Check again. Backend
 health requests are generated inside Android, avoiding the ADB stdin behavior
 observed in the Deck diagnostic. A passing transport check is not gameplay
 verification.
+

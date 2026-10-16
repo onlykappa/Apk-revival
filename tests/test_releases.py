@@ -12,3 +12,4 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             p=pathlib.Path(t);(p/'apk_revival').mkdir();(p/'pyproject.toml').write_text('[project]\nversion="0.2.0"\n');(p/'apk_revival/__init__.py').write_text('__version__="0.1.0"')
             with self.assertRaisesRegex(ValueError,'versions differ'):release.version(p)
+

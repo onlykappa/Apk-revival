@@ -55,3 +55,4 @@ Both Android demo exports are **Exported but Unverified**. The independent rebui
 The source ZIP includes `demo/tapquest-original.apk`, `demo/offline_patch.zip`, `demo/local_backend.zip`, `demo/rebuild.zip`, a sanitized demonstration report and test output. Source control contains only fixture source and sanitized profile examples. The APKs and export packages are self-authored fixture artifacts, not proprietary games.
 
 The portable rebuild can run immediately with Python/Tk. The original APK and APK exports require an Android runtime. Reproducing new signed exports additionally needs the documented SDK tools. Runtime verification should be completed on a configured Waydroid installation before making offline-play claims.
+

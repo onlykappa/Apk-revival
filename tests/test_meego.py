@@ -1,5 +1,5 @@
 """Opt-in real APK tests. Android gameplay is not mocked into a passing claim."""
-import copy,json,os,pathlib,socket,tempfile,unittest,urllib.parse,urllib.request,zipfile
+import copy,json,os,pathlib,socket,tempfile,unittest,urllib.error,urllib.parse,urllib.request,zipfile
 from apk_revival.store import Store
 from apk_revival.launcher.service import Launcher
 from apk_revival.meego.adapter import ORIGINAL_SHA,PACKAGE
@@ -23,8 +23,19 @@ class RealMeegoTests(unittest.TestCase):
         with urllib.request.urlopen(urllib.request.Request(f'http://127.0.0.1:{self.backend.port}/'+path,data=data),timeout=10) as r:return json.load(r)
     def test_real_signed_client_and_protocol_save_export(self):
         self.assertEqual(self.p['apk_sha256'],ORIGINAL_SHA);self.assertEqual(self.p['restoration']['client_package'],PACKAGE);self.assertTrue(self.p['restoration']['signature_verified']);artifact=self.store.directory(self.game)/self.p['restoration']['artifact'];self.assertIn('Verifies',command([tool('apksigner'),'verify','--verbose',artifact]))
-        self.start();self.assertEqual(self.request('health')['token'],self.backend.token);self.assertEqual(len(self.request('game/login/oauth')['game_state']['all_villagers']),2)
-        before=copy.deepcopy(self.backend.server.state.data);self.request('game/village/place_building',{'building_type_id':5,'location':676,'orientation':1});after=copy.deepcopy(self.backend.server.state.data);self.assertGreater(len(after['game_state']['buildings']),len(before['game_state']['buildings']));self.assertIn('exception',self.request('game/village/unknown'));saved=copy.deepcopy(self.backend.server.state.data);self.backend.stop();self.start();self.assertEqual(self.backend.server.state.data,saved);self.backend.stop()
+        self.start();self.assertEqual(self.request('health')['token'],self.backend.token)
+        login=self.request('game/login/oauth')
+        self.assertEqual(len(login['game_state']['all_villagers']),2)
+        self.assertEqual(len(login['techtree']['birthsigns']),35)
+        self.assertTrue(login['techtree']['birthsigns']['4']['description'])
+        self.assertGreater(login['techtree_version'],2.94)
+        funded=copy.deepcopy(self.backend.server.state.data)
+        for ident in ('1','2'):funded['game_state']['resources'][ident]['count']=50
+        self.backend.server.state.persist(funded)
+        before=copy.deepcopy(self.backend.server.state.data);self.request('game/village/place_building',{'building_type_id':5,'location':676,'orientation':1});after=copy.deepcopy(self.backend.server.state.data);self.assertGreater(len(after['game_state']['buildings']),len(before['game_state']['buildings']))
+        with self.assertRaises(urllib.error.HTTPError) as rejected:self.request('game/village/unknown')
+        self.assertEqual(rejected.exception.code,501);self.assertIn('exception',json.load(rejected.exception))
+        saved=copy.deepcopy(self.backend.server.state.data);self.backend.stop();self.start();self.assertEqual(self.backend.server.state.data,saved);self.backend.stop()
         backup=Saves(self.store).backup(self.game);changed=copy.deepcopy(saved);changed['game_user']['username']='temporary';atomic_json(self.store.directory(self.game)/'saves/village.json',changed);self.assertTrue(Saves(self.store).restore(self.game,backup)['previous_backup'])
         out=self.root/'export.zip';self.launcher.jobs.run('export',lambda c:self.launcher.export(self.game,out,c))
         with zipfile.ZipFile(out) as z:
@@ -76,5 +87,11 @@ class MeegoGUI(unittest.TestCase):
             QTest.qWait(100);wait()
             def fill():
                 d=app.activeModalWidget();d.apk.setText(os.environ['APKR_MEEGO_APK']);d.add.click()
-            QTimer.singleShot(50,fill);w.add_button.click();wait();self.assertEqual(w.profile()['adapter'],'meego-1.32');w.prepare_button.click();wait();self.assertTrue(w.profile()['restoration']['signature_verified']);self.assertEqual(w.play_button.text(),'Set up Android')
+            QTimer.singleShot(50,fill);w.add_button.click();wait();self.assertEqual(w.profile()['adapter'],'meego-1.32');w.prepare_button.click();wait();self.assertTrue(w.profile()['restoration']['signature_verified'])
+            # Managed startup belongs to Play; an unconnected guest must not
+            # replace the prepared game's button with the old manual setup UI.
+            self.assertEqual(w.play_button.text(),'Play')
+            self.assertTrue(w.play_button.isVisible());self.assertTrue(w.play_button.isEnabled())
+            self.assertEqual(w.readiness_label.text(),'Prepared')
             QTimer.singleShot(100,lambda:app.activeModalWidget().reject());w.test_offline();self.assertFalse(w.profile()['verification'][-1]['passed']);self.assertNotEqual(w.profile()['status'],'Verified Offline');w.close();app.processEvents()
+

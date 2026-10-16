@@ -21,7 +21,8 @@ class Launcher:
         ctx.step('Checking game files');p=self.store.import_game(apk,support);ctx.step('Analyzing dependencies');p=analyze(self.store,p['id'])
         from .apk_info import inspect_apk
         p.setdefault('launcher',{})['apk']=inspect_apk(self.store.base(p),self.store.directory(p['id']))
-        title=p['launcher']['apk'].get('label') or p['analysis']['metadata']['application'].get('label')
+        from .metadata import resolve_label
+        title=p['launcher']['apk'].get('label') or resolve_label(self.store.base(p),p['analysis']['metadata']['application'].get('label'))
         if p['analysis']['fixture']:p['title']='Tap Quest'
         elif p.get('adapter')=='meego-1.32':p['title']='The Meego'
         elif title and not title.startswith('@'):p['title']=title[:100]
@@ -72,7 +73,8 @@ class Launcher:
         if direct:return self.play_original(p,ctx)
         if p['restoration']['path']=='rebuild':
             if not p['rebuild'].get('feasibility'):raise RevivalError('Prepare the rebuild first.')
-            self.active={'game':game,'kind':'rebuild','started_at':now()};return self.active
+            self.active={'game':game,'kind':'rebuild','started_at':now()}
+            p.setdefault('launcher',{})['last_played']=self.active['started_at'];self.store.save(p);return self.active
         artifact=p.get('restoration',{}).get('artifact')
         expected=p.get('restoration',{}).get('artifact_sha256')
         if not artifact or not expected:raise RevivalError('This game is not prepared. Choose Prepare game first.')
@@ -87,7 +89,7 @@ class Launcher:
             if p['restoration']['path']=='local_backend':ctx.step('Starting local services');runtime.start_backend(self.store,p)
             ctx.step('Launching the game');runtime.launch(p)
             self.active={'game':game,'kind':'android','started_at':now(),'serial':serial}
-            p=self.store.load(game);p.setdefault('launcher',{}).setdefault('launch_checks',[]).append({'kind':'android_activity','time':now(),'artifact_sha256':p['restoration']['artifact_sha256'],'serial':serial,'offline_gameplay_verified':False})
+            p=self.store.load(game);p.setdefault('launcher',{}).setdefault('launch_checks',[]).append({'kind':'android_activity','time':now(),'artifact_sha256':p['restoration']['artifact_sha256'],'serial':serial,'offline_gameplay_verified':False});p['launcher']['last_played']=self.active['started_at']
             self.store.save(p);return self.active
         except Exception:
             try:

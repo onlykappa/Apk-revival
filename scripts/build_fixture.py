@@ -26,3 +26,4 @@ if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--android-jar',required=True);p.add_argument('--ecj',required=True);p.add_argument('--out',default=str(ROOT/'build/tapquest-original.apk'));a=p.parse_args()
     try:build(a.android_jar,a.ecj,a.out)
     except RevivalError as e:print(e,file=sys.stderr);sys.exit(1)
+

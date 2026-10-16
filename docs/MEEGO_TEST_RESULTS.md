@@ -29,3 +29,4 @@ This environment exposes no Binder devices, Wayland session or KVM device and ha
 Run Game options > Advanced > Test offline now after successful Prepare and Setup. Confirm village/menu interaction, a new building purchase/upgrade, saved progress after client/backend restart, and recovery after intentionally stopping the backend. The test records the observations alongside runtime/network evidence, binds results to the exact prepared APK hash and restores owned rules on completion/cancellation.
 
 Physical controls, Gaming Mode, ARM translation, untested mechanics and full original feature parity remain outside the observed test scope.
+

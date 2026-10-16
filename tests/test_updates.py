@@ -111,3 +111,4 @@ class ApplyUpdateTests(unittest.TestCase):
             with patch('pathlib.Path.home',return_value=root),patch('os.kill',side_effect=ProcessLookupError),patch('subprocess.Popen') as popen:
                 self.assertEqual(apply_update(str(source),12345,True,str(data)),0)
             args=popen.call_args.args[0];self.assertIn('--fullscreen',args);self.assertEqual(args[-2:],['--data',str(data)]);self.assertEqual((data/'save.json').read_text(),'saved')
+

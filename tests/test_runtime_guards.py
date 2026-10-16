@@ -54,3 +54,4 @@ class GuestHTTPProbeTests(unittest.TestCase):
         runtime=WaydroidRuntime('explicit-guest');runtime.backend=SimpleNamespace(port=12345,token='fresh-unique-nonce')
         with patch.object(runtime,'adb',return_value=''):
             with self.assertRaisesRegex(RevivalError,'no HTTP response'):runtime.probe_backend()
+

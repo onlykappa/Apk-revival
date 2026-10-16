@@ -68,3 +68,4 @@ class V2GUI(unittest.TestCase):
         self.w.demo_button.click();self.wait();self.assertEqual(self.w.profile()['restoration']['path'],'rebuild');self.assertTrue(self.w.play_button.isEnabled());self.assertNotEqual(self.w.profile()['status'],'Verified Offline')
 
 if __name__=='__main__':unittest.main()
+

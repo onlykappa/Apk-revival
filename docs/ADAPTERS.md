@@ -46,3 +46,4 @@ Asset-only changes rebuild the APK archive directly while preserving original co
 ## Current fixture implementation
 
 Plan generation, config changes, backend semantics and independent rebuild are implemented. Backend source derives directly from the self-authored fixture source. Progress is integer coins and level `1 + coins // 10`. The offline patch uses the preexisting SharedPreferences branch; it does not replace gameplay with a dummy loading screen. The independent rebuild uses the same original mechanics but is clearly a separate desktop game.
+

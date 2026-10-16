@@ -9,3 +9,4 @@ shutil.copyfile(root/'docs/INSTALL_V2.md',app/'START-HERE.txt')
 out=root/'dist/APK-Revival-v2-linux-x86_64.tar.gz'
 with tarfile.open(out,'w:gz',compresslevel=6) as tar:tar.add(app,arcname='APK-Revival')
 print(out)
+

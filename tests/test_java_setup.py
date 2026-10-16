@@ -19,3 +19,4 @@ class JavaSetupTests(unittest.TestCase):
             root=pathlib.Path(temp);binary=root/'custom/bin/java';binary.parent.mkdir(parents=True);binary.write_text('test')
             with patch.dict(os.environ,{'APKR_JAVA':str(binary),'PATH':'/usr/bin'},clear=True):
                 configure(root);self.assertEqual(os.environ['JAVA_HOME'],str(root/'custom'));self.assertEqual(os.environ['PATH'].split(os.pathsep)[0],str(binary.parent))
+

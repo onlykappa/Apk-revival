@@ -20,3 +20,4 @@ def publish():
     print('Published '+tag)
 
 if __name__=='__main__':publish()
+

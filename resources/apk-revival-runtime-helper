@@ -1,0 +1,30 @@
+#!/bin/bash
+# APK Revival fixed main-profile runtime helper v1. Install root-owned only.
+set -Eeuo pipefail
+export PATH=/usr/bin:/bin
+unset BASH_ENV ENV CDPATH PYTHONHOME PYTHONPATH LD_LIBRARY_PATH LD_PRELOAD
+[[ $EUID == 0 && $# == 1 ]] || { echo 'Run the installed runtime helper through sudo with one supported action.' >&2; exit 64; }
+case "$1" in probe|preflight|mount|start-container|post-start) ;; *) exit 64 ;; esac
+[[ -n "${SUDO_USER:-}" && "$SUDO_USER" != root && "${SUDO_UID:-}" =~ ^[0-9]+$ ]] || exit 65
+[[ "$(id -u -- "$SUDO_USER")" == "$SUDO_UID" ]] || exit 65
+if [[ $1 == probe ]]; then echo 'apk-revival-runtime-v1'; exit 0; fi
+source /usr/lib/steamos-waydroid/shared-folder.sh
+resolve_waydroid_profile main
+export XDG_DATA_HOME=$WAYDROID_XDG_DATA_HOME
+export HOME=/root
+case "$1" in
+    preflight) exec /usr/bin/waydroid-mount main --check-only ;;
+    mount) exec /usr/bin/waydroid-mount main ;;
+    start-container) exec /usr/bin/waydroid-firewall ;;
+    post-start)
+        user_home="$(waydroid_user_home)"
+        mount_waydroid_share_when_ready "$user_home" 90 2 main
+        for event in /sys/devices/virtual/input/input*/event*/uevent; do
+            [[ ! -w "$event" ]] || printf 'add\n' > "$event"
+        done
+        if [[ "$(/usr/bin/waydroid shell -- getprop ro.build.version.sdk)" == 36 && -x /usr/bin/waydroid-controller-hotplug ]]; then
+            /usr/bin/waydroid-controller-hotplug --stop main || true
+            /usr/bin/waydroid-controller-hotplug main &
+        fi
+        ;;
+esac

@@ -2,6 +2,7 @@
 # Opt-in client of the existing KDE compositor. Never manage the compositor.
 set -Eeuo pipefail
 resources="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$resources/managed-waydroid-privilege.sh"
 session=""
 startup_ready=false
 startup_state() {
@@ -36,7 +37,7 @@ trap 'exit 143' TERM HUP INT
 waydroid session start &
 session=$!
 startup_state authorizing
-sudo -A /bin/bash "$resources/managed-waydroid-startup.sh"
+apkr_runtime_privileged post-start
 kill -0 "$session" 2>/dev/null || {
     echo 'The Android session ended during runtime startup.' >&2
     exit 1

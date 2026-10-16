@@ -26,3 +26,4 @@ env={**{f'APKR_{n.upper()}':str(root/'android-15'/n) for n in ['aapt','d8','apks
 (root/'env.sh').write_text('\n'.join('export '+k+'='+shlex.quote(v) for k,v in env.items())+'\n')
 print('Next: source '+shlex.quote(str(root/'env.sh')))
 if a.fixture:print('Fixture build: python3 scripts/build_fixture.py --android-jar '+shlex.quote(str(root/'android-35/android.jar'))+' --ecj '+shlex.quote(str(root/'ecj.jar')))
+

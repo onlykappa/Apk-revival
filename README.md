@@ -1,3 +1,7 @@
+> Local 0.3.9 adds read-only input diagnostics for Meego zoom/touch investigation. No input/performance optimization is claimed yet; physical comparisons remain blocked in the agent session. See [touch investigation](docs/TOUCH_DIAGNOSTICS.md).
+
+> Local 0.3.16 candidate: managed APK Play, Dolphin integration, connection recovery and Meego gameplay timing repairs. See [opener usage](docs/APK_OPENER.md), [Meego scope](docs/MEEGO.md) and the current [overnight test/handoff record](OVERNIGHT_HANDOFF.md). Waydroid remains the internal Android runtime; original-server parity and physical input certification are incomplete.
+
 <p align="center">
   <img src="resources/apk-revival-logo.png" alt="APK Revival logo" width="128" />
 </p>
@@ -9,7 +13,7 @@
   <a href="docs/INSTALL_V2.md">Steam Deck setup</a>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.3.7-9fe5c4?labelColor=16242b" alt="Version 0.3.7" />
+  <img src="https://img.shields.io/badge/version-0.3.8-9fe5c4?labelColor=16242b" alt="Version 0.3.8" />
   <img src="https://img.shields.io/badge/Linux-x86__64-9fe5c4?labelColor=16242b" alt="Linux x86_64" />
   <img src="https://img.shields.io/badge/status-preview-efce7d?labelColor=16242b" alt="Preview, hardware unverified" />
   <img src="https://img.shields.io/badge/license-MIT-9fe5c4?labelColor=16242b" alt="MIT source license" />
@@ -81,3 +85,4 @@ Private originals, assets, saves and signing keys live outside the repository. C
 Supply the exact base APK, title/version and where startup fails; matching split APKs and OBBs; available downloaded asset/cache folders; optional clean save and save location; launch/crash logs and screenshots; any available source or documented protocol examples; and your SteamOS/Waydroid version, guest architecture and ARM translation details. Redact credentials and tokens. Signing keys are not needed for analysis.
 
 Missing server code or assets may make restoration impractical. Prefer the smallest supported change preserving gameplay; rebuilding requires a feasibility assessment and remains a separate result.
+

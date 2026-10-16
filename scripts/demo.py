@@ -29,3 +29,4 @@ for path in ['offline_patch','local_backend','rebuild']:
     assert digest(a.apk)==original
 summary={'fixture':'self-authored executable Android APK','original_sha256':original,'game_id':game,'exports':outputs,'tested':['Real binary APK import and AXML/DEX inspection','Reviewed config patch, rebuild, alignment and signature verification','Host local backend progression, restart persistence and save backup/restore','Independent fixture rebuild packaging','Export hashes and private-file exclusions'],'unverified':['Android cold launch and meaningful gameplay','Android-to-host backend reachability','Guest egress enforcement','Android save/relaunch and backend failure recovery','Desktop rebuild interaction on Android is not applicable'],'status':'Exported but Unverified'}
 atomic_json(pathlib.Path(a.out)/'demo-result.json',summary);print(json.dumps(summary,indent=2))
+

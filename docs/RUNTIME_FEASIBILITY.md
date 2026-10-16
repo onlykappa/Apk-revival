@@ -1,0 +1,24 @@
+# Runtime-free Meego feasibility — 2026-10-13
+
+The product requirement is an all-in-one fixer and launcher: select/import, repair where supported, Play, and the game appears. Managing an Android desktop should not be part of the required user flow. The current Play path already starts the existing runtime and resolves/launches the game activity directly. The separate Setup controls are troubleshooting facilities. This does not establish a self-contained runtime installer or runtime-free execution.
+
+## What the actual artifacts establish
+
+REA identified the selected restored Meego APK as an archive with SHA-256 `5b00554daae68fd65406b80777878fa03607ac4861da781a07051b29348ebaee`. REA's Android decompiler remains unavailable because the required caller-supplied JADX MCP JAR is absent. Standard ZIP, ELF/readelf and DEX table inspection supplied the following bounded static evidence; no game binaries or Android data were modified.
+
+The APK contains 15 ARM32 shared libraries under `lib/armeabi`, including `libverde`, Apportable BridgeKit/Foundation/Objective-C support, FMOD and OpenAL. `libverde` needs Android/Bionic libc, logging, GLES1/GLES2 and the packaged support libraries. Its actual exported JNI entry points include activity lifecycle methods, surface changes, window focus, touch begin/move/end/cancel and keyboard events. DEX class declarations show the Apportable Application extends Android Application and its GLSurfaceView extends Android SurfaceView. Framework strings alone are not treated as necessary runtime dependencies: SDK code can include unused references. These symbols and declared inheritance establish real integration boundaries but do not identify a minimal reachable dependency set.
+
+The installed Waydroid source is retained in `evidence/runtime-feasibility/`. `app_manager.launch()` obtains IPlatform, sets the active-app property and calls launchApp. IPlatform sends Binder transaction 7 to `lineageos.waydroid.IPlatform` through Android's Binder service manager. This host control code is not an APK execution engine. Copying it into APK Revival would still require the Android service, app process and rendering/input stack behind it.
+
+## Alternatives checked
+
+- [droidports](https://github.com/JohnnyonFlame/droidports) experiments with native Android ELF loading and per-game ports, including GameMaker. Its own documentation identifies incomplete/experimental JNI behavior. The inspected tree and documentation do not supply a Meego/Apportable port. It is a potential implementation reference, not a tested replacement for this game.
+- [Minecraft Bedrock Launcher](https://mcpelauncher.readthedocs.io/en/latest/faq/index.html) shows that a game-specific native compatibility layer can work: Android platform functions are rewritten for that game. It does not supply Meego's platform implementation.
+- [libhybris](https://github.com/libhybris/libhybris) addresses Bionic/glibc integration and hardware adaptations. It does not alone provide Meego's Java/JNI framework, ARM32 execution on this x86-64 Deck or complete app lifecycle.
+- [Lepton's published source](https://gitlab.steamos.cloud/frame-public/lepton), also examined through its [source mirror](https://github.com/xXJSONDeruloXx/lepton), is particularly relevant: its README describes a game-focused Android environment with fewer services and non-root operation. It still builds an Android root filesystem and launches games inside that container. It targets Steam Frame VR; no successful Meego ARM32/x86-64 Deck test was established. A [reported ARM64-only distribution problem](https://github.com/ValveSoftware/steam-for-linux/issues/13634) is user-reported evidence, not independently verified support policy. It cannot currently be called a drop-in replacement on this Deck.
+
+## Engineering conclusion and remaining work
+
+A smaller, hidden, app-managed runtime is a reasonable product architecture. Removing Android entirely requires a separate Meego-specific port: trace startup and JNI registrations, implement reachable platform callbacks, support its ARM32 instruction/ABI requirements on x86-64, connect native graphics/audio/input and assets, and prove save semantics with copies before migration. Native exports make investigation possible; they do not prove the port is small or complete. No runtime-free Meego prototype or gameplay test has passed.
+
+For the working Deck installation, keep the existing image and saves while APK Revival owns startup, installation, direct activity launch and recovery. Bundling or trimming components needs dependency-closure, licensing/update and cold-launch tests before replacing that installation. No services were arbitrarily stripped and no Android installation was removed. Touch/zoom optimization remains a separate unresolved real-device test.

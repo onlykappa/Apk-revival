@@ -40,3 +40,4 @@ python3 demo/local_backend/run.py --serial GUEST_IP:5555
 The backend launcher must remain open while playing. Ctrl+C stops it. Android-to-host communication is probed before launch. Neither provided APK export is labeled Verified Offline because guest gameplay verification did not pass in the build environment.
 
 For generating fresh restoration artifacts and running offline verification in the main workbench, follow README.md's tool setup and Waydroid configuration. For your first actual game, supply the exact base APK and all matching supporting files listed in the README.
+
