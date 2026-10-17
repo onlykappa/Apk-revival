@@ -11,6 +11,7 @@ from ..util import RevivalError,now
 from .controller import Controller,spatial_focus
 from .icons import icon,pixmap
 from .metadata import details,friendly_date,icon_path,subtitle
+from ..adapters import find,missing_plugin
 from .presentation import CONTROL_PROFILES,readiness
 from .service import Launcher
 from .style import ACCENT,FONT_FAMILIES,STYLE
@@ -21,7 +22,7 @@ def brand_asset():
 
 PATH_NAMES={'offline_patch':'Preserve the APK offline','local_backend':'Use a local backend','rebuild':'Create a separate rebuild'}
 TILE_WIDTH=184;TILE_HEIGHT=262;TILE_GAP=12
-STATUS_PILLS={'Restoration work needed':('Not supported yet','pill_warn'),'Additional files needed':('Files needed','pill_warn'),'Imported':('Checking','pill_warn'),'Preparation needs repair':('Needs repair','pill_warn')}
+STATUS_PILLS={'Game plugin needed':('Plugin needed','pill_warn'),'Restoration work needed':('Not supported yet','pill_warn'),'Additional files needed':('Files needed','pill_warn'),'Imported':('Checking','pill_warn'),'Preparation needs repair':('Needs repair','pill_warn')}
 
 def label(text,kind=None,wrap=False):
     w=QLabel(text)
@@ -166,6 +167,7 @@ class Window(QMainWindow):
         self.monitor_timer=QTimer(self);self.monitor_timer.timeout.connect(self.monitor);self.monitor_timer.start(5000)
         if fullscreen or self.service.settings.get('fullscreen'):self.showFullScreen()
         QTimer.singleShot(80,self.check_runtime);QTimer.singleShot(0,self.initial_focus)
+        if getattr(sys,'frozen',False):QTimer.singleShot(1500,self.offer_plugins)
     def initial_focus(self):
         target=next((c for c in self.cards if c.isChecked()),None) or self.add_button
         if target.isVisible():target.setFocus()
@@ -241,6 +243,9 @@ class Window(QMainWindow):
         box.addWidget(setting_card('updates','APK Revival updates',self.update_label,button('Check for updates',self.check_updates,'primary')))
         box.addWidget(setting_card('download','Install from a file','Install an official Linux update downloaded from GitHub releases.',button('Install downloaded update',self.install_downloaded_update),button('Open releases',lambda:QDesktopServices.openUrl(QUrl(self.updater_url())),'quiet')))
         box.addWidget(setting_card('key','Private releases','Optional read-only GitHub token. Kept in memory until you close the app.',button('GitHub access',self.github_access)))
+        box.addSpacing(6);box.addWidget(label('Game plugins','section'))
+        self.plugins_label=label('','caption',True)
+        box.addWidget(setting_card('package','Game plugins',self.plugins_label,button('Get plugins for my games',self.get_plugins),button('Install plugin file',self.install_plugin_file)))
         box.addSpacing(6);box.addWidget(label('Desktop and Steam','section'))
         box.addWidget(setting_card('window','Desktop shortcut','Adds APK Revival to your applications menu.',button('Install desktop shortcut',self.install_shortcut)))
         box.addWidget(setting_card('gamepad','Add to Steam','Launch APK Revival from Gaming Mode as a non-Steam game.',button('Add to Steam',self.steam_help)))
@@ -279,7 +284,7 @@ class Window(QMainWindow):
             if games:self.grid.addWidget(label('No games match your search.','muted'),0,0)
             else:
                 welcome=QFrame();welcome.setObjectName('welcome');welcome.setMinimumHeight(420);box=QVBoxLayout(welcome);box.setContentsMargins(28,28,28,28);box.setSpacing(10);box.addStretch();mark=QLabel();mark.setPixmap(QPixmap(str(brand_asset())).scaled(88,88,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));box.addWidget(mark,alignment=Qt.AlignmentFlag.AlignCenter);box.addWidget(label('Bring your games back','subtitle'),alignment=Qt.AlignmentFlag.AlignCenter);copy=label('Drop an APK here or choose Add game to start your library.\nOr try Tap Quest, included and ready to play.','muted',True);copy.setAlignment(Qt.AlignmentFlag.AlignCenter);box.addWidget(copy);box.addStretch();self.grid.addWidget(welcome,0,0)
-        self.layout_cards();self.update_details();self.update_tools()
+        self.layout_cards();self.update_details();self.update_tools();self.update_plugins()
     def select(self,game):
         self.current=game
         for c in self.cards:c.setChecked(c.property('game_id')==game)
@@ -315,7 +320,7 @@ class Window(QMainWindow):
         # Preparation state lives in the saved
         # profile, not in the current Android connection or launcher UI session.
         playing_here=bool(active and active['game']==p['id'])
-        self.mods_button.setVisible(p.get('adapter')=='meego-1.32')
+        self.mods_button.setVisible(bool(getattr(find(p),'mods',False)))
         self.mods_button.setEnabled(bool(not busy and playing_here))
         self.prepare_button.setVisible(bool(ready['prepare'] and not active))
         self.play_button.setVisible(bool(ready['play'] and not active))
@@ -324,11 +329,11 @@ class Window(QMainWindow):
         self.play_button.setEnabled(bool(not busy and not active and ready['play']))
         self.stop_button.setEnabled(bool(not busy and playing_here))
         self.options_button.setEnabled(bool(not busy and not active))
-        control=CONTROL_PROFILES.get(p.get('adapter'),{'description':'Controls are unknown until this game is investigated.'});self.controls_label.setText('Controls: A / Enter collects. B / Esc returns.' if p['restoration']['path']=='rebuild' else 'Controls: touch or trackpad.' if p.get('adapter') in {'tapquest-v1','meego-1.32'} else 'Controls need game-specific investigation.')
+        control=CONTROL_PROFILES.get(p.get('adapter'),{'description':'Controls are unknown until this game is investigated.'});self.controls_label.setText('Controls: A / Enter collects. B / Esc returns.' if p['restoration']['path']=='rebuild' else getattr(find(p),'controls',None) or ('Controls: touch or trackpad.' if p.get('adapter')=='tapquest-v1' else 'Controls need game-specific investigation.'))
     def show_mods(self):
         if not self.current:return
-        from .mods import ModsDialog
-        ModsDialog(self.service,self.current,self).exec()
+        plugin=find(self.profile())
+        if hasattr(plugin,'mods_dialog'):plugin.mods_dialog(self.service,self.current,self).exec()
     def submit(self,title,operation,callback=None):
         if self.worker:
             # One background task runs at a time. Never drop a request silently:
@@ -478,6 +483,47 @@ class Window(QMainWindow):
         if not ready and info.get('session')=='RUNNING':self.runtime_label.setText('Android session is running, but ADB is not connected. '+('Guest IP: '+str(info['ip'])+'. Use Connect below. ' if info.get('ip') else '')+'Check the connection details below.')
         if not ready and any(d['state']=='unauthorized' for d in info['devices']):self.runtime_label.setText('Authorization needed. Choose Open Android and approve Allow USB debugging. Select Always allow from this computer, then Check again.')
         self.message.setText(self.service.runtime_manager.last_start_note or ('; '.join(info.get('errors',[])[-2:]) if not ready and info.get('errors') else 'Setup check complete.'));self.service.runtime_manager.last_start_note=None;self.update_details()
+    def plugins_folder(self):return self.service.store.root/'plugins'
+    def needed_plugins(self):
+        """Plugins that games in the library need, or that are older than this app."""
+        from .. import __version__,plugins
+        needed={missing_plugin(p) for p in self.service.store.games() if missing_plugin(p)}
+        needed|={name for name,info in plugins.loaded.items() if info['source'] and info['version']!=__version__}
+        return sorted(needed)
+    def update_plugins(self):
+        from .. import plugins
+        installed=', '.join(name+(' '+info['version'] if info['version'] else ' (built in)') for name,info in sorted(plugins.loaded.items())) or 'none'
+        text='Installed: '+installed+'.'
+        if self.needed_plugins():text+=' Needed by your games or out of date: '+', '.join(self.needed_plugins())+'.'
+        if plugins.problems:text+=' Could not load: '+'; '.join(k+' ('+v+')' for k,v in plugins.problems.items())
+        self.plugins_label.setText(text+' Game plugins add support for specific games and are kept across app updates.')
+    def plugins_installed(self,names):
+        from ..adapters import load_plugins
+        from .. import plugins
+        before=set(plugins.loaded);load_plugins(self.plugins_folder())
+        fresh=[n for n in names if n in plugins.loaded and n not in before]
+        self.refresh()
+        self.message.setText(('Installed '+', '.join(names)+'. ')+('Ready to use.' if len(fresh)==len(names) else 'Restart APK Revival to finish updating plugins.'))
+    def offer_plugins(self):
+        """After an update, offer the plugins the library needs instead of leaving games blocked."""
+        names=self.needed_plugins()
+        if not names or self.worker:return
+        answer=QMessageBox.question(self,'Game plugins','Some of your games need game plugins that are missing or older than this app: '+', '.join(names)+'.\n\nDownload them from the official APK Revival release now? Your games and saves are kept either way.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+        if answer==QMessageBox.StandardButton.Yes:self.get_plugins()
+        else:self.message.setText('You can get game plugins later from Setup > Game plugins.')
+    def get_plugins(self):
+        names=self.needed_plugins()
+        if not names:self.message.setText('Your games have every plugin they need.');return
+        from .. import __version__,plugins
+        def run(ctx):
+            for name in names:ctx.step('Downloading the '+name+' plugin');plugins.download(name,__version__,self.plugins_folder(),self.updater)
+            return names
+        self.submit('Get game plugins',run,self.plugins_installed)
+    def install_plugin_file(self):
+        path,_=QFileDialog.getOpenFileName(self,'Install a game plugin','','APK Revival plugin (*.zip)')
+        if not path:return
+        from .. import plugins
+        self.submit('Install game plugin',lambda ctx:[plugins.install(path,self.plugins_folder())['name']],self.plugins_installed)
     def install_shortcut(self):
         if not getattr(sys,'frozen',False):
             self.message.setText('Desktop installation is available in the packaged Linux download.');return
@@ -569,13 +615,14 @@ class Window(QMainWindow):
         box.addWidget(setting_card('info','Troubleshooting','Share a privacy-safe report, or inspect the full evidence.',button('Export diagnostics',diagnostics),button('Advanced',lambda:(dialog.accept(),self.advanced()))))
         box.addWidget(setting_card('gamepad','Steam','Adds this game to Steam so it starts straight from Gaming Mode. Close Steam first.',button('Add game to Steam',lambda:(dialog.accept(),self.add_game_to_steam(p['id'])))))
         box.addWidget(setting_card('stop','Remove from library','Removes this game from APK Revival. Its saves and backups are kept.',button('Remove game',lambda:(dialog.accept(),self.remove_game(p['id'])))))
-        if p.get('adapter')=='meego-1.32':
-            box.addWidget(setting_card('refresh','New village','Starts with two Meego and no bonus supplies. Your previous island is backed up.',button('New village (no bonuses)',lambda:start('New village',lambda ctx:self.service.new_meego_village(p['id'],ctx)))))
+        for action in self.service.game_actions(p['id']):
+            box.addWidget(setting_card(action['icon'],action['title'],action['description'],button(action['button'],lambda checked=False,a=action:start(a['title'],lambda ctx:self.service.run_game_action(p['id'],a['key'],ctx)))))
         choice=QComboBox();choice.setMinimumWidth(240)
         for key,value in PATH_NAMES.items():choice.addItem(value,key)
         preferred=p.get('launcher',{}).get('preferred_path') or p['restoration']['path'] or (p['analysis']['recommended_path'] if p['analysis'] else 'offline_patch');choice.setCurrentIndex(choice.findData(preferred));choice.setEnabled(bool(p.get('adapter')));
-        if p.get('adapter')=='meego-1.32':
-            for i in range(choice.count()):choice.model().item(i).setEnabled(choice.itemData(i)=='local_backend')
+        plugin=find(p)
+        if plugin is not None and p.get('adapter')!='tapquest-v1':
+            for i in range(choice.count()):choice.model().item(i).setEnabled(choice.itemData(i) in plugin.supported_paths)
         box.addWidget(setting_card('setup','Preparation method','A rebuild is a separate implementation. Prefer preserving the original APK when supported.',choice));box.addStretch()
         def save():
             current=self.service.store.load(p['id']);current.setdefault('launcher',{})['preferred_path']=choice.currentData();self.service.store.save(current);dialog.accept();self.update_details();self.message.setText('Preparation method saved. Prepare once if this method is new.')
@@ -606,11 +653,11 @@ class Window(QMainWindow):
         check=QCheckBox('Attempt offline gameplay verification after preparation');check.setChecked(self.service.settings.get('verify_after_prepare',True));check.toggled.connect(lambda value:(self.service.settings.update(verify_after_prepare=value),self.service.save_settings()));box.addWidget(check)
         footer.addWidget(button('Test offline now',lambda:(dialog.accept(),self.test_offline())));footer.addStretch();close=button('Close',dialog.accept);close.setMinimumWidth(130);footer.addWidget(close);dialog.exec()
     def test_offline(self):
-        if self.profile().get('adapter')=='meego-1.32':
-            from .meego_test import MeegoTestDialog
-            dialog=MeegoTestDialog(self);self.meego_test_dialog=dialog
+        plugin=find(self.profile())
+        if hasattr(plugin,'guided_test_dialog'):
+            dialog=plugin.guided_test_dialog(self);self.guided_test_dialog=dialog
             try:dialog.exec()
-            finally:self.meego_test_dialog=None
+            finally:self.guided_test_dialog=None
             self.refresh()
             if self.closing:QTimer.singleShot(0,self.close)
         else:self.submit('Verify offline',lambda ctx:self.service.verify(self.current,ctx),lambda result:self.message.setText('Verified Offline' if result['passed'] else 'Offline verification incomplete: '+result.get('error','Checks did not pass.')))
@@ -658,7 +705,7 @@ class Window(QMainWindow):
             QTimer.singleShot(0,lambda:self.submit(*pending))
         elif getattr(self,'pending_apks',[]):QTimer.singleShot(0,lambda:self.open_apk(self.pending_apks.pop(0)))
     def closeEvent(self,event):
-        guided=getattr(self,"meego_test_dialog",None)
+        guided=getattr(self,"guided_test_dialog",None)
         if guided and not guided.test.finished:self.closing=True;event.ignore();guided.reject();return
         if (self.worker and self.worker.isRunning()) or (self.monitor_worker and self.monitor_worker.isRunning()):
             self.closing=True;self.service.jobs.cancel();self.message.setText('Finishing the current operation before closing. Cancelling at a safe stage.');event.ignore();return

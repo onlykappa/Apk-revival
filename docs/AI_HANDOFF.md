@@ -1,3 +1,39 @@
+## 0.6.0 game plugins, README and tidy-up — released
+
+2026-10-17, Claude. Branch feat/game-plugins, merged into main.
+
+Meego is now a plugin; the core app never imports or names it (enforced by
+tests/test_plugins.py::test_core_source_never_imports_meego_directly).
+- apk_revival/plugins.py: discovers built-in plugins (any apk_revival/<pkg>/plugin.py)
+  and installed ones in DATA/plugins/<name>/ by appending <plugin>/apk_revival to
+  apk_revival.__path__; installs ZIPs (plugin.json + apk_revival/<pkg>/ only);
+  downloads APK-Revival-plugin-<name>-<version>.zip from the matching release and
+  checks SHA256SUMS. Convention: plugin X provides adapters named X-<version>.
+- apk_revival/adapters.py: registry (register/find/missing_plugin/load_plugins).
+- apk_revival/meego/plugin.py: MeegoPlugin(MeegoAdapter) holds every hook formerly
+  hard-coded in analysis, restoration, runtime, portable, exporter, saves, service,
+  ui and entry. Hook list: docs/ADAPTERS.md. Moved launcher/mods.py ->
+  meego/mods_dialog.py, launcher/meego_test.py -> meego/guided_dialog.py, the save
+  validator -> meego/savefile.py. Service API: before_play() replaces
+  prepare_meego_camera(); game_actions()/run_game_action(game,'new_village')
+  replace new_meego_village(). resources/meego-starter.json stays in the repo and is
+  packed beside the code in the plugin file.
+- Packaging: spec excludes plugin packages and their resources, adds stdlib modules
+  plugins use (http.server, plistlib, hmac...). release_assets.py builds plugin
+  ZIPs, leaves plugin code/tests/docs/images out of the source zip, adds them to
+  SHA256SUMS; publish_release.py uploads them.
+- UI: Setup > Game plugins card; library readiness "Game plugin needed"; packaged
+  app offers missing/outdated plugins at startup.
+
+Verified: full suite; Meego regression_tests (131); a PyInstaller build here has no
+Meego files, cannot import apk_revival.meego, and loads the plugin ZIP inside the
+frozen app (including http.server/plistlib). Also: new README and screenshots
+(Tap Quest demo only), docs/history/ for old logs, actions/*@ current majors.
+
+Deck to-do: after updating to 0.6.0, accept the plugin prompt and confirm Meego
+still prepares/opens. Codex: Meego work now goes in apk_revival/meego/ and must not
+touch core files except through hooks.
+
 ## 0.5.1 closed games end automatically — released
 
 2026-10-17, Claude. Branch fix/auto-end-closed-game, merged into main.

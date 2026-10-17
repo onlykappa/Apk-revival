@@ -6,8 +6,8 @@ jobs:
   unit:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: python -m pip install -e .
@@ -15,11 +15,11 @@ jobs:
   native-launcher:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -41,11 +41,11 @@ jobs:
           SSL_CERT_FILE=/nonexistent SSL_CERT_DIR=/nonexistent dist/APK-Revival/APK-Revival --update-probe
           QT_QPA_PLATFORM=offscreen dist/APK-Revival/APK-Revival --smoke --data "$PWD/build/package-smoke"
           xvfb-run -a env QT_QPA_PLATFORM=xcb dist/APK-Revival/APK-Revival --smoke --data "$PWD/build/package-xcb-smoke"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: APK-Revival-v2-linux-x86_64
           path: dist/APK-Revival-v2-linux-x86_64.tar.gz
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: self-authored-fixture-exports-unverified
           path: build/demo-exports/

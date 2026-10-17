@@ -5,6 +5,8 @@ def readiness(p,runtime_ready=False):
     a=p.get('analysis');rest=p.get('restoration',{})
     if not a:return {'label':'Imported','detail':'Checking this game before preparation.','prepare':False,'play':False}
     if a.get('input_errors'):return {'label':'Additional files needed','detail':'The supplied split files do not match this APK version. Add the matching files.','prepare':False,'play':False}
+    from ..adapters import missing_plugin
+    if missing_plugin(p):return {'label':'Game plugin needed','detail':'This game uses the '+missing_plugin(p)+' plugin, which is not installed. Install it from Setup > Game plugins. Your game files and saves are kept.','prepare':False,'play':False}
     if not p.get('adapter'):return {'label':'Ready to Play','detail':'Play installs and opens this APK. Games that require unavailable servers may still need restoration.','prepare':False,'play':True}
     # The chosen path can change in Advanced settings without overwriting the
     # existing prepared artifact. It takes effect only after Prepare is selected.

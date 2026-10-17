@@ -2,7 +2,7 @@
 from __future__ import annotations
 import hashlib,json,pathlib,re,threading,uuid,zipfile,sys,os
 from ..analysis import analyze,markdown
-from ..adapters import adapter
+from ..adapters import adapter,find,load_plugins
 from ..exporter import export_game
 from ..restoration import Restorer
 from ..saves import Saves
@@ -14,11 +14,14 @@ from .tools_setup import configure,health
 
 # Monitor checks run every 5 seconds: about 15 seconds off screen ends the game.
 OFFSCREEN_LIMIT=3
-# Games whose progress lives in host files managed by a restoration adapter.
-ADAPTER_SAVES={'tapquest-v1','meego-1.32'}
+def host_saves(p):
+    """True when a restoration adapter keeps this game's progress in host files."""
+    from ..saves import host_save_plugin
+    return p.get('adapter')=='tapquest-v1' or host_save_plugin(p) is not None
 
 class Launcher:
     def __init__(self,store):
+        load_plugins(store.root/'plugins')
         self.store=store;self.jobs=Jobs(store.root/'job-logs');self.runtime_manager=RuntimeManager(store.root/'runtime-state.json');self.android=None;self.active=None;self.connection_failures=0;self.offscreen_checks=0;self.runtime_factory=ManagedAndroid;configure()
         file=store.root/'launcher-settings.json';self.settings=read_json(file) if file.exists() else {'schema_version':1,'serial':None,'fullscreen':False,'verify_after_prepare':True}
     def save_settings(self):atomic_json(self.store.root/'launcher-settings.json',self.settings)
@@ -29,7 +32,7 @@ class Launcher:
         from .metadata import resolve_label
         title=p['launcher']['apk'].get('label') or resolve_label(self.store.base(p),p['analysis']['metadata']['application'].get('label'))
         if p['analysis']['fixture']:p['title']='Tap Quest'
-        elif p.get('adapter')=='meego-1.32':p['title']='The Meego'
+        elif find(p) is not None and getattr(find(p),'title',None):p['title']=find(p).title
         elif title and not title.startswith('@'):p['title']=title[:100]
         p.setdefault('launcher',{}).setdefault('launch_checks',[]);self.store.save(p);return p
     def attach(self,game,support,ctx):
@@ -44,10 +47,8 @@ class Launcher:
         # Prepare is idempotent. A valid saved artifact (or completed independent
         # rebuild) is reused on every restart, without re-signing or touching saves.
         previous=p.get('restoration',{})
-        client_current=True
-        if p.get('adapter')=='meego-1.32':
-            from ..meego import camera
-            client_current=camera.prepared(previous,p['runtime'].get('meego_timer_hz',60))
+        plugin=find(p)
+        client_current=plugin.prepared_current(previous,p) if hasattr(plugin,'prepared_current') else True
         if previous.get('path')==path and client_current:
             if path=='rebuild' and p.get('rebuild',{}).get('feasibility'):
                 ctx.step('Using the already prepared rebuild');return p
@@ -66,7 +67,7 @@ class Launcher:
             ctx.skipped('Testing offline play','Android is not connected. The APK is prepared; complete runtime setup to test it.');return self.store.load(game)
         serial=self.runtime_manager.ensure(self.settings.get('serial'));p['runtime']['serial']=serial;self.store.save(p)
         self.runtime_factory(serial).compatible(p)
-        if p.get('adapter')=='meego-1.32':ctx.skipped('Testing offline play','Meego requires a guided Android gameplay test. Signing and host service tests do not certify the game.');return self.store.load(game)
+        if getattr(plugin,'verify_note',None):ctx.skipped('Testing offline play',plugin.verify_note);return self.store.load(game)
         if self.settings.get('verify_after_prepare',True):
             ctx.step('Testing offline play');result=verify(self.store,game)
             if not result['passed']:ctx.skipped('Offline verification incomplete',result.get('error','Some gameplay checks did not pass.'))
@@ -89,7 +90,7 @@ class Launcher:
         ctx.step('Starting the game runtime');serial=self.runtime_manager.ensure(progress=ctx.step);p['runtime']['serial']=serial;self.store.save(p)
         ctx.step('Checking game compatibility');runtime=self.runtime_factory(serial);runtime.compatible(p);self.android=runtime;runtime.launch_progress=ctx.step
         try:
-            p=self.prepare_meego_camera(p,runtime,ctx)
+            p=self.before_play(p,runtime,ctx)
             ctx.step('Installing the prepared client if needed');runtime.install(self.store,p)
             if p['restoration']['path']=='local_backend':ctx.step('Starting local services');runtime.start_backend(self.store,p)
             ctx.step('Launching the game');runtime.launch(p)
@@ -104,30 +105,10 @@ class Launcher:
                 except Exception:pass
             finally:self.android=None;self.active=None
             raise
-    def prepare_meego_camera(self,p,runtime,ctx):
-        """Upgrade stale Meego clients once, selecting timing from this guest.
-
-        Called only by normal Play after runtime readiness. Preparation uses
-        the existing signing identity and immutable original; Android install
-        still uses -r. No save import/reset or gameplay verification occurs.
-        """
-        if p.get('adapter')!='meego-1.32':return p
-        from ..meego import camera,frame_pacing
-        ctx.step('Reading the active game display')
-        try:
-            hz=frame_pacing.active_timer_hz(runtime.shell('dumpsys','display',timeout=5))
-        except RevivalError:
-            hz=60
-        if camera.prepared(p.get('restoration',{}),hz):return p
-        if not health()['preparation_ready']:
-            raise RevivalError('Meego needs its camera client update, but preparation tools are missing. Open Setup and select Install preparation tools. The previous APK and saves are preserved.')
-        ctx.step('Preparing Meego client controls ('+str(hz)+' Hz)')
-        p['runtime']['meego_timer_hz']=hz;self.store.save(p)
-        # Restorer keeps the previous working artifact if preparation fails;
-        # successful preparation records the revision/rate in the signed plan.
-        p=Restorer(self.store).prepare(p['id'],p['restoration']['path'],progress=ctx.step)
-        p.setdefault('launcher',{})['prepared_at']=now();self.store.save(p)
-        return p
+    def before_play(self,p,runtime,ctx):
+        """Let the game's plugin update its prepared client once Android is ready."""
+        plugin=find(p)
+        return plugin.before_play(self,p,runtime,ctx) if hasattr(plugin,'before_play') else p
     def play_original(self,p,ctx):
         ctx.step('Starting the game runtime');serial=self.runtime_manager.ensure(progress=ctx.step)
         runtime=self.runtime_factory(serial)
@@ -161,13 +142,13 @@ class Launcher:
         # Play already validates original/prepared APK hashes. A timer-picker
         # refresh needs metadata only, not synchronous hashing on the UI thread.
         p = self.store.load(game, check=False)
-        if p.get('adapter') != 'meego-1.32':
-            raise RevivalError('Skip timer is currently available for Meego only.')
+        if not getattr(find(p), 'mods', False):
+            raise RevivalError('Mods are only available for games whose plugin provides them.')
         if not self.active or self.active['game'] != game:
-            raise RevivalError('Press Play on this Meego entry before using Mods.')
+            raise RevivalError('Press Play on this game before using Mods.')
         state = getattr(getattr(getattr(self.android, 'backend', None), 'server', None), 'state', None)
         if state is None:
-            raise RevivalError('The local Meego service is unavailable. Stop the game and press Play again.')
+            raise RevivalError('The local game service is unavailable. Stop the game and press Play again.')
         return state
     def mod_timers(self, game):
         return self.mod_state(game).mod_timers()
@@ -222,7 +203,7 @@ class Launcher:
         return self.runtime_factory(serial)
     def backup(self,game,ctx):
         p=self.store.load(game)
-        if p.get('adapter') in ADAPTER_SAVES:
+        if host_saves(p):
             ctx.step('Backing up progress');return Saves(self.store).backup(game)
         if self.active:raise RevivalError('Stop the running game before backing up its progress.')
         from .. import android_saves
@@ -231,29 +212,18 @@ class Launcher:
     def backups(self,game):
         folder=self.store.directory(game)/'backups'
         return sorted(folder.glob('*.zip'),key=lambda x:x.stat().st_mtime,reverse=True) if folder.is_dir() else []
-    def new_meego_village(self,game,ctx):
-        p=self.store.load(game)
-        if p.get('adapter')!='meego-1.32' or p['restoration']['path']!='local_backend':raise RevivalError('Prepare Meego before creating a village.')
-        if self.active and self.active['game']!=game:raise RevivalError('Stop the other running game first.')
-        from ..meego.backend import config_path
-        from ..meego.engine.server import initial_village
-        from ..saves import validate_meego_save
-        config=config_path(self.store,p)
-        seed=read_json(config/'starter-packet.json')
-        fresh=initial_village(seed,rules=read_json(config/'local-rules.json'));validate_meego_save(fresh)
-        self.stop(ctx)
-        save=self.store.directory(game)/'saves/village.json'
-        backup=None
-        if save.exists():
-            ctx.step('Backing up the previous village');backup=Saves(self.store).backup(game)
-        ctx.step('Creating a fresh village without bonus supplies or skulls')
-        atomic_json(save,fresh)
-        return {'created':True,'previous_backup':backup,'starting_villagers':len(fresh['game_state']['all_villagers']),
-                'original_defaults_verified':False}
+    def game_actions(self,game):
+        """Extra buttons a game's plugin offers in Game options."""
+        plugin=find(self.store.load(game,check=False))
+        return plugin.game_actions(self.store.load(game,check=False)) if hasattr(plugin,'game_actions') else []
+    def run_game_action(self,game,key,ctx):
+        plugin=find(self.store.load(game,check=False))
+        if not hasattr(plugin,'run_action'):raise RevivalError('This game has no plugin actions.')
+        return plugin.run_action(self,game,key,ctx)
     def restore(self,game,backup,ctx):
         from .. import android_saves
         p=self.store.load(game)
-        if p.get('adapter') in ADAPTER_SAVES:
+        if host_saves(p):
             self.stop();ctx.step('Preserving the current save and restoring backup');return Saves(self.store).restore(game,backup)
         if self.active:raise RevivalError('Stop the running game before restoring its progress.')
         android_saves.read_meta(backup)
@@ -275,7 +245,7 @@ class Launcher:
             package=android_saves.package_for(p)
             runtime=self.android_runtime(ctx)
             if 'package:' in runtime.shell('pm','path',package,timeout=20):
-                if p.get('adapter') not in ADAPTER_SAVES:
+                if not host_saves(p):
                     # Never uninstall without a successful backup of its progress.
                     ctx.step('Backing up progress before uninstalling')
                     try:android_saves.backup(runtime,p,self.store.directory(game)/'backups'/(now().replace(':','-')+'-before-uninstall.zip'))

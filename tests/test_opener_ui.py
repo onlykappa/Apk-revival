@@ -72,7 +72,7 @@ class OpenerUITests(unittest.TestCase):
         self.assertFalse(self.window.mods_button.isEnabled())
         self.window.service.active={'game':p['id'],'kind':'android'};self.window.update_details()
         self.assertTrue(self.window.mods_button.isEnabled())
-        with patch('apk_revival.launcher.mods.ModsDialog') as dialog:
+        with patch('apk_revival.meego.mods_dialog.ModsDialog') as dialog:
             self.window.mods_button.click();dialog.assert_called_once_with(self.window.service,p['id'],self.window)
             dialog.return_value.exec.assert_called_once()
         self.window.service.active=None

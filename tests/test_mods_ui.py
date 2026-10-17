@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 try:
     from PySide6.QtWidgets import QApplication
-    from apk_revival.launcher.mods import ModsDialog
+    from apk_revival.meego.mods_dialog import ModsDialog
 except ImportError:QApplication=None  # The CI unit job installs no Qt.
 from apk_revival.launcher.jobs import Jobs
 from apk_revival.launcher.service import Launcher
@@ -79,7 +79,7 @@ class ModsUITests(unittest.TestCase):
         service.store.load.return_value = {'adapter':'ordinary-apk'}
         service.active = None
         service.android = None
-        with self.assertRaisesRegex(RevivalError, 'Meego only'):service.mod_timers('other')
+        with self.assertRaisesRegex(RevivalError, 'plugin provides them'):service.mod_timers('other')
         service.store.load.return_value = {'adapter':'meego-1.32'}
         with self.assertRaisesRegex(RevivalError, 'Press Play'):service.mod_timers('meego')
         service.active = {'game':'other'}

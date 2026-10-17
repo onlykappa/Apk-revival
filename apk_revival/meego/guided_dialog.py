@@ -1,8 +1,8 @@
 """A short human-guided Android gameplay test; each action calls real services."""
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QDialog,QHBoxLayout,QVBoxLayout
-from .ui import Worker,label,button
-from ..meego.verification import GuidedTest
+from ..launcher.ui import Worker,label,button
+from .verification import GuidedTest
 
 class MeegoTestDialog(QDialog):
     def __init__(self,window):

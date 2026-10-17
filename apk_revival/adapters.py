@@ -23,10 +23,30 @@ class TapQuestAdapter:
         if path=='local_backend':plan['backend']={'protocol':'tapquest-v1','evidence':'fixtures/android/src/org/apkrevival/tapquest/MainActivity.java and docs/FIXTURE.md','endpoints':['GET /health','GET /state','POST /action {action:collect}'],'assumptions':['Single-player local progression only. No accounts, purchases or multiplayer.']}
         return plan
 
-from .meego.adapter import MeegoAdapter
-ADAPTERS={'tapquest-v1':TapQuestAdapter(),'meego-1.32':MeegoAdapter()}
+ADAPTERS={'tapquest-v1':TapQuestAdapter()}
+
+def register(instance):
+    """Called by game plugins to add their adapter."""
+    ADAPTERS[instance.name]=instance
+
+def load_plugins(*folders):
+    from . import plugins
+    return plugins.load(register,folders)
+
+load_plugins()
+
+def find(p):
+    """The registered adapter for a profile, or None."""
+    return ADAPTERS.get(p.get('adapter')) if p and p.get('adapter') else None
+
+def missing_plugin(p):
+    """Name of the plugin a game needs but which is not installed, else None."""
+    name=p.get('adapter') if p else None
+    from .plugins import plugin_for
+    return plugin_for(name) if name and name not in ADAPTERS else None
 
 def adapter(p):
+    if missing_plugin(p):raise RevivalError('This game needs the '+missing_plugin(p)+' game plugin. Install it from Setup > Game plugins. Your game files and saves are kept.')
     if not p.get('adapter') or p['adapter'] not in ADAPTERS:raise RevivalError('Needs Evidence: no trusted game adapter. Use analysis report and develop a reviewed adapter; V1 cannot convert this game automatically.')
     return ADAPTERS[p['adapter']]
 

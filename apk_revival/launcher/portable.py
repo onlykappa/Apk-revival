@@ -35,10 +35,12 @@ class PortableSession:
             if self.bundle['path']=='local_backend':
                 ctx.step('Starting and checking local services');port=self.bundle['backend_port']
                 if self.p.get('adapter')=='tapquest-v1':r.backend=Backend(self.save_root/'tapquest.json',port).start()
-                elif self.p.get('adapter')=='meego-1.32':
-                    from ..meego.backend import MeegoBackend
-                    r.backend=MeegoBackend(self.save_root,self.root/'backend-data',port,apk=self.root/'restored.apk').start()
-                else:raise RevivalError('Unsupported local backend')
+                else:
+                    from ..adapters import adapter,load_plugins
+                    load_plugins(self.root/'plugins')
+                    plugin=adapter(self.p)
+                    if not hasattr(plugin,'start_backend'):raise RevivalError('Unsupported local backend')
+                    r.backend=plugin.start_backend(self.save_root,self.root/'backend-data',port,apk=self.root/'restored.apk')
                 r.adb('reverse','--no-rebind',f'tcp:{port}',f'tcp:{port}');r.forward_port=port;r.probe_backend()
             ctx.step('Launching Android');r.launch(self.p);return {'kind':'android'}
         except Exception:self.stop();raise

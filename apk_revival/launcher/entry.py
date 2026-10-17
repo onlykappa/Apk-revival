@@ -57,15 +57,16 @@ def main():
             print('FAIL: '+str(error),file=sys.stderr);return 1
         finally:launcher.shutdown()
     if args.smoke_service:
-        from ..meego.backend import MeegoBackend,config_path
+        from ..adapters import adapter,load_plugins
         import json,urllib.request
-        profile=store.load(args.smoke_service)
-        if profile.get('adapter')!='meego-1.32':raise ValueError('Service smoke check requires prepared Meego data')
-        backend=MeegoBackend(store.directory(profile['id']),config_path(store,profile),0,apk=store.base(profile)).start()
+        load_plugins(store.root/'plugins')
+        profile=store.load(args.smoke_service);plugin=adapter(profile)
+        if not hasattr(plugin,'start_backend'):raise ValueError('Service smoke check requires a game with a local service')
+        backend=plugin.start_backend(store.directory(profile['id']),plugin.config_path(store,profile),0,apk=store.base(profile))
         try:
             with urllib.request.urlopen(f'http://127.0.0.1:{backend.port}/health',timeout=5) as response:value=json.load(response)
             if value['token']!=backend.token:raise ValueError('Service health identity mismatch')
-            print('PASS: packaged Meego host service startup and health. Android unverified.')
+            print('PASS: packaged game service startup and health. Android unverified.')
         finally:backend.stop()
         return 0
     lock=open(store.root/'launcher.lock','a+')

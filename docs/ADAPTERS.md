@@ -1,11 +1,11 @@
 # Game adapters
 
-The engine implements the self-authored `tapquest-v1` fixture and the exact-hash `meego-1.32` local-backend adapter. See [MEEGO.md](MEEGO.md) for real-game scope and evidence. Unknown APKs receive analysis and diagnostics, not fabricated repairs. Imported APKs, supporting JSON, profiles or bundles never install plugins into the workbench.
+The core app implements only the self-authored `tapquest-v1` fixture. Real games are supported by **game plugins**, such as the exact-hash `meego-1.32` adapter in `apk_revival/meego/` (see [MEEGO.md](MEEGO.md)). Unknown APKs receive analysis and diagnostics, not fabricated repairs. Plugins are installed only by an explicit user action in Setup; imported APKs, supporting JSON, profiles or bundles never install plugin code.
 
 ## Adding a supported game
 
 1. Inspect the original and attach runtime logs, available protocol documentation, recovered local behaviors, assets and save locations. Cite evidence by archive member/DEX string byte offset or local diagnostic artifact.
-2. Add a Python adapter in the project's trusted source. Register it in `ADAPTERS`; add an exact package/version or stronger signature recognition in analysis. Do not auto-import code from an APK or profile.
+2. Create a plugin package `apk_revival/<name>/` with a `plugin.py` whose `register(add)` calls `add(YourAdapter())`. Name adapters `<name>-<version>`. Recognise the exact game in a `detect` hook (exact hash or stronger signature). Never import the plugin from core code; add an optional hook instead.
 3. Implement `plan(store, profile, path)` producing schema 1 JSON with the exact original APK SHA-256, version name/code, selected path, explicit operations, documented assumptions and relevant backend/save configuration.
 4. Use exact precondition hashes and review the generated plan and unified diff. V1 operations are `replace_text_file` and `replace_text`. The latter must name an exact match count. Paths must be relative safe archive/decoded paths and supported text extensions.
 5. For local backend support, implement real evidence-supported request/response semantics, persistence, errors and lifecycle. Extend backend selection explicitly. Do not return arbitrary success JSON to unknown requests.
@@ -47,3 +47,26 @@ Asset-only changes rebuild the APK archive directly while preserving original co
 
 Plan generation, config changes, backend semantics and independent rebuild are implemented. Backend source derives directly from the self-authored fixture source. Progress is integer coins and level `1 + coins // 10`. The offline patch uses the preexisting SharedPreferences branch; it does not replace gameplay with a dummy loading screen. The independent rebuild uses the same original mechanics but is clearly a separate desktop game.
 
+
+## Plugin hooks
+
+All hooks are optional attributes or methods on the registered adapter. The core
+calls a hook only if it exists.
+
+| Hook | Used for |
+| --- | --- |
+| `name`, `supported_paths`, `plan()`, `feasibility()`, `prepare_data()` | Restoration plan and prepared data, as above |
+| `detect(profile, zip, finding, endpoints)` | Return True for the exact game; may add findings and endpoints |
+| `title`, `controls`, `recommended_path`, `recommendation_reason` | Library title, controls text and analysis recommendation |
+| `binary_targets`, `operation_types`, `validate_operation()`, `apply_operation()` | Reviewed binary patches and plugin-specific patch operations |
+| `config_path(store, profile)`, `start_backend(data, config, port, apk=, profile=)` | Local game service for Play, exports and portable copies |
+| `save_file`, `validate_save(state)` | Progress kept in a host file, for backups and restores |
+| `prepared_current(previous, profile)`, `before_play(service, profile, runtime, ctx)` | Client upgrades checked at Prepare and Play |
+| `verify_note` | Skip automatic offline verification and explain why |
+| `mods`, `mods_dialog(service, game, parent)` | The Mods button and its dialog |
+| `game_actions(profile)`, `run_action(service, game, key, ctx)` | Extra Game options buttons |
+| `guided_test_dialog(window)` | A guided offline test instead of the automatic one |
+
+Releases publish each plugin as `APK-Revival-plugin-<name>-<version>.zip`
+(`plugin.json` plus `apk_revival/<name>/`). The app installs them into its data
+folder, `plugins/<name>/`, and keeps them across updates.

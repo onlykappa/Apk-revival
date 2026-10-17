@@ -1,88 +1,77 @@
-> Local 0.3.9 adds read-only input diagnostics for Meego zoom/touch investigation. No input/performance optimization is claimed yet; physical comparisons remain blocked in the agent session. See [touch investigation](docs/TOUCH_DIAGNOSTICS.md).
-
-> Local 0.3.16 candidate: managed APK Play, Dolphin integration, connection recovery and Meego gameplay timing repairs. See [opener usage](docs/APK_OPENER.md), [Meego scope](docs/MEEGO.md) and the current [overnight test/handoff record](OVERNIGHT_HANDOFF.md). Waydroid remains the internal Android runtime; original-server parity and physical input certification are incomplete.
-
 <p align="center">
   <img src="resources/apk-revival-logo.png" alt="APK Revival logo" width="128" />
 </p>
 <h1 align="center">APK Revival</h1>
 <p align="center"><strong>Your mobile games. Back in play.</strong></p>
 <p align="center">
-  <a href="https://github.com/onlykappa/Apk-revival/releases">Download for Linux</a> ·
-  <a href="CHANGELOG.md">Version history</a> ·
+  <a href="https://github.com/onlykappa/Apk-revival/releases/latest">Download for Linux</a> ·
+  <a href="CHANGELOG.md">What's new</a> ·
   <a href="docs/INSTALL_V2.md">Steam Deck setup</a>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.5.1-9fe5c4?labelColor=16242b" alt="Version 0.5.1" />
+  <img src="https://img.shields.io/badge/version-0.6.0-9fe5c4?labelColor=16242b" alt="Version 0.6.0" />
   <img src="https://img.shields.io/badge/Linux-x86__64-9fe5c4?labelColor=16242b" alt="Linux x86_64" />
-  <img src="https://img.shields.io/badge/status-preview-efce7d?labelColor=16242b" alt="Preview, hardware unverified" />
-  <img src="https://img.shields.io/badge/license-MIT-9fe5c4?labelColor=16242b" alt="MIT source license" />
+  <img src="https://img.shields.io/badge/status-preview-efce7d?labelColor=16242b" alt="Preview" />
+  <img src="https://img.shields.io/badge/license-MIT-9fe5c4?labelColor=16242b" alt="MIT licence" />
 </p>
 
-![APK Revival V2 library, captured from the running application](docs/images/library.png)
+![The APK Revival library](docs/images/library.png)
 
-A small local Android-game launcher for Linux and Steam Deck: **Add Game → Prepare once → Play anytime**. On the SteamOS Waydroid Bundle, Play can launch the existing persistent Android image and reconnect ADB automatically when needed. Once a game is prepared, its main button becomes Play automatically and stays that way after restarting the launcher. Play reconnects to Android when available and starts the matching local service, without redoing preparation. If Android itself is stopped and requires administrator permission, Setup explains the recovery. V2 provides a native fullscreen library, setup, background preparation, launch management, saves and exports around the V1 restoration engine.
+APK Revival is a game library for Android games on Linux and Steam Deck. Add an APK, press **Play**, and it installs and opens the game for you. For old games whose online servers have shut down, APK Revival can **prepare** a repaired copy that runs offline, while your original file stays untouched.
 
-## Open the app
+## Get started
 
-Download **APK-Revival-0.3.0-linux-x86_64.tar.gz** from [Releases](https://github.com/onlykappa/Apk-revival/releases), extract it in Desktop Mode and double-click **APK-Revival**. In **Setup**, choose **Install desktop shortcut**. No Python installation or terminal is needed for the launcher. This build requires glibc 2.39 or newer; actual Steam Deck hardware compatibility still needs testing.
+1. Download `APK-Revival-<version>-linux-x86_64.tar.gz` from [Releases](https://github.com/onlykappa/Apk-revival/releases/latest).
+2. Extract it (in Desktop Mode on a Steam Deck) and double-click **APK-Revival**. No Python or terminal is needed.
+3. In **Setup**, choose **Install desktop shortcut**. To launch from Gaming Mode, choose **Add to Steam** with Steam closed.
 
-Choose **Try desktop demo**, then **Play** to try the included self-authored Tap Quest rebuild immediately. Collect coins and relaunch to see saved progress. It needs no Android runtime. It is a separate implementation, not proof that the original APK works offline.
+Android games run in [Waydroid](https://waydro.id), which you install once for your system; on a Steam Deck, the [SteamOS Waydroid bundle](https://github.com/pjohno/steamos-waydroid-bundle) is supported. After that, APK Revival starts Android, connects to it and opens your game automatically. It never disables SteamOS protections or installs system packages behind your back. Requires glibc 2.39 or newer.
 
-For APK games, use **Add Game**, attach available supporting files, and **Prepare**. Setup guides preparation tools and Waydroid connection. Waydroid itself must be configured for your SteamOS version. APK Revival never disables SteamOS protections or silently installs privileged packages.
+Want to look around first? **Try desktop demo** plays the included Tap Quest demo without Android.
 
-[Installation and adding to Steam](docs/INSTALL_V2.md) · [Observed test results](docs/TEST_RESULTS_V2.md) · [Contributor setup](docs/CONTRIBUTING_V2.md)
+## What it does
 
-## The Meego real-game test
-
-Version 0.3.0 adds the exact reviewed **The Meego v1.32** APK as the first real-game adapter. It reuses the earlier self-authored local service and preserves the original native game. Import your original APK, Prepare, then connect Waydroid and Play. A separate Android package keeps earlier working installs intact.
-
-The local signing, service, saves and export pipeline has been tested with the actual APK. The newly prepared client still needs the [guided Android test](docs/MEEGO.md). Earlier Deck gameplay is not inherited as Verified Offline. The repository and app download contain no Meego APK or proprietary game assets.
-
-![The Meego prepared in APK Revival; Android testing still needed](docs/images/meego-library.png)
-
-## Inside the app
-
-These are screenshots of the running native application using the self-authored fixture. No commercial game restoration or Android gameplay is implied.
+- **Opens any game file.** APK files, and XAPK, APKS and APKM bundles with their split APKs and expansion (OBB) files, from Add game, drag and drop, or your file manager.
+- **Plays with one button.** Play installs the game if needed, opens it full screen, and ends the session by itself when you close the game.
+- **Keeps your progress safe.** Back up and restore any game's progress from Game options. Restores keep a copy of what they replace.
+- **Fits Steam Deck.** Controller, touch and trackpad navigation, a 1280 × 800 layout, and a Steam shortcut for the library or for any single game, with its own icon.
+- **Shows what's inside.** Each game's icon, name, version, engine, Android requirement and chip support, read from the APK.
+- **Repairs offline games.** For supported games, Prepare creates a separate, re-signed copy that works without the original servers, plus any local service it needs. A launch is never presented as proof of offline play: *Imported*, *Prepared*, *Launch tested* and *Verified Offline* are separate states.
+- **Updates itself** from GitHub releases, keeping your games and saves.
 
 <details>
-<summary>Home and first-run setup</summary>
+<summary>More screenshots</summary>
 
-![Empty library home](docs/images/home.png)
-![Preparation tools and Android setup](docs/images/setup.png)
-
-</details>
-<details>
-<summary>Play, saves, exports and evidence</summary>
-
-![Separate desktop fixture gameplay](docs/images/playing.png)
-![Game options with save and export actions](docs/images/options.png)
-![Advanced evidence report](docs/images/advanced.png)
+![Empty library](docs/images/home.png)
+![Setup](docs/images/setup.png)
+![Game options](docs/images/options.png)
+![The Tap Quest demo](docs/images/playing.png)
+![Advanced evidence view](docs/images/advanced.png)
 
 </details>
 
-See [release history and update instructions](docs/RELEASES.md). V1’s **0.1.0** milestone remains in the changelog and original commit; V2 releases are **v0.2.0** (initial launcher) and **v0.3.0** (Meego adapter). These are early previews while Android and Steam Deck hardware verification remains outstanding.
+## Game plugins
 
-## What works
+Repairing a particular game's offline play takes game-specific work, so that work ships as **game plugins** rather than inside the app. A plugin recognises the exact game files it supports and adds what that game needs: patches, a local stand-in for retired servers, extra options or mods.
 
-* Native 1280 × 800 library, local artwork, touch/mouse/keyboard navigation and SDL2 controller focus navigation.
-* Background import, analysis and actual preparation using V1 services and hash/version-bound profiles.
-* All three self-authored fixture paths: signed offline patch, persistent local backend and independent rebuild.
-* Guided runtime discovery, intended-device selection, compatibility checks, owned launch/stop cleanup and backend guest reachability checks.
-* Adapter-backed save backup/restore, redacted diagnostics, evidence under Advanced and native portable exports.
-* User-local installation, rollback copy and Steam non-Steam shortcut instructions.
+- The app download contains **no game-specific code and no game files**. You always supply your own APKs.
+- Install plugins from **Setup > Game plugins**: download the ones your games need from the matching official release, or install a plugin file. Plugins live with your library data and are kept when the app updates.
+- Games that need a missing plugin say so in the library instead of failing.
 
-Unknown games stop with a clear request for a restoration adapter or additional evidence. A changed URL, valid signature or launched activity never implies offline gameplay. **Imported, Prepared, Launch tested and Verified Offline are separate.** No V2 Android gameplay was verified in the build environment, and no commercial game restoration is claimed.
+Plugin authors: see [adapters](docs/ADAPTERS.md). The core app talks to plugins only through optional hooks in `apk_revival/plugins.py` and `apk_revival/adapters.py`.
 
-## Architecture and reuse
+## Safety and privacy
 
-V1 remains the engine; its CLI and optional legacy Tk workbench remain available. V2 uses PySide6 rather than duplicating engine logic. OmniPC was inspected read-only, with MIT-licensed controller, focus, job-stage and launch ownership patterns adapted. Its Windows-specific backend was not copied or modified. See [V2 architecture](docs/ARCHITECTURE_V2.md), [V1 workbench](docs/V1_WORKBENCH.md), [adapters](docs/ADAPTERS.md) and [verification](docs/VERIFICATION.md).
+- Your original APKs are copied into the library read-only and never modified. Repaired copies are separate files.
+- Removing a game keeps its saves and backups in a `removed-games` folder; uninstalling from Android always backs up progress first.
+- Diagnostics exports leave out game files, saves, signing keys and raw logs, and redact tokens. Everything runs locally, with no account, API key or AI service.
 
-Private originals, assets, saves and signing keys live outside the repository. Core analysis works locally without AI or an API key. The packaged launcher includes replaceable Qt libraries; upstream notices are in [resources](resources/THIRD_PARTY_LICENSES.md).
+## Status
 
-## First real game: files needed
+APK Revival is a preview. Automated tests cover import, preparation, saves, updates and the interface on every change, but behaviour on real Steam Deck hardware is confirmed feature by feature; see the [version history](CHANGELOG.md) for what each release has and has not been verified on.
 
-Supply the exact base APK, title/version and where startup fails; matching split APKs and OBBs; available downloaded asset/cache folders; optional clean save and save location; launch/crash logs and screenshots; any available source or documented protocol examples; and your SteamOS/Waydroid version, guest architecture and ARM translation details. Redact credentials and tokens. Signing keys are not needed for analysis.
+## For contributors
 
-Missing server code or assets may make restoration impractical. Prefer the smallest supported change preserving gameplay; rebuilding requires a feasibility assessment and remains a separate result.
-
+- [Contributor setup](docs/CONTRIBUTING_V2.md) · [Architecture](docs/ARCHITECTURE_V2.md) · [Verification](docs/VERIFICATION.md) · [Release process](docs/RELEASES.md)
+- Several AI assistants work on this project in turn. They follow [AGENTS.md](AGENTS.md) and record each change in the shared log, [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md).
+- Controller focus, job stages and launch ownership adapt MIT-licensed patterns from OmniPC. The packaged app includes replaceable Qt libraries; licences and notices are in [resources](resources/THIRD_PARTY_LICENSES.md).

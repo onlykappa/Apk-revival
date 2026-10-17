@@ -3,7 +3,7 @@ import os,pathlib,re,time,uuid,sys,json
 from ..util import command,tool,RevivalError,atomic_json,now,digest
 from ..runtime import WaydroidRuntime
 
-LABELS=('Meego: touchscreen pinch and drag','Meego: mouse or trackpad','Android screen: touchscreen','Android screen: mouse or trackpad')
+LABELS=('Game window: touchscreen pinch and drag','Game window: mouse or trackpad','Android screen: touchscreen','Android screen: mouse or trackpad')
 
 def frame_records(text):
     header=None;records={}

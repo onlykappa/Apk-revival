@@ -1,6 +1,6 @@
 # APK Revival: managed APK opener
 
-This is a local candidate build for this Steam Deck. The APK import UI, launcher safeguards and host-service tests are recorded in [OVERNIGHT_HANDOFF.md](../OVERNIGHT_HANDOFF.md). Live Android, cold-start, reboot and physical input results have separate pass/block status; a host test or successful activity launch alone does not certify gameplay. Privileged startup can still require a graphical authorization prompt.
+This is a local candidate build for this Steam Deck. The APK import UI, launcher safeguards and host-service tests are recorded in [OVERNIGHT_HANDOFF.md](history/OVERNIGHT_HANDOFF.md). Live Android, cold-start, reboot and physical input results have separate pass/block status; a host test or successful activity launch alone does not certify gameplay. Privileged startup can still require a graphical authorization prompt.
 
 ## Use
 

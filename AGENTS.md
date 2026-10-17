@@ -16,8 +16,8 @@ knows where the last one stopped.
   - tests run and their result
   - what was installed on the Steam Deck, if anything
   - what is still unverified or should happen next
-- Keep `OVERNIGHT_HANDOFF.md` and `DECK_0.3.19_GITHUB_HANDOFF.md` as history only;
-  do not add new entries there.
+- `docs/history/` holds older logs (`OVERNIGHT_HANDOFF.md`,
+  `DECK_0.3.19_GITHUB_HANDOFF.md`). Read them for background; do not add entries there.
 
 ## Branches, versions and releases
 
@@ -31,6 +31,16 @@ knows where the last one stopped.
   Do not install a locally built version on the Deck that is numbered higher than
   the latest GitHub release unless it is merged and released, or the app stops
   offering updates.
+
+## Game plugins
+
+- Game-specific support (patches, local servers, mods, extra buttons) lives in a
+  plugin package, e.g. `apk_revival/meego/`, registered from its `plugin.py`.
+- The core app (everything else under `apk_revival/`) must never import or name a
+  plugin. Add an optional hook to `apk_revival/adapters.py`/`plugins.py` instead;
+  `tests/test_plugins.py` fails if core code mentions a plugin.
+- The public app download and source zip leave plugins out; each release also
+  publishes `APK-Revival-plugin-<name>-<version>.zip`, which the app can install.
 
 ## Tests
 

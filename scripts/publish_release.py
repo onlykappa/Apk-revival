@@ -16,7 +16,7 @@ def exists(tag):
 def publish():
     tag='v'+version();dist=ROOT/'dist'
     if exists(tag):raise RuntimeError('Release '+tag+' already exists; bump the version instead of replacing downloads')
-    gh('release','create',tag,str(dist/('APK-Revival-'+version()+'-linux-x86_64.tar.gz')),str(dist/('APK-Revival-'+version()+'-source.zip')),str(dist/'SHA256SUMS.txt'),'--target',sys.argv[1],'--title','APK Revival '+tag+' | V2 launcher','--notes-file',str(dist/'RELEASE-NOTES.md'),'--prerelease')
+    gh('release','create',tag,str(dist/('APK-Revival-'+version()+'-linux-x86_64.tar.gz')),str(dist/('APK-Revival-'+version()+'-source.zip')),*[str(p) for p in sorted(dist.glob('APK-Revival-plugin-*-'+version()+'.zip'))],str(dist/'SHA256SUMS.txt'),'--target',sys.argv[1],'--title','APK Revival '+tag+' | V2 launcher','--notes-file',str(dist/'RELEASE-NOTES.md'),'--prerelease')
     print('Published '+tag)
 
 if __name__=='__main__':publish()

@@ -2,6 +2,20 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.6.0] - 2026-10-17
+
+### Changed
+
+* Game-specific support now lives in **game plugins**. The app download and its source zip no longer contain any game-specific code; Meego support is published separately as `APK-Revival-plugin-meego-0.6.0.zip`.
+* Setup has a new **Game plugins** card: download the plugins your games need from the matching official release (checksum-verified), or install a plugin file. Plugins are kept in your data folder across app updates. After updating, the app offers to download any plugin your library needs.
+* Games whose plugin is missing show **Plugin needed** in the library instead of failing, and keep their files and saves.
+* Rewritten README describing the app as it is today, with new screenshots.
+* Tidy-up: older handoff logs moved to docs/history/, a duplicate changelog heading renamed, and GitHub Actions updated to current versions.
+
+### Verification scope
+
+* Tests prove the core app runs with no plugin code at all and that the published plugin file restores support, both in Python and inside the packaged Linux app. Meego's own regression tests pass. The plugin download and update prompt have not yet been used on the Steam Deck: after updating, accept the plugin prompt (or use Setup > Game plugins) and check that Meego still opens and plays in Android.
+
 ## [0.5.1] - 2026-10-17
 
 ### Fixed
@@ -180,7 +194,7 @@ Verification scope: automated runtime/presentation/recorder/supervisor tests and
 
 Verification scope: collector tests and offscreen Android-free UI checks pass. Live REA inspection found a failed Android graphics stack. Physical pinch/touch/mouse comparison and cold-runtime recovery remain unverified. No Android performance or input tuning was applied; the cause of Meego zoom stutter remains unresolved.
 
-## [0.3.8] — Local managed APK opener build
+## [0.3.8 local build] — Local managed APK opener build
 
 - Play ordinary APKs without requiring a restoration adapter; keep prepared restorations and their backend/saves on their existing path.
 - Read APK label, package, icon, launcher activity and ABI metadata. Handle Dolphin file-open requests and drag-and-drop imports.

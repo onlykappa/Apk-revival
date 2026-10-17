@@ -45,13 +45,15 @@ class MeegoAdapter:
         root=work/'meego-data';root.mkdir()
         with zipfile.ZipFile(store.base(p)) as z:tree=plistlib.loads(z.read('assets/TechTree.plist'))['techtree']
         atomic_json(root/'local-rules.json',{k:tree[k] for k in ['buildings','items','jobs','points_store','birthsigns','achievements','client_data','dungeon_types','dungeon_stages']})
-        resource=pathlib.Path(getattr(sys,'_MEIPASS',pathlib.Path(__file__).resolve().parents[2]))/'resources/meego-starter.json'
+        # Inside an installed plugin the starter sits beside this file; source checkouts keep it in resources/.
+        here=pathlib.Path(__file__).resolve()
+        resource=next((c for c in (here.with_name('meego-starter.json'),here.parents[2]/'resources/meego-starter.json',pathlib.Path(getattr(sys,'_MEIPASS',here.parents[2]))/'resources/meego-starter.json') if c.is_file()),here.parents[2]/'resources/meego-starter.json')
         seed=json.loads(resource.read_text());seed['host_ip_address']='127.0.0.1';seed['media_domain']=f'127.0.0.1:{p["runtime"]["backend_port"]}';atomic_json(root/'starter-packet.json',seed)
         saved=store.directory(p['id'])/'saves/village.json'
         sources=[i for i in p['inputs'] if i['role']=='save']
         if len(sources)>1:raise RevivalError('Choose one Meego village save to import')
         if sources and not saved.exists():
-            from ..saves import validate_meego_save
+            from .savefile import validate_meego_save
             state=json.loads((store.directory(p['id'])/'originals'/sources[0]['stored_name']).read_text());validate_meego_save(state);atomic_json(saved,state)
             p['logs'].append({'message':'Imported the explicitly supplied Meego village save into the separate launcher data location.'})
         return {'directory':str(root.relative_to(store.directory(p['id']))),'files':{f.name:digest(f) for f in root.iterdir()}}

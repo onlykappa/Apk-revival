@@ -85,7 +85,7 @@ class MeegoSimulationTests(unittest.TestCase):
         store.save(profile);atomic_json(directory/'saves/village.json',self.state.data)
         before=copy.deepcopy(self.state.data);apk_hash=digest(store.base(profile))
         launcher=Launcher(store)
-        result=launcher.jobs.run('New village',lambda ctx:launcher.new_meego_village(profile['id'],ctx))
+        result=launcher.jobs.run('New village',lambda ctx:launcher.run_game_action(profile['id'],'new_village',ctx))
         with zipfile.ZipFile(result['previous_backup']) as z:self.assertEqual(json.loads(z.read('progress.json')),before)
         fresh=json.loads((directory/'saves/village.json').read_text())
         self.assertEqual(fresh['game_state']['points'],0)

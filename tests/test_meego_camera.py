@@ -74,8 +74,8 @@ class CameraMigrationTests(unittest.TestCase):
 
     def test_matching_client_is_reused_without_preparation(self):
         self.profile['restoration']['plan'] = {'meego_client_fixes': camera.configuration(90)}
-        with patch('apk_revival.launcher.service.Restorer') as restorer:
-            self.assertIs(self.launcher.prepare_meego_camera(self.profile, self.runtime, self.ctx), self.profile)
+        with patch('apk_revival.restoration.Restorer') as restorer:
+            self.assertIs(self.launcher.before_play(self.profile, self.runtime, self.ctx), self.profile)
             restorer.assert_not_called()
         self.launcher.store.save.assert_not_called()
         self.assertEqual(self.runtime.shell.call_args.kwargs['timeout'], 5)
@@ -84,20 +84,20 @@ class CameraMigrationTests(unittest.TestCase):
         self.runtime.shell.side_effect = RevivalError('display timeout')
         prepared = copy.deepcopy(self.profile)
         prepared['restoration']['artifact'] = 'new.apk'
-        with patch('apk_revival.launcher.service.health', return_value={'preparation_ready': True}), \
-                patch('apk_revival.launcher.service.Restorer') as restorer:
+        with patch('apk_revival.launcher.tools_setup.health', return_value={'preparation_ready': True}), \
+                patch('apk_revival.restoration.Restorer') as restorer:
             restorer.return_value.prepare.return_value = prepared
-            result = self.launcher.prepare_meego_camera(self.profile, self.runtime, self.ctx)
+            result = self.launcher.before_play(self.profile, self.runtime, self.ctx)
         restorer.return_value.prepare.assert_called_once_with(self.profile['id'], 'local_backend', progress=self.ctx.step)
         self.assertEqual(self.profile['runtime']['meego_timer_hz'], 60)
         self.assertEqual(result['restoration']['artifact'], 'new.apk')
 
     def test_missing_tools_keep_the_old_artifact_and_profile(self):
         before = copy.deepcopy(self.profile)
-        with patch('apk_revival.launcher.service.health', return_value={'preparation_ready': False}), \
-                patch('apk_revival.launcher.service.Restorer') as restorer:
+        with patch('apk_revival.launcher.tools_setup.health', return_value={'preparation_ready': False}), \
+                patch('apk_revival.restoration.Restorer') as restorer:
             with self.assertRaisesRegex(RevivalError, 'previous APK and saves'):
-                self.launcher.prepare_meego_camera(self.profile, self.runtime, self.ctx)
+                self.launcher.before_play(self.profile, self.runtime, self.ctx)
             restorer.assert_not_called()
         self.assertEqual(self.profile, before)
         self.launcher.store.save.assert_not_called()

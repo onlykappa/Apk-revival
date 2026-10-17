@@ -26,10 +26,12 @@ def main():
             if b['path']=='local_backend':
                 port=b['backend_port']
                 if p['adapter']=='tapquest-v1':r.backend=Backend(root/'saves/tapquest.json',port).start()
-                elif p['adapter']=='meego-1.32':
-                    from .meego.backend import MeegoBackend
-                    r.backend=MeegoBackend(root/'portable-data',root/'backend-data',port,apk=root/'restored.apk').start()
-                else:raise RevivalError('Unsupported backend adapter')
+                else:
+                    from .adapters import adapter,load_plugins
+                    load_plugins(root/'plugins')
+                    plugin=adapter(p)
+                    if not hasattr(plugin,'start_backend'):raise RevivalError('Unsupported backend adapter')
+                    r.backend=plugin.start_backend(root/'portable-data',root/'backend-data',port,apk=root/'restored.apk')
                 r.adb('reverse','--no-rebind',f'tcp:{port}',f'tcp:{port}');r.forward_port=port;r.probe_backend()
             r.launch(p);print('Game started. Keep this window open. Ctrl+C stops it.')
             while True:time.sleep(.5)

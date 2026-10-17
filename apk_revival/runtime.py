@@ -96,11 +96,11 @@ class WaydroidRuntime:
     def start_backend(self,store,p):
         port=p['runtime']['backend_port']
         if p.get('adapter')=='tapquest-v1':self.backend=Backend(store.directory(p['id'])/'saves/tapquest.json',port).start()
-        elif p.get('adapter')=='meego-1.32':
-            from .meego.backend import MeegoBackend,config_path
-            native_mod=p.get('restoration',{}).get('plan',{}).get('meego_client_fixes',{}).get('native_timer_mod')==1
-            self.backend=MeegoBackend(store.directory(p['id']),config_path(store,p),port,apk=store.base(p),native_timer_mod=native_mod).start()
-        else:raise RevivalError('No implemented backend adapter')
+        else:
+            from .adapters import adapter
+            plugin=adapter(p)
+            if not hasattr(plugin,'start_backend'):raise RevivalError('No implemented backend adapter')
+            self.backend=plugin.start_backend(store.directory(p['id']),plugin.config_path(store,p),port,apk=store.base(p),profile=p)
         try:
             self.adb('reverse','--no-rebind',f'tcp:{port}',f'tcp:{port}');self.forward_port=port
             self.probe_backend()
