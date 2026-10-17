@@ -122,6 +122,7 @@ class RuntimeAccessTests(unittest.TestCase):
         self.assertEqual(run.call_count,1)
 
 
+@unittest.skipUnless(importlib.util.find_spec('PySide6'),'PySide6 is not installed')
 class MergedLauncherTests(unittest.TestCase):
     def test_long_game_title_and_package_fit_details_at_deck_sizes(self):
         from PySide6.QtWidgets import QApplication

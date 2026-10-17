@@ -3,13 +3,16 @@ import time
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
-from PySide6.QtWidgets import QApplication
+try:
+    from PySide6.QtWidgets import QApplication
+    from apk_revival.launcher.mods import ModsDialog
+except ImportError:QApplication=None  # The CI unit job installs no Qt.
 from apk_revival.launcher.jobs import Jobs
-from apk_revival.launcher.mods import ModsDialog
 from apk_revival.launcher.service import Launcher
 from apk_revival.util import RevivalError
 
 
+@unittest.skipIf(QApplication is None,'PySide6 is not installed')
 class ModsUITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app = QApplication.instance() or QApplication([])

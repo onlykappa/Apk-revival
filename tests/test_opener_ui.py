@@ -3,9 +3,12 @@ import pathlib,tempfile,unittest,time,os
 from unittest.mock import patch,Mock
 from test_pipeline import make_apk
 from apk_revival.store import Store
-from PySide6.QtWidgets import QApplication
-from apk_revival.launcher.ui import Window
+try:
+    from PySide6.QtWidgets import QApplication
+    from apk_revival.launcher.ui import Window
+except ImportError:QApplication=None  # The CI unit job installs no Qt.
 
+@unittest.skipIf(QApplication is None,'PySide6 is not installed')
 class OpenerUITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app=QApplication.instance() or QApplication([])

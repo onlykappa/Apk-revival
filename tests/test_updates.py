@@ -106,6 +106,7 @@ class UpdateUI(unittest.TestCase):
             self.assertTrue({'Check for updates','GitHub access','Install downloaded update'}.issubset(buttons))
             window.update_checked({'available':False,'version':'0.3.1'});self.assertIn('up to date',window.update_label.text());window.close();app.processEvents()
 
+    @unittest.skipUnless(os.getenv('QT_QPA_PLATFORM')=='offscreen','Qt offscreen test')
     def test_update_check_waits_for_a_running_task_instead_of_being_dropped(self):
         import time
         from PySide6.QtWidgets import QApplication
