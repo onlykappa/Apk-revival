@@ -1,3 +1,27 @@
+## 0.5.1 closed games end automatically — released
+
+2026-10-17, Claude. Branch fix/auto-end-closed-game, merged into main.
+
+User report: after closing a game they still had to open APK Revival and press
+Stop game. Cause: Launcher.monitor only checked `pidof PACKAGE`, and Android keeps
+closed apps' processes cached, so the session never ended.
+
+Launcher.game_left_screen() now reads `dumpsys activity activities` and looks at
+lines containing ResumedActivity (mResumedActivity on Android 10-11;
+topResumedActivity / ResumedActivity on 12+). If resumed activities exist and none
+belong to the game for OFFSCREEN_LIMIT (3) consecutive 5-second checks, monitor ends
+the session exactly like Stop game. Unknown output or a failed dumpsys counts as on
+screen, so a format difference can never end a running game. A dead process still
+ends immediately, as before.
+
+Window(close_after_game=True) is set by entry.py when launched with --play (per-game
+Steam shortcuts). After that game ends (monitor or Stop), the window closes so Steam
+returns to Gaming Mode. Normal library launches stay open.
+
+Tests: tests/test_auto_end.py (7); verified the main case fails on the old code.
+Needs on-Deck confirmation: close a game window and check the session ends in
+about 15 seconds; if not, capture `adb shell dumpsys activity activities` output.
+
 ## 0.5.0 general reviver essentials — released
 
 2026-10-17, Claude. Branch feat/reviver-essentials, merged into main.

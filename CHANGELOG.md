@@ -2,6 +2,17 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.5.1] - 2026-10-17
+
+### Fixed
+
+* Closing a game now ends its session automatically, without pressing Stop game. Android keeps closed apps cached in the background, so the launcher previously saw a live process and kept waiting. It now also checks whether the game is still on screen, and ends the session after about 15 seconds off screen. A brief pop-up from another app, such as a sign-in dialog, does not end the game, and unrecognised status output never does.
+* A game started from its own Steam shortcut now closes APK Revival when the game ends, returning straight to Steam.
+
+### Verification scope
+
+* Automated tests simulate Android 10 to 13 activity status output, a sign-in dialog, failed status queries and similar package names. The on-screen check has not yet been observed on the Steam Deck's Android; if a game still needs Stop game, report it so the detection can be adjusted.
+
 ## [0.5.0] - 2026-10-17
 
 ### Added

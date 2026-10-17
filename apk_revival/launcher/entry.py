@@ -85,7 +85,7 @@ def main():
     if (pathlib.Path(sys.executable).parent/'bundle.json').exists() and getattr(sys,'frozen',False):
         from .portable import PortableWindow
         window=PortableWindow(pathlib.Path(sys.executable).parent)
-    else:window=Window(store,args.fullscreen)
+    else:window=Window(store,args.fullscreen,close_after_game=bool(args.play))
     signal.signal(signal.SIGTERM,lambda *_:QTimer.singleShot(0,window.close))
     signal.signal(signal.SIGINT,lambda *_:QTimer.singleShot(0,window.close))
     window.show()

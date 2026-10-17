@@ -12,12 +12,14 @@ from .jobs import Jobs
 from .runtime_setup import RuntimeManager,ManagedAndroid
 from .tools_setup import configure,health
 
+# Monitor checks run every 5 seconds: about 15 seconds off screen ends the game.
+OFFSCREEN_LIMIT=3
 # Games whose progress lives in host files managed by a restoration adapter.
 ADAPTER_SAVES={'tapquest-v1','meego-1.32'}
 
 class Launcher:
     def __init__(self,store):
-        self.store=store;self.jobs=Jobs(store.root/'job-logs');self.runtime_manager=RuntimeManager(store.root/'runtime-state.json');self.android=None;self.active=None;self.connection_failures=0;self.runtime_factory=ManagedAndroid;configure()
+        self.store=store;self.jobs=Jobs(store.root/'job-logs');self.runtime_manager=RuntimeManager(store.root/'runtime-state.json');self.android=None;self.active=None;self.connection_failures=0;self.offscreen_checks=0;self.runtime_factory=ManagedAndroid;configure()
         file=store.root/'launcher-settings.json';self.settings=read_json(file) if file.exists() else {'schema_version':1,'serial':None,'fullscreen':False,'verify_after_prepare':True}
     def save_settings(self):atomic_json(self.store.root/'launcher-settings.json',self.settings)
     def import_game(self,apk,support,ctx):
@@ -153,7 +155,7 @@ class Launcher:
             try:
                 if ctx:ctx.step('Closing the game runtime started by APK Revival')
                 self.runtime_manager.stop_owned_session()
-            finally:self.android=None;self.active=None;self.connection_failures=0
+            finally:self.android=None;self.active=None;self.connection_failures=0;self.offscreen_checks=0
         return {'stopped':True}
     def mod_state(self, game):
         # Play already validates original/prepared APK hashes. A timer-picker
@@ -180,6 +182,14 @@ class Launcher:
             return 'The local game service stopped. Play again to recover it.'
         try:
             pid=self.android.shell('pidof',self.android.package,timeout=6).strip()
+            if pid and self.game_left_screen():
+                # Android keeps closed apps cached, so a live process is not proof
+                # the game is open. End only after the game stays off screen for
+                # several checks; a brief dialog from another app is tolerated.
+                self.offscreen_checks+=1
+                if self.offscreen_checks<OFFSCREEN_LIMIT:return None
+                pid=''
+            elif pid:self.offscreen_checks=0
             if pid:
                 self.connection_failures=0
                 state=getattr(getattr(self.android.backend,'server',None),'state',None)
@@ -197,6 +207,16 @@ class Launcher:
         try:self.stop()
         except RevivalError:pass
         return message
+    def game_left_screen(self):
+        """True when Android reports resumed activities and none is this game's.
+
+        Unknown output or a failed query counts as on screen, so a game is
+        never ended because of a status-format difference.
+        """
+        try:output=self.android.shell('dumpsys','activity','activities',timeout=6)
+        except RevivalError:return False
+        resumed=[line for line in output.splitlines() if 'ResumedActivity' in line and 'ActivityRecord{' in line]
+        return bool(resumed) and not any(' '+self.android.package+'/' in line for line in resumed)
     def android_runtime(self,ctx):
         ctx.step('Starting the game runtime');serial=self.runtime_manager.ensure(progress=ctx.step)
         return self.runtime_factory(serial)

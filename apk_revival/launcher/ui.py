@@ -149,7 +149,10 @@ class GameView(QWidget):
     def action(self):self.progress.collect();self.refresh()
 
 class Window(QMainWindow):
-    def __init__(self,store=None,fullscreen=False):
+    def __init__(self,store=None,fullscreen=False,close_after_game=False):
+        # close_after_game: started for one game (a Steam game shortcut). Closing
+        # once it ends hands control back to Steam without another click.
+        self.close_after_game=close_after_game;self.game_started=False
         super().__init__();self.service=Launcher(store or Store());self.current=None;self.worker=None;self.monitor_worker=None;self.cards=[];self.last_job=None;self.rebuild_view=None;self.active_page='library';self.closing=False;self.repair_games=set();self.focus_play_after_prepare=False;self.art_cache={};self.columns=0;self.queued=None
         self.setWindowTitle('APK Revival');self.setWindowIcon(QIcon(str(brand_asset())));self.resize(1280,800);self.setMinimumSize(1000,650);self.setAcceptDrops(True)
         root=QWidget();root.setObjectName('base');self.setCentralWidget(root);outer=QHBoxLayout(root);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
@@ -413,10 +416,14 @@ class Window(QMainWindow):
                 reply(state='failed',job_id=ctx.job.id,error=str(error));raise
         self.submit(title,run,callbacks.get(action));return True
     def open_game(self,session):
+        self.game_started=True
         if session['kind']=='rebuild':
             self.rebuild_view=GameView(self.service.store.directory(session['game'])/'saves/rebuild.json',self.stop);self.stack.addWidget(self.rebuild_view);self.stack.setCurrentWidget(self.rebuild_view);self.active_page='game';self.activateWindow();QTimer.singleShot(10,self.rebuild_view.collect.setFocus)
         self.message.setText('Playing. Stop returns to your library.')
-    def stop(self):self.submit('Stop game',lambda ctx:self.service.stop(ctx),lambda _:self.return_to_library())
+    def stop(self):self.submit('Stop game',lambda ctx:self.service.stop(ctx),lambda _:(self.return_to_library(),self.game_ended()))
+    def game_ended(self):
+        if self.close_after_game and self.game_started and not self.service.active:
+            self.message.setText('Game ended. Returning to Steam...');QTimer.singleShot(1500,self.close)
     def return_to_library(self):
         self.stack.setCurrentWidget(self.library);self.active_page='library';self.set_page('library')
         if self.rebuild_view:self.stack.removeWidget(self.rebuild_view);self.rebuild_view.deleteLater();self.rebuild_view=None
@@ -642,7 +649,7 @@ class Window(QMainWindow):
     def monitored(self,message):
         if not message:return
         self.message.setText(message)
-        if not self.service.active:self.return_to_library()
+        if not self.service.active:self.return_to_library();self.game_ended()
     def monitor_finished(self):
         if self.monitor_worker:self.monitor_worker.deleteLater();self.monitor_worker=None
         if self.closing:QTimer.singleShot(0,self.close)
