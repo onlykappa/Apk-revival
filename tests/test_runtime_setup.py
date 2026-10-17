@@ -38,7 +38,7 @@ class RuntimeSetupTests(unittest.TestCase):
         manager=RuntimeManager()
         # Privilege routing has its own tests; do not depend on whether the
         # real Deck has completed the optional password-free setup.
-        with patch('apk_revival.launcher.runtime_access.preflight_command',return_value=['sudo','-A','/usr/bin/waydroid-mount','main','--check-only']),patch.object(manager,'steam_bundle_launcher',return_value=pathlib.Path('/existing/launcher')),patch('apk_revival.launcher.runtime_setup.command') as run,patch.object(manager,'ensure',return_value='current:5555') as ensure:
+        with patch('apk_revival.launcher.runtime_access.preflight_command',return_value=['sudo','-A','/usr/bin/waydroid-mount','main','--check-only']),patch.object(manager,'steam_bundle_launcher',return_value=pathlib.Path('/existing/launcher')),patch('apk_revival.launcher.runtime_setup.command') as run,patch('apk_revival.launcher.runtime_setup.tool',side_effect=lambda name:name),patch.object(manager,'ensure',return_value='current:5555') as ensure:
             self.assertEqual(manager.restart_android(),'current:5555')
         commands=[call.args[0] for call in run.call_args_list]
         self.assertEqual(commands[0][-3:],['/usr/bin/waydroid-mount','main','--check-only'])

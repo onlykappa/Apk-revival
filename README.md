@@ -13,7 +13,7 @@
   <a href="docs/INSTALL_V2.md">Steam Deck setup</a>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.3.8-9fe5c4?labelColor=16242b" alt="Version 0.3.8" />
+  <img src="https://img.shields.io/badge/version-0.4.0-9fe5c4?labelColor=16242b" alt="Version 0.4.0" />
   <img src="https://img.shields.io/badge/Linux-x86__64-9fe5c4?labelColor=16242b" alt="Linux x86_64" />
   <img src="https://img.shields.io/badge/status-preview-efce7d?labelColor=16242b" alt="Preview, hardware unverified" />
   <img src="https://img.shields.io/badge/license-MIT-9fe5c4?labelColor=16242b" alt="MIT source license" />

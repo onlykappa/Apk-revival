@@ -27,7 +27,10 @@ class RuntimeAccessTests(unittest.TestCase):
             with self.assertRaises(ValueError):installer.policy(unsafe)
         with tempfile.NamedTemporaryFile() as f:
             f.write(rules.encode());f.flush()
-            checked = subprocess.run(['/usr/bin/visudo','-cf',f.name],capture_output=True,text=True)
+            # SteamOS ships /usr/bin/visudo; Debian/Ubuntu CI runners keep it in /usr/sbin.
+            visudo = next((p for p in ('/usr/bin/visudo','/usr/sbin/visudo') if os.path.exists(p)), None)
+            if not visudo:self.skipTest('visudo is not installed')
+            checked = subprocess.run([visudo,'-cf',f.name],capture_output=True,text=True)
             self.assertEqual(checked.returncode,0,checked.stderr)
 
     def test_installer_needs_real_administrator_and_matching_account(self):

@@ -4,6 +4,9 @@ from apk_revival.launcher.network import tls_context,open_url
 from apk_revival.launcher.updater import Updater,API,stage_archive,version
 from apk_revival.launcher.install import install
 from apk_revival.util import RevivalError
+from apk_revival import __version__
+# A version above the current one, so staging tests survive version bumps.
+NEWER='{}.{}.0'.format(version(__version__)[0],version(__version__)[1]+1)
 
 class Reply(io.BytesIO):
     def __enter__(self):return self
@@ -62,8 +65,8 @@ class UpdateTests(unittest.TestCase):
             private='/home/deck/.cache/apk-revival/updates/old/APK-Revival/_internal'
             variables={'LD_LIBRARY_PATH':private,'LD_LIBRARY_PATH_ORIG':private}
             with patch.dict(os.environ,variables),patch('apk_revival.util.sys.frozen',True,create=True):
-                with patch('subprocess.run',return_value=CompletedProcess([],0,json.dumps({'version':'0.4.0','certificates':True}),'')) as process:
-                    stage_archive(archive,expected_version='0.4.0')
+                with patch('subprocess.run',return_value=CompletedProcess([],0,json.dumps({'version':NEWER,'certificates':True}),'')) as process:
+                    stage_archive(archive,expected_version=NEWER)
             self.assertNotIn('LD_LIBRARY_PATH',process.call_args.kwargs['env'])
             self.assertNotIn('LD_LIBRARY_PATH_ORIG',process.call_args.kwargs['env'])
 
@@ -72,7 +75,7 @@ class UpdateTests(unittest.TestCase):
             root=pathlib.Path(home);installed=root/'.local/share/apk-revival-app';installed.mkdir(parents=True);(installed/'APK-Revival').write_text('old')
             archive=self.archive(root,[('APK-Revival/APK-Revival',b'fake',None),('APK-Revival/_internal/library',b'fake',None)])
             from subprocess import CompletedProcess
-            with patch('subprocess.run',return_value=CompletedProcess([],0,json.dumps({'version':'0.4.0','certificates':True}),'')):result=stage_archive(archive,expected_version='0.4.0')
+            with patch('subprocess.run',return_value=CompletedProcess([],0,json.dumps({'version':NEWER,'certificates':True}),'')):result=stage_archive(archive,expected_version=NEWER)
             self.assertTrue(pathlib.Path(result['directory']).is_dir());self.assertEqual((installed/'APK-Revival').read_text(),'old')
             with patch('subprocess.run',return_value=CompletedProcess([],1,'','bad')):
                 with self.assertRaisesRegex(RevivalError,'cannot start'):stage_archive(archive)

@@ -18,7 +18,7 @@ class LaunchFailureTests(unittest.TestCase):
     def test_launch_commands_and_cleanup_have_short_independent_bounds(self):
         runtime=WaydroidRuntime('guest');runtime.shell=Mock(side_effect=['game.example/.Main','Starting: Intent','123']);runtime.launch_progress=Mock()
         profile={'restoration':{},'analysis':{'metadata':{'package':'game.example'}}}
-        with patch('apk_revival.runtime.command'):
+        with patch('apk_revival.runtime.command'),patch('apk_revival.runtime.tool',side_effect=lambda name:name):
             runtime.launch(profile)
         resolve,start,pid=runtime.shell.call_args_list
         self.assertEqual(resolve.kwargs['timeout'],8);self.assertEqual(start.kwargs['timeout'],10);self.assertNotIn('-W',start.args)

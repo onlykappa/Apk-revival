@@ -17,7 +17,12 @@ if [[ "$*" == 'session start' ]]; then
 elif [[ "$*" == 'session stop' ]]; then touch "$HOME/stopped"; fi
 ''');waydroid.chmod(0o755)
             sudo=bin_dir/'sudo';sudo.write_text('#!/bin/bash\nprintf "%s\\n" "$*" > "$HOME/startup-request"\n');sudo.chmod(0o755)
-            script=pathlib.Path(__file__).resolve().parents[1]/'resources/managed-waydroid-session.sh'
+            # The privilege helper calls /usr/bin/sudo by absolute path (never PATH),
+            # so exercise copies whose fixed paths point at the test doubles.
+            resources=pathlib.Path(__file__).resolve().parents[1]/'resources';copies=home/'resources';copies.mkdir()
+            for name in ['managed-waydroid-session.sh','managed-waydroid-privilege.sh','managed-waydroid-startup.sh']:
+                (copies/name).write_text((resources/name).read_text().replace('/usr/bin/sudo',str(sudo)).replace('/etc/apk-revival/runtime-helper',str(home/'no-installed-helper')))
+            script=copies/'managed-waydroid-session.sh'
             env=dict(os.environ,HOME=temp,PATH=str(bin_dir)+':/usr/bin:/bin')
             result=subprocess.run(['/bin/bash',str(script)],env=env,capture_output=True,text=True,timeout=12)
             self.assertEqual(result.returncode,0,result.stderr)

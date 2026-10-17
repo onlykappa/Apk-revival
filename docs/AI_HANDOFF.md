@@ -1,3 +1,24 @@
+## 0.4.0 Deck work merged into main — released
+
+2026-10-17, Claude. Branch integrate-0.4.0, merged into main.
+
+Merged deck-0.3.20-launcher-meego (Deck builds 0.3.19 to 0.3.27) into main, so
+main is again the single source of truth. Brought across the main-only fix
+0cfabee that queues a click made while another task runs (Check for updates was
+silently ignored during the automatic Android check); kept Codex's separate queue
+for clicks during the status-check monitor, and both now coexist in submit().
+
+Made five tests independent of the Steam Deck so GitHub's Ubuntu runners can run
+them: launch tests now mock the waydroid lookup; the session supervisor test runs
+copies of the scripts with the fixed /usr/bin/sudo and helper paths pointed at test
+doubles (production scripts unchanged); the visudo test finds /usr/bin or /usr/sbin.
+Runtime access tests verified as a non-root user with real visudo (10/10 pass).
+
+Version 0.4.0 is higher than every Deck-only build, so the installed 0.3.27 app
+will offer this update. Added AGENTS.md and CLAUDE.md pointing every assistant to
+this log. No gameplay, save or APK changes in this step; pending native acceptance
+items from 0.3.25 to 0.3.27 below remain pending.
+
 ## 0.3.27 villager birthsign card lookup — installed
 
 User again reports blank Rabbit popup, citing Nooni. Read-only save inspection:

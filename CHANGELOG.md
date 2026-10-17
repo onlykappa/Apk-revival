@@ -2,6 +2,20 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.4.0] - 2026-10-17
+
+### Improved
+
+* Official release of the Deck builds 0.3.19 through 0.3.27, which were previously installed only on one Steam Deck: offline Meego gameplay (solo adventures and dungeons, research, fishing, Temple levels, food and hunger, strength-based carrying, resource respawning, building moves, three Launch Dock islands and birthsign cards), the optional Meego Mods menu with the in-game Skip timer, and the Waydroid runtime and fullscreen launch fixes.
+* Includes the 0.3.8 Windows-style launcher and the fix that queues a click made while another task runs, so Check for updates is never silently ignored. Update check errors appear on the Updates card.
+* Version 0.4.0 is higher than every Deck-only build, so installs on 0.3.19 to 0.3.27 are offered this update in the app. Games, saves and prepared Meego data stay in the separate data folder.
+* Added AGENTS.md and CLAUDE.md so every AI assistant reads and updates the shared log in docs/AI_HANDOFF.md.
+* Tests no longer depend on Steam Deck only programs or paths (Waydroid, SteamOS Waydroid scripts, /usr/bin/sudo or /usr/bin/visudo), so they run on GitHub's Ubuntu builders.
+
+### Verification scope
+
+* The full automated suite passes on Linux, including the runtime access tests as a non-root user with a real visudo. Gameplay behavior is as recorded per version in docs/AI_HANDOFF.md; items listed there as pending native or Android acceptance remain unverified on hardware.
+
 ## [0.3.27] — Repair villager birthsign card lookup
 
 - Send villager birthsign IDs as strings at the native HTTP boundary, matching original card-menu dictionary lookups. Preserve saved numeric genetics and collection membership IDs.

@@ -46,7 +46,7 @@ class OpenerTests(unittest.TestCase):
     def test_launcher_resolves_main_category_and_rejects_android_error(self):
         runtime=WaydroidRuntime('test');p={'restoration':{},'analysis':{'metadata':{'package':'game.example'}}}
         runtime.shell=Mock(side_effect=['game.example/.Alias','Error: Activity class does not exist'])
-        with patch('apk_revival.runtime.command'):
+        with patch('apk_revival.runtime.command'),patch('apk_revival.runtime.tool',side_effect=lambda name:name):
             with self.assertRaisesRegex(RevivalError,'rejected'):runtime.launch(p)
         self.assertIn('android.intent.category.LAUNCHER',runtime.shell.call_args_list[0].args)
     def test_arm_legacy_compatible_when_translation_advertised(self):
