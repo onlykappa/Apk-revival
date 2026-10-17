@@ -1,3 +1,33 @@
+## 0.9.0 controller-to-touch mapping — released
+
+2026-10-17, Claude. Branch feat/touch-mapping, merged into main.
+
+- apk_revival/touch_mapping.py: BUTTONS (SDL indices), mapping(p) reads
+  launcher.controls {"index": [x, y]} as screen fractions, store_format, screen_size
+  (`wm size`, override first), pixel, TapSender (one persistent `adb shell`; each tap
+  writes `input tap X Y`).
+- controller.py: Controller.game_buttons callback gets each new press of
+  GAME_BUTTONS only while the launcher window is not active and no dialog is open.
+  Sets SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS.
+- service.py: start_touch (both play paths, after start_display; failures only log a
+  step and never stop Play), stop_touch (first in release_game_settings),
+  touch_press, screenshot (`adb exec-out screencap -p`, needs an active game),
+  save_controls (updates or starts taps for the running game).
+- ui.py: Game options > Controller card > Edit controls opens an editor over a live
+  screenshot (TapPicker); the window's controller.game_buttons = service.touch_press.
+
+Tests: tests/test_touch_mapping.py (7). Full suite: only the known local-only
+failures (three runtime-access tests need a non-root account; four GUI tests need the
+built fixture APK), identical on clean main.
+
+Needs Deck confirmation: screenshot appears in the editor; mapped buttons tap in a
+game in Desktop and Gaming Mode (Steam Input may need a Gamepad layout); latency is
+acceptable; Waydroid may also receive the same press as a gamepad button.
+
+Still unverified from 0.6.0 to 0.8.0: ARM check, network modes (http_proxy resets to
+:0/null after Stop), display settings, crash logs, Steam artwork, plugin install
+prompt, auto-end on game close. Deferred by the user: phone support.
+
 ## 0.8.0 library polish — released
 
 2026-10-17, Claude. Branch feat/library-polish, merged into main.

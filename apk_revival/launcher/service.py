@@ -23,7 +23,7 @@ def host_saves(p):
 class Launcher:
     def __init__(self,store):
         load_plugins(store.root/'plugins')
-        self.store=store;self.jobs=Jobs(store.root/'job-logs');self.runtime_manager=RuntimeManager(store.root/'runtime-state.json');self.android=None;self.active=None;self.connection_failures=0;self.offscreen_checks=0;self.network=None;self.runtime_factory=ManagedAndroid;configure()
+        self.store=store;self.jobs=Jobs(store.root/'job-logs');self.runtime_manager=RuntimeManager(store.root/'runtime-state.json');self.android=None;self.active=None;self.connection_failures=0;self.offscreen_checks=0;self.network=None;self.touch=None;self.runtime_factory=ManagedAndroid;configure()
         file=store.root/'launcher-settings.json';self.settings=read_json(file) if file.exists() else {'schema_version':1,'serial':None,'fullscreen':False,'verify_after_prepare':True}
     def save_settings(self):atomic_json(self.store.root/'launcher-settings.json',self.settings)
     def import_game(self,apk,support,ctx):
@@ -94,7 +94,7 @@ class Launcher:
             p=self.before_play(p,runtime,ctx)
             ctx.step('Installing the prepared client if needed');runtime.install(self.store,p)
             if p['restoration']['path']=='local_backend':ctx.step('Starting local services');runtime.start_backend(self.store,p)
-            self.start_network(p,runtime,ctx);self.start_display(p,runtime,ctx);self.clear_crash_buffer(runtime)
+            self.start_network(p,runtime,ctx);self.start_display(p,runtime,ctx);self.start_touch(p,runtime,ctx);self.clear_crash_buffer(runtime)
             ctx.step('Launching the game');runtime.launch(p)
             self.active={'game':game,'kind':'android','started_at':now(),'serial':serial}
             p=self.store.load(game);p.setdefault('launcher',{}).setdefault('launch_checks',[]).append({'kind':'android_activity','time':now(),'artifact_sha256':p['restoration']['artifact_sha256'],'serial':serial,'offline_gameplay_verified':False});p['launcher']['last_played']=self.active['started_at']
@@ -111,10 +111,47 @@ class Launcher:
             finally:self.android=None;self.active=None
             raise
     def release_game_settings(self):
-        """Undo network and display changes. Never raises: Stop must always finish."""
-        for step in (self.stop_network,self.stop_display):
+        """Undo touch, network and display changes. Never raises: Stop must always finish."""
+        for step in (self.stop_touch,self.stop_network,self.stop_display):
             try:step()
             except Exception:pass  # Leftovers are undone before the next Play.
+    def start_touch(self,p,runtime,ctx):
+        """Start sending mapped controller buttons as taps. Optional: never stops a launch."""
+        from .. import touch_mapping
+        self.stop_touch();points=touch_mapping.mapping(p)
+        if not points:return
+        try:
+            ctx.step('Turning on controller taps');size=touch_mapping.screen_size(runtime)
+            self.touch={'points':points,'size':size,'sender':touch_mapping.TapSender(runtime.serial)}
+        except Exception as error:
+            self.touch=None
+            try:ctx.step('Controller taps are off for this session: '+str(error))
+            except Exception:pass
+    def stop_touch(self):
+        touch=getattr(self,'touch',None);self.touch=None
+        if touch:touch['sender'].close()
+    def touch_press(self,index):
+        """Called for each controller button press while the game has focus."""
+        from .. import touch_mapping
+        touch=getattr(self,'touch',None)
+        if not touch or index not in touch['points']:return False
+        return touch['sender'].tap(*touch_mapping.pixel(touch['points'][index],touch['size']))
+    def screenshot(self):
+        """PNG bytes of the running game's screen, for placing controller taps."""
+        import subprocess
+        from ..util import tool
+        if not self.android or not self.active:raise RevivalError('Start the game first, then edit its controls on the screen it shows.')
+        try:data=subprocess.run([tool('adb'),'-s',self.android.serial,'exec-out','screencap','-p'],capture_output=True,timeout=20).stdout
+        except (OSError,subprocess.TimeoutExpired) as error:raise RevivalError('Could not take a screenshot of the game: '+str(error)) from error
+        if not data.startswith(b'\x89PNG'):raise RevivalError('Android did not return a screenshot. Make sure the game is showing, then try again.')
+        return data
+    def save_controls(self,game,points):
+        from .. import touch_mapping
+        p=self.store.load(game);p.setdefault('launcher',{})['controls']=touch_mapping.store_format(points);self.store.save(p)
+        if self.active and self.active['game']==game and self.android:
+            if getattr(self,'touch',None):self.touch['points']=touch_mapping.mapping(p)
+            else:self.start_touch(p,self.android,type('Quiet',(),{'step':lambda *a:None})())
+        return p
     def start_display(self,p,runtime,ctx):
         """Apply the game's display settings, after undoing any left by a crash."""
         from .. import display
@@ -191,7 +228,7 @@ class Launcher:
         self.android=runtime;runtime.launch_progress=ctx.step
         try:
             ctx.step('Installing APK without removing game data');runtime.install(self.store,p,original=True)
-            self.start_network(p,runtime,ctx);self.start_display(p,runtime,ctx);self.clear_crash_buffer(runtime)
+            self.start_network(p,runtime,ctx);self.start_display(p,runtime,ctx);self.start_touch(p,runtime,ctx);self.clear_crash_buffer(runtime)
             ctx.step('Opening the game');runtime.launch(p)
             self.active={'game':p['id'],'kind':'android','started_at':now(),'serial':serial}
             p.setdefault('launcher',{}).setdefault('launch_checks',[]).append({'kind':'original_activity','time':now(),'apk_sha256':p['apk_sha256'],'offline_gameplay_verified':False})

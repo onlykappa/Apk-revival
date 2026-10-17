@@ -2,6 +2,17 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.9.0] - 2026-10-17
+
+### Added
+
+* **Controller-to-touch mapping** for touch-only games. Start the game, then open Game options > Controller > Edit controls: APK Revival takes a screenshot of the game, and you click where each controller button (A, B, X, Y, bumpers, stick presses, D-pad, Back and Start) should tap. While the game window has focus, pressing a mapped button taps that spot. Mappings are saved per game; leave all buttons empty to turn it off.
+* Taps go through one open Android shell, but each still takes about a fifth of a second, so this suits menus, card, puzzle, idle and strategy games better than fast action. If taps cannot start, the game still launches without them.
+
+### Verification scope
+
+* Tests cover stored mappings, screen-size parsing, tap positions, the tap shell and that controller presses are forwarded once per press and only while APK Revival is not the focused window, against a simulated Android guest. Taps have not yet been observed in a game on the Steam Deck's Android, and Steam Input in Gaming Mode may need the controller layout set to Gamepad for presses to reach APK Revival.
+
 ## [0.8.0] - 2026-10-17
 
 ### Added

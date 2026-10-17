@@ -9,6 +9,7 @@ from PySide6.QtCore import QPoint,QTimer,Qt
 from PySide6.QtWidgets import QApplication,QAbstractButton,QComboBox,QLineEdit,QScrollArea,QWidget
 
 BUTTONS={0:'confirm',1:'back',3:'options',6:'menu',11:'up',12:'down',13:'left',14:'right'}
+GAME_BUTTONS=(0,1,2,3,4,6,7,8,9,10,11,12,13,14)  # Forwarded to game_buttons while a game has focus.
 
 def spatial_focus(window,direction):
     scope=QApplication.activeModalWidget() or window
@@ -42,7 +43,7 @@ def spatial_focus(window,direction):
 
 class Controller:
     def __init__(self,window,back,options):
-        self.window=window;self.back=back;self.options=options;self.lib=None;self.handles={};self.previous={};self.last_dir=None;self.repeat=0;self.connected=[];self.error=None
+        self.window=window;self.back=back;self.options=options;self.lib=None;self.handles={};self.previous={};self.last_dir=None;self.repeat=0;self.connected=[];self.error=None;self.game_buttons=None
         try:
             frozen=pathlib.Path(getattr(sys,'_MEIPASS',pathlib.Path(__file__).parent))/'libSDL2-2.0.so.0'
             location=str(frozen) if frozen.is_file() else ctypes.util.find_library('SDL2-2.0')
@@ -50,6 +51,8 @@ class Controller:
             lib=ctypes.CDLL(location);self.lib=lib
             for name,args,result in [('SDL_InitSubSystem',[ctypes.c_uint32],ctypes.c_int),('SDL_NumJoysticks',[],ctypes.c_int),('SDL_IsGameController',[ctypes.c_int],ctypes.c_int),('SDL_GameControllerOpen',[ctypes.c_int],ctypes.c_void_p),('SDL_GameControllerGetAttached',[ctypes.c_void_p],ctypes.c_int),('SDL_GameControllerClose',[ctypes.c_void_p],None),('SDL_GameControllerGetButton',[ctypes.c_void_p,ctypes.c_int],ctypes.c_uint8),('SDL_GameControllerGetAxis',[ctypes.c_void_p,ctypes.c_int],ctypes.c_int16),('SDL_GameControllerName',[ctypes.c_void_p],ctypes.c_char_p),('SDL_GameControllerUpdate',[],None),('SDL_QuitSubSystem',[ctypes.c_uint32],None)]:
                 f=getattr(lib,name);f.argtypes=args;f.restype=result
+            try:lib.SDL_SetHint.argtypes=[ctypes.c_char_p,ctypes.c_char_p];lib.SDL_SetHint(b'SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS',b'1')
+            except AttributeError:pass
             if lib.SDL_InitSubSystem(0x2000|0x200)!=0:raise OSError('Controller subsystem unavailable')
         except OSError as e:self.error=str(e);self.lib=None
         self.timer=QTimer(window);self.timer.timeout.connect(self.poll);self.timer.start(40)
@@ -78,7 +81,10 @@ class Controller:
         self.connected=[];direction=None
         for index,h in self.handles.items():
             self.connected.append((lib.SDL_GameControllerName(h) or b'Controller').decode(errors='replace'))
-            pressed={n:bool(lib.SDL_GameControllerGetButton(h,n)) for n in BUTTONS};previous=self.previous.get(index,{})
+            pressed={n:bool(lib.SDL_GameControllerGetButton(h,n)) for n in set(BUTTONS)|set(GAME_BUTTONS)};previous=self.previous.get(index,{})
+            if self.game_buttons and not self.window.isActiveWindow() and not QApplication.activeModalWidget():
+                for n in GAME_BUTTONS:
+                    if pressed[n] and not previous.get(n):self.game_buttons(n)
             for n,action in BUTTONS.items():
                 if pressed[n] and not previous.get(n) and action not in {'up','down','left','right'}:self.dispatch(action)
             for n in [11,12,13,14]:

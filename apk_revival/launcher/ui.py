@@ -79,6 +79,25 @@ def dialog_shell(dialog,title,description=None):
     footer_host=QFrame();footer_host.setObjectName('footer');footer=QHBoxLayout(footer_host);footer.setContentsMargins(24,18,24,18);footer.setSpacing(8);outer.addWidget(footer_host)
     return body,footer
 
+class TapPicker(QWidget):
+    """A game screenshot; clicking it places the selected controller button there."""
+    def __init__(self,image,points,selected):
+        super().__init__();self.image=image;self.points=points;self.selected=selected;self.setMinimumSize(480,270);self.setCursor(Qt.CursorShape.CrossCursor)
+    def area(self):
+        size=self.image.size().scaled(self.size(),Qt.AspectRatioMode.KeepAspectRatio)
+        return QRect((self.width()-size.width())//2,(self.height()-size.height())//2,size.width(),size.height())
+    def mousePressEvent(self,event):
+        area=self.area();x=(event.position().x()-area.x())/max(1,area.width());y=(event.position().y()-area.y())/max(1,area.height())
+        if 0<=x<=1 and 0<=y<=1:self.points[self.selected()]=(x,y);self.update()
+    def paintEvent(self,event):
+        from ..touch_mapping import SHORT
+        painter=QPainter(self);painter.setRenderHint(QPainter.RenderHint.Antialiasing);area=self.area();painter.drawPixmap(area,self.image)
+        painter.setFont(QFont(FONT_FAMILIES[0],9,QFont.Weight.DemiBold))
+        for index,(x,y) in self.points.items():
+            centre=QPoint(area.x()+int(x*area.width()),area.y()+int(y*area.height()))
+            painter.setPen(QPen(QColor('#ffffff'),2));painter.setBrush(QColor(ACCENT if index==self.selected() else '#000000'));painter.drawEllipse(centre,13,13)
+            painter.drawText(QRect(centre.x()-13,centre.y()-13,26,26),Qt.AlignmentFlag.AlignCenter,SHORT.get(index,str(index)))
+
 class Worker(QThread):
     update=Signal(object);succeeded=Signal(object);failed=Signal(str)
     def __init__(self,service,title,operation,parent=None):super().__init__(parent);self.service=service;self.title=title;self.operation=operation
@@ -195,7 +214,7 @@ class Window(QMainWindow):
         self.bar=QProgressBar();self.bar.setRange(0,0);self.bar.setTextVisible(False);self.bar.hide();column.addWidget(self.bar)
         self.feedback=QFrame();self.feedback.setObjectName('statusbar');feedback=QHBoxLayout(self.feedback);feedback.setContentsMargins(20,8,20,8);feedback.setSpacing(12);self.message=label('Ready. Add a game or try the included desktop demo.','muted',True);feedback.addWidget(self.message,1);self.cancel_button=button('Cancel task',self.cancel,'quiet');feedback.addWidget(self.cancel_button);self.cancel_button.hide()
         feedback.addWidget(label('A  Select    B  Back    D-pad  Move','caption'));column.addWidget(self.feedback)
-        self.controller=Controller(self,self.back,self.options);QApplication.instance().installEventFilter(self);self.set_page('library');self.refresh()
+        self.controller=Controller(self,self.back,self.options);self.controller.game_buttons=self.service.touch_press;QApplication.instance().installEventFilter(self);self.set_page('library');self.refresh()
         self.monitor_timer=QTimer(self);self.monitor_timer.timeout.connect(self.monitor);self.monitor_timer.start(5000)
         if fullscreen or self.service.settings.get('fullscreen'):self.showFullScreen()
         QTimer.singleShot(80,self.check_runtime);QTimer.singleShot(0,self.initial_focus)
@@ -531,6 +550,28 @@ class Window(QMainWindow):
         if not ready and info.get('session')=='RUNNING':self.runtime_label.setText('Android session is running, but ADB is not connected. '+('Guest IP: '+str(info['ip'])+'. Use Connect below. ' if info.get('ip') else '')+'Check the connection details below.')
         if not ready and any(d['state']=='unauthorized' for d in info['devices']):self.runtime_label.setText('Authorization needed. Choose Open Android and approve Allow USB debugging. Select Always allow from this computer, then Check again.')
         self.message.setText(self.service.runtime_manager.last_start_note or ('; '.join(info.get('errors',[])[-2:]) if not ready and info.get('errors') else 'Setup check complete.'));self.service.runtime_manager.last_start_note=None;self.update_details()
+    def edit_controls(self,game):
+        from ..touch_mapping import BUTTONS,mapping
+        try:data=self.service.screenshot()
+        except RevivalError as error:QMessageBox.information(self,'Edit controls',str(error));return
+        image=QPixmap();image.loadFromData(data,'PNG')
+        if image.isNull():QMessageBox.information(self,'Edit controls','The screenshot could not be read. Try again.');return
+        points=mapping(self.service.store.load(game))
+        dialog=QDialog(self);dialog.setWindowTitle('Edit controls');dialog.resize(1000,720)
+        box,footer=dialog_shell(dialog,'Edit controls','Pick a button, then click where it should tap on the game screen. Taps are sent while the game window has focus and take about a fifth of a second, so they suit menus and slower games best.')
+        choice=QComboBox();choice.setMinimumWidth(220)
+        for index,name in BUTTONS.items():choice.addItem(name,index)
+        picker=TapPicker(image,points,choice.currentData)
+        def names():
+            for i in range(choice.count()):choice.setItemText(i,BUTTONS[choice.itemData(i)]+('  ·  placed' if choice.itemData(i) in points else ''))
+        def clicked(event,original=picker.mousePressEvent):original(event);names()
+        picker.mousePressEvent=clicked;choice.currentIndexChanged.connect(lambda _:picker.update())
+        row=QHBoxLayout();row.addWidget(label('Button','strong'));row.addWidget(choice);row.addWidget(button('Clear button',lambda:(points.pop(choice.currentData(),None),names(),picker.update())));row.addWidget(button('Clear all',lambda:(points.clear(),names(),picker.update())));row.addStretch()
+        box.addLayout(row);box.addWidget(picker,1);names()
+        def save():
+            self.service.save_controls(game,points);dialog.accept()
+            self.message.setText(f'Controls saved: {len(points)} button{"s" if len(points)!=1 else ""} mapped.' if points else 'Controller taps turned off for this game.')
+        footer.addStretch();save_button=button('Save controls',save,'primary');save_button.setMinimumWidth(130);footer.addWidget(save_button);close=button('Close',dialog.reject);close.setMinimumWidth(130);footer.addWidget(close);dialog.exec()
     def show_crash_logs(self,game):
         logs=self.service.crash_logs(game)
         dialog=QDialog(self);dialog.setWindowTitle('Crash logs');dialog.resize(860,600)
@@ -733,7 +774,10 @@ class Window(QMainWindow):
         chosen_display=display.settings(p);size=QComboBox();size.setMinimumWidth(200)
         for key,text in display.SIZE_LABELS.items():size.addItem(text,key)
         size.setCurrentIndex(size.findData(chosen_display['size']));landscape=QCheckBox('Force landscape');landscape.setChecked(chosen_display['landscape'])
-        cards.addWidget(setting_card('window','Display','Text and button size in Android, applied while this game plays.',size,landscape));cards.addStretch()
+        cards.addWidget(setting_card('window','Display','Text and button size in Android, applied while this game plays.',size,landscape))
+        from ..touch_mapping import mapping
+        mapped=len(mapping(p))
+        cards.addWidget(setting_card('gamepad','Controller','Turn controller buttons into screen taps for touch-only games. '+(f'{mapped} button{"s" if mapped!=1 else ""} mapped.' if mapped else 'Start the game, then place buttons on its screen.'),button('Edit controls',lambda:(dialog.accept(),self.edit_controls(p['id'])))));cards.addStretch()
         def save():
             current=self.service.store.load(p['id']);launcher=current.setdefault('launcher',{});launcher['preferred_path']=choice.currentData();launcher['network']=network.currentData();launcher['display']={'size':size.currentData(),'landscape':landscape.isChecked()};self.service.store.save(current);dialog.accept();self.update_details()
             self.message.setText('Options saved.'+(' Prepare once if the preparation method is new.' if choice.currentData()!=(p.get('launcher',{}).get('preferred_path') or p['restoration']['path']) else '')+(' Network and display settings apply the next time you press Play.' if network.currentData()!=game_network.mode(p) or {'size':size.currentData(),'landscape':landscape.isChecked()}!=chosen_display else ''))
