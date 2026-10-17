@@ -2,6 +2,19 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.5.0] - 2026-10-17
+
+### Added
+
+* Open XAPK, APKS and APKM bundles directly, from Add game, drag and drop or the file manager. The base APK, its split APKs and expansion OBB files are imported together; encrypted or mismatched bundles get a clear message. Expansion files of several GB are supported.
+* Back up and restore any Android game's progress from Game options. Backups cover the game's private data (without caches) and its external data folder, where engines such as Unity keep saves. Restoring first backs up the current progress, never writes links or files outside the game's folders, and fixes Android file ownership.
+* Remove a game from the library. Its saves and backups are kept in a removed-games folder. Optionally uninstall it from Android too: its progress is backed up first, and nothing is uninstalled if that backup fails.
+* Add a single game to Steam from Game options, with its own icon, so it starts straight from Gaming Mode.
+
+### Verification scope
+
+* Automated tests cover bundle import, backup and restore commands with a simulated Android guest, removal and Steam shortcut records. Backup, restore and uninstall have not yet been run against a real Android guest on Steam Deck hardware; try them first with a game whose progress you can afford to lose.
+
 ## [0.4.0] - 2026-10-17
 
 ### Improved

@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json,pathlib,sys,traceback
+import json,pathlib,sys,time,traceback
 from PySide6.QtCore import QEvent,QPoint,QRect,QRectF,QSize,Qt,QThread,QTimer,Signal
 from PySide6.QtGui import QColor,QDesktopServices,QFont,QFontMetrics,QLinearGradient,QPainter,QPainterPath,QPen,QPixmap,QIcon
 from PySide6.QtCore import QUrl
@@ -10,7 +10,7 @@ from ..store import Store
 from ..util import RevivalError,now
 from .controller import Controller,spatial_focus
 from .icons import icon,pixmap
-from .metadata import details,icon_path,subtitle
+from .metadata import details,friendly_date,icon_path,subtitle
 from .presentation import CONTROL_PROFILES,readiness
 from .service import Launcher
 from .style import ACCENT,FONT_FAMILIES,STYLE
@@ -115,9 +115,9 @@ class GameCard(QPushButton):
 class ImportDialog(QDialog):
     def __init__(self,apk=None,parent=None):
         super().__init__(parent);self.setWindowTitle('Add game');self.resize(640,560);self.support=[]
-        box,footer=dialog_shell(self,'Add a game','Choose the game\'s APK file. Extra files are optional and help with games that need them.')
+        box,footer=dialog_shell(self,'Add a game','Choose the game file: an APK, or an XAPK, APKS or APKM bundle. Extra files are optional and help with games that need them.')
         box.addWidget(label('Game file','strong'))
-        row=QHBoxLayout();self.apk=QLineEdit(apk or '');self.apk.setPlaceholderText('Choose an .apk file');row.addWidget(self.apk,1);row.addWidget(button('Browse',self.pick_apk,None,'folder'));box.addLayout(row)
+        row=QHBoxLayout();self.apk=QLineEdit(apk or '');self.apk.setPlaceholderText('Choose an .apk, .xapk, .apks or .apkm file');row.addWidget(self.apk,1);row.addWidget(button('Browse',self.pick_apk,None,'folder'));box.addLayout(row)
         box.addSpacing(6);box.addWidget(label('Extra files (optional)','strong'));box.addWidget(label('Expansion files (OBB), split APKs, asset folders, logs or save files.','caption',True))
         self.files=QPlainTextEdit();self.files.setReadOnly(True);self.files.setPlaceholderText('No extra files added');self.files.setMinimumHeight(90);box.addWidget(self.files,1)
         actions=QGridLayout();actions.setSpacing(8)
@@ -125,7 +125,7 @@ class ImportDialog(QDialog):
         box.addWidget(label('Your original files are copied and never changed. Private saves and logs are left out of exports.','caption',True))
         footer.addStretch();self.add=button('Add game',self.accept,'primary');self.add.setMinimumWidth(130);footer.addWidget(self.add);cancel=button('Cancel',self.reject);cancel.setMinimumWidth(130);footer.addWidget(cancel)
     def pick_apk(self):
-        file,_=QFileDialog.getOpenFileName(self,'Choose base APK','','Android APK (*.apk)')
+        file,_=QFileDialog.getOpenFileName(self,'Choose a game','','Android games (*.apk *.xapk *.apks *.apkm)')
         if file:self.apk.setText(file)
     def pick_support(self,role):
         files,_=QFileDialog.getOpenFileNames(self,'Add supporting files')
@@ -538,7 +538,7 @@ class Window(QMainWindow):
         address=self.address.text();self.submit('Connect Android',lambda ctx:(ctx.step('Connecting the selected Android guest'),self.service.runtime_manager.connect_manual(address))[1],self.runtime_result)
     def options(self):
         if not self.current or (self.worker and self.worker.isRunning()):return
-        p=self.profile();dialog=QDialog(self);dialog.setWindowTitle('Game options');dialog.resize(720,640);box,footer=dialog_shell(dialog,p['title'],'Saves, files and how this game is prepared.')
+        p=self.profile();dialog=QDialog(self);dialog.setWindowTitle('Game options');dialog.resize(760,720);box,footer=dialog_shell(dialog,p['title'],'Saves, files and how this game is prepared.')
         def selected_file(title,save=False):
             return (QFileDialog.getSaveFileName(dialog,title,'APK-Revival-'+p['id'][:8]+'.zip','ZIP package (*.zip)') if save else QFileDialog.getOpenFileName(dialog,title,'','ZIP package (*.zip)'))[0]
         def start(title,fn):dialog.accept();self.submit(title,fn,lambda r:self.message.setText('Completed: '+(r.get('file','') if isinstance(r,dict) else str(r))))
@@ -549,14 +549,19 @@ class Window(QMainWindow):
             output=selected_file('Export diagnostics',True)
             if output:start('Export diagnostics',lambda ctx:self.service.diagnostics(p['id'],output,ctx))
         def restore():
-            backup=selected_file('Restore matching save backup')
+            folder=self.service.store.directory(p['id'])/'backups'
+            backup=QFileDialog.getOpenFileName(dialog,'Restore a save backup',str(folder) if folder.is_dir() else '','ZIP package (*.zip)')[0]
             if backup:start('Restore save',lambda ctx:self.service.restore(p['id'],backup,ctx))
         def attach():
             picker=ImportDialog(str(self.service.store.base(p)),dialog);picker.apk.setReadOnly(True);picker.add.setText('Add supporting files')
             if picker.exec()==QDialog.DialogCode.Accepted and picker.support:start('Add supporting files',lambda ctx:self.service.attach(p['id'],picker.support,ctx))
-        box.addWidget(setting_card('folder','Saves','Back up your progress or restore an earlier backup.',button('Backup save',lambda:start('Backup save',lambda ctx:self.service.backup(p['id'],ctx))),button('Restore save',restore)))
+        backups=self.service.backups(p['id'])
+        latest=('Last backup: '+(friendly_date(time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(backups[0].stat().st_mtime))) or 'saved')+'  ·  '+str(len(backups))+' kept') if backups else 'No backups yet.'
+        box.addWidget(setting_card('folder','Saves','Back up your progress or restore an earlier backup. '+latest,button('Backup save',lambda:start('Backup save',lambda ctx:self.service.backup(p['id'],ctx))),button('Restore save',restore)))
         box.addWidget(setting_card('package','Game files','Add expansion files, or export a portable copy of this game.',button('Add supporting files',attach),button('Export game',export)))
         box.addWidget(setting_card('info','Troubleshooting','Share a privacy-safe report, or inspect the full evidence.',button('Export diagnostics',diagnostics),button('Advanced',lambda:(dialog.accept(),self.advanced()))))
+        box.addWidget(setting_card('gamepad','Steam','Adds this game to Steam so it starts straight from Gaming Mode. Close Steam first.',button('Add game to Steam',lambda:(dialog.accept(),self.add_game_to_steam(p['id'])))))
+        box.addWidget(setting_card('stop','Remove from library','Removes this game from APK Revival. Its saves and backups are kept.',button('Remove game',lambda:(dialog.accept(),self.remove_game(p['id'])))))
         if p.get('adapter')=='meego-1.32':
             box.addWidget(setting_card('refresh','New village','Starts with two Meego and no bonus supplies. Your previous island is backed up.',button('New village (no bonuses)',lambda:start('New village',lambda ctx:self.service.new_meego_village(p['id'],ctx)))))
         choice=QComboBox();choice.setMinimumWidth(240)
@@ -568,6 +573,25 @@ class Window(QMainWindow):
         def save():
             current=self.service.store.load(p['id']);current.setdefault('launcher',{})['preferred_path']=choice.currentData();self.service.store.save(current);dialog.accept();self.update_details();self.message.setText('Preparation method saved. Prepare once if this method is new.')
         footer.addStretch();save_button=button('Save options',save,'primary');save_button.setMinimumWidth(130);footer.addWidget(save_button);close=button('Close',dialog.reject);close.setMinimumWidth(130);footer.addWidget(close);dialog.exec()
+    def add_game_to_steam(self,game):
+        p=self.service.store.load(game,check=False);icon=None;image=self.artwork(p)
+        if image:
+            icon=self.service.store.directory(game)/'artwork'/'steam-icon.png';icon.parent.mkdir(parents=True,exist_ok=True)
+            if not image.save(str(icon),'PNG'):icon=None
+        try:result=self.service.add_to_steam(game,icon)
+        except RevivalError as error:QMessageBox.warning(self,'Add to Steam',str(error));return
+        QMessageBox.information(self,'Add to Steam',(p['title']+' is already in Steam.' if result.get('already_present') else p['title']+' was added to Steam. Start Steam and find it under Non-Steam games.') if result['registered'] else result['reason'])
+    def remove_game(self,game):
+        p=self.service.store.load(game,check=False)
+        box=QMessageBox(QMessageBox.Icon.Question,'Remove '+p['title'],'Remove '+p['title']+' from your library?\n\nIts saves and backups are kept in the removed-games folder.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.Cancel,self)
+        box.button(QMessageBox.StandardButton.Yes).setText('Remove');box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        uninstall=QCheckBox('Also uninstall it from Android. Its in-game progress is backed up first.');box.setCheckBox(uninstall)
+        if box.exec()!=QMessageBox.StandardButton.Yes:return
+        def done(result):
+            self.art_cache.pop(game,None)
+            if self.current==game:self.current=None
+            self.refresh();self.message.setText('Removed '+result['title']+('. It was also uninstalled from Android' if result['uninstalled'] else '')+('. Saves kept in '+result['kept'] if result['kept'] else '.'))
+        self.submit('Remove '+p['title'],lambda ctx:self.service.remove_game(game,uninstall.isChecked(),ctx),done)
     def advanced(self):
         p=self.profile();dialog=QDialog(self);dialog.resize(940,660);dialog.setWindowTitle('Advanced');box,footer=dialog_shell(dialog,'Advanced: '+p['title']);tabs=QTabWidget();box.addWidget(tabs,1)
         values=[('Evidence',markdown(p) if p['analysis'] else 'Not analyzed.'),('Profile',json.dumps(p,indent=2)),('Verification',json.dumps(p['verification'],indent=2)),('Activity',json.dumps(self.last_job or {},indent=2)),('Backend',json.dumps(p['restoration'].get('plan',{}).get('backend'),indent=2))]
@@ -609,8 +633,8 @@ class Window(QMainWindow):
     def dropEvent(self,event):
         if self.worker and self.worker.isRunning():self.message.setText('Wait for the current task before importing.');return
         files=[u.toLocalFile() for u in event.mimeData().urls() if u.isLocalFile()]
-        apks=[p for p in files if pathlib.Path(p).suffix.lower()=='.apk']
-        if not apks:self.message.setText('Unsupported input. Drop a base APK. XAPK/APKS containers must be unpacked first.');return
+        apks=[p for p in files if pathlib.Path(p).suffix.lower() in ('.apk','.xapk','.apks','.apkm')]
+        if not apks:self.message.setText('Unsupported file. Drop an .apk, .xapk, .apks or .apkm game file.');return
         self.open_apk(apks[0])
     def monitor(self):
         if not self.service.android or (self.worker and self.worker.isRunning()) or (self.monitor_worker and self.monitor_worker.isRunning()):return

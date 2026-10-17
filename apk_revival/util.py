@@ -32,7 +32,7 @@ def safe_member(name):
         raise RevivalError('Unsafe archive member: ' + name)
     return p
 
-def inspect_zip(path, max_total=4*1024**3):
+def inspect_zip(path, max_total=4*1024**3, max_member=512*1024**2):
     try:
         with zipfile.ZipFile(path) as z:
             seen=set(); total=0
@@ -42,7 +42,7 @@ def inspect_zip(path, max_total=4*1024**3):
                 seen.add(i.filename); total += i.file_size
                 if (i.external_attr >> 16) & 0o170000 == 0o120000: raise RevivalError('ZIP symlinks are unsupported')
                 if i.flag_bits & 1: raise RevivalError('Encrypted ZIP members are unsupported')
-                if total > max_total or i.file_size > 512*1024**2: raise RevivalError('Archive exceeds inspection limit (4 GiB total, 512 MiB/member)')
+                if total > max_total or i.file_size > max_member: raise RevivalError(f'Archive exceeds inspection limit ({max_total/1024**3:g} GiB total, {max_member/1024**2:g} MiB per file)')
             return z.namelist()
     except (zipfile.BadZipFile, OSError) as e: raise RevivalError(f'Invalid archive: {e}') from e
 

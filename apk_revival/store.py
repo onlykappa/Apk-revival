@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os, pathlib, shutil, uuid
+import json, os, pathlib, re, shutil, uuid
 from .util import RevivalError, atomic_json, digest, inspect_zip, now, read_json, safe_member
 
 STATUSES={'Imported','Analyzed','Needs Evidence','Restoration In Progress','Exported but Unverified','Verified Offline'}
@@ -91,7 +91,20 @@ class Store:
             if not isinstance(value,list) or any(not isinstance(item,dict) for item in value):raise RevivalError('Invalid '+name+' list')
     def import_game(self, apk, supporting=()):
         apk=pathlib.Path(apk).resolve()
-        if apk.suffix.lower()!='.apk':raise RevivalError('Base input must be .apk. Unpack XAPK/APKS bundles yourself and select the base APK plus splits.')
+        from .bundles import is_bundle,unpack
+        if is_bundle(apk):
+            # XAPK/APKS/APKM: import the base APK with its own splits and OBBs.
+            staged=self.root/('bundle-'+uuid.uuid4().hex)
+            try:
+                parts=unpack(apk,staged);base=parts['base']
+                existing=self.directory(digest(base)[:24])
+                if existing.exists():return self.import_game(base)
+                p=self.import_game(base,[*parts['splits'],*parts['obbs'],*supporting])
+                # Bundles usually call the base file base.apk; prefer the bundle's name.
+                if p['title']==base.stem:p['title']=apk.stem[:100];self.save(p)
+                return p
+            finally:shutil.rmtree(staged,ignore_errors=True)
+        if apk.suffix.lower()!='.apk':raise RevivalError('Choose an .apk, .xapk, .apks or .apkm file.')
         names=inspect_zip(apk)
         if 'AndroidManifest.xml' not in names or not any(n.startswith('classes') and n.endswith('.dex') for n in names):
             raise RevivalError('Not an executable APK: manifest and DEX are required')
@@ -147,6 +160,17 @@ class Store:
                 shutil.move(staged/'originals'/original,d/'originals'/i['stored_name']); p['inputs'].append(i)
             p['status']='Imported'; p['analysis']=None; p['verification']=[]; p['restoration']={'path':None,'operations':[],'artifact':None}; self.save(p); return p
         finally:shutil.rmtree(staged)
+    def remove(self,game_id):
+        """Delete a library entry but keep its saves and backups in removed-games/."""
+        p=self.load(game_id,check=False);d=self.directory(game_id);kept=None
+        keep=[d/name for name in ('saves','backups') if (d/name).is_dir() and any((d/name).iterdir())]
+        if keep:
+            title=re.sub(r'[^A-Za-z0-9._-]+','-',p.get('title') or 'game').strip('-')[:40] or 'game'
+            kept=self.root/'removed-games'/f'{title}-{game_id[:8]}-{now().replace(":","-")}'
+            kept.mkdir(parents=True)
+            for folder in keep:shutil.move(str(folder),str(kept/folder.name))
+            atomic_json(kept/'removed.json',{'id':game_id,'title':p.get('title'),'package':((p.get('analysis') or {}).get('metadata') or {}).get('package'),'apk_sha256':p.get('apk_sha256'),'removed_at':now()})
+        shutil.rmtree(d);return str(kept) if kept else None
     def base(self,p):
         return self.directory(p['id'])/'originals'/next(i['stored_name'] for i in p['inputs'] if i['role']=='base_apk')
     def log(self,p,message):

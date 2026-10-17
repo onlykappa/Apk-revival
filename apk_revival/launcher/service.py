@@ -1,6 +1,6 @@
 """V2 application service: all buttons call real V1 operations."""
 from __future__ import annotations
-import hashlib,json,pathlib,re,threading,zipfile,sys,os
+import hashlib,json,pathlib,re,threading,uuid,zipfile,sys,os
 from ..analysis import analyze,markdown
 from ..adapters import adapter
 from ..exporter import export_game
@@ -11,6 +11,9 @@ from ..verification import verify
 from .jobs import Jobs
 from .runtime_setup import RuntimeManager,ManagedAndroid
 from .tools_setup import configure,health
+
+# Games whose progress lives in host files managed by a restoration adapter.
+ADAPTER_SAVES={'tapquest-v1','meego-1.32'}
 
 class Launcher:
     def __init__(self,store):
@@ -194,8 +197,20 @@ class Launcher:
         try:self.stop()
         except RevivalError:pass
         return message
+    def android_runtime(self,ctx):
+        ctx.step('Starting the game runtime');serial=self.runtime_manager.ensure(progress=ctx.step)
+        return self.runtime_factory(serial)
     def backup(self,game,ctx):
-        ctx.step('Backing up progress');return Saves(self.store).backup(game)
+        p=self.store.load(game)
+        if p.get('adapter') in ADAPTER_SAVES:
+            ctx.step('Backing up progress');return Saves(self.store).backup(game)
+        if self.active:raise RevivalError('Stop the running game before backing up its progress.')
+        from .. import android_saves
+        runtime=self.android_runtime(ctx);ctx.step('Copying game progress from Android')
+        return android_saves.backup(runtime,p,self.store.directory(game)/'backups'/(now().replace(':','-')+'-'+uuid.uuid4().hex[:6]+'.zip'))
+    def backups(self,game):
+        folder=self.store.directory(game)/'backups'
+        return sorted(folder.glob('*.zip'),key=lambda x:x.stat().st_mtime,reverse=True) if folder.is_dir() else []
     def new_meego_village(self,game,ctx):
         p=self.store.load(game)
         if p.get('adapter')!='meego-1.32' or p['restoration']['path']!='local_backend':raise RevivalError('Prepare Meego before creating a village.')
@@ -216,7 +231,44 @@ class Launcher:
         return {'created':True,'previous_backup':backup,'starting_villagers':len(fresh['game_state']['all_villagers']),
                 'original_defaults_verified':False}
     def restore(self,game,backup,ctx):
-        self.stop();ctx.step('Preserving the current save and restoring backup');return Saves(self.store).restore(game,backup)
+        from .. import android_saves
+        p=self.store.load(game)
+        if p.get('adapter') in ADAPTER_SAVES:
+            self.stop();ctx.step('Preserving the current save and restoring backup');return Saves(self.store).restore(game,backup)
+        if self.active:raise RevivalError('Stop the running game before restoring its progress.')
+        android_saves.read_meta(backup)
+        runtime=self.android_runtime(ctx)
+        # Reversible: keep the current progress before replacing it.
+        ctx.step('Backing up current progress first')
+        try:prior=android_saves.backup(runtime,p,self.store.directory(game)/'backups'/(now().replace(':','-')+'-before-restore.zip'))
+        except RevivalError as error:
+            if 'No saved data' not in str(error):raise
+            prior=None
+        ctx.step('Restoring the selected backup');result=android_saves.restore(runtime,p,backup)
+        result['previous_backup']=prior;return result
+    def remove_game(self,game,uninstall,ctx):
+        """Remove a library entry. Saves and backups are kept in removed-games/."""
+        if self.active and self.active['game']==game:raise RevivalError('Stop this game before removing it.')
+        p=self.store.load(game,check=False);uninstalled=False
+        if uninstall:
+            from .. import android_saves
+            package=android_saves.package_for(p)
+            runtime=self.android_runtime(ctx)
+            if 'package:' in runtime.shell('pm','path',package,timeout=20):
+                if p.get('adapter') not in ADAPTER_SAVES:
+                    # Never uninstall without a successful backup of its progress.
+                    ctx.step('Backing up progress before uninstalling')
+                    try:android_saves.backup(runtime,p,self.store.directory(game)/'backups'/(now().replace(':','-')+'-before-uninstall.zip'))
+                    except RevivalError as error:
+                        if 'No saved data' not in str(error):raise RevivalError('The game was not removed: its progress could not be backed up first. '+str(error)) from error
+                ctx.step('Uninstalling the game from Android');runtime.adb('uninstall',package,timeout=120);uninstalled=True
+        ctx.step('Removing the game from your library');kept=self.store.remove(game)
+        return {'removed':True,'title':p['title'],'uninstalled':uninstalled,'kept':kept}
+    def add_to_steam(self,game,icon=None):
+        if not getattr(sys,'frozen',False):raise RevivalError('Steam shortcuts for games are available in the packaged Linux app.')
+        p=self.store.load(game,check=False)
+        from .steam import register
+        return register(pathlib.Path(sys.executable),name=p['title'],launch_options='--fullscreen --play '+game,icon=str(icon or ''))
     def export(self,game,output,ctx):
         ctx.step('Checking and packaging the game');result=export_game(self.store,game,output)
         if not getattr(sys,'frozen',False):return result

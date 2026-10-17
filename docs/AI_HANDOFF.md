@@ -1,3 +1,34 @@
+## 0.5.0 general reviver essentials — released
+
+2026-10-17, Claude. Branch feat/reviver-essentials, merged into main.
+
+Four general features for any APK (not Meego-specific):
+- Bundles: apk_revival/bundles.py unpacks XAPK/APKS/APKM (only .apk/.obb members,
+  flat sanitized names). Base = the APK without a split attribute; splits must match
+  its package; bundletool standalones/ ignored when splits/ exist. Store.import_game
+  routes bundles through it; title falls back to the bundle name instead of "base".
+  util.inspect_zip gained max_member (was a fixed 512 MiB per file, which rejected
+  real multi-GB OBBs); bundles allow up to 16 GiB.
+- Saves for any game: apk_revival/android_saves.py uses guest root (su 0 over adb)
+  to tar /data/data/PACKAGE (minus cache, code_cache, lib) and
+  /data/media/0/Android/data/PACKAGE, pull, and zip with checksums. Restore rebuilds
+  the tar on the host with only regular files/folders inside the game folder (links
+  dropped), pushes, clears, extracts, chowns to the app uid and runs restorecon.
+  Service.backup/restore use it for every game without a save-managing adapter
+  (tapquest-v1 and meego-1.32 keep their existing host-file saves).
+- Remove game: Launcher.remove_game + Store.remove. Saves/backups move to
+  DATA/removed-games/. Optional uninstall backs up first and aborts if that fails.
+- Per-game Steam shortcut: steam.register takes name/launch options/icon; game
+  shortcuts use "--fullscreen --play GAME_ID" (handled by the existing request queue).
+
+Tests: tests/test_reviver_essentials.py (18) with a simulated Android guest; full
+suite passes on Linux (as before, the three runtime-access installer tests need a
+non-root account and pass on GitHub).
+
+Not yet verified on hardware: backup, restore and uninstall against a real Waydroid
+guest (root via su, toybox tar --exclude, /data/media path, restorecon). Test on the
+Deck with a throwaway game first, and record the result here.
+
 ## 0.4.0 Deck work merged into main — released
 
 2026-10-17, Claude. Branch integrate-0.4.0, merged into main.

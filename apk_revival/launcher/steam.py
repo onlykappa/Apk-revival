@@ -27,13 +27,14 @@ def parse(data):
 def encode(entries):
     return b''.join(bytes([kind])+name+b'\0'+(encode(value) if kind==0 else value+b'\0' if kind==1 else value) for kind,name,value in entries)+b'\x08'
 
-def register(executable,home=None):
+def register(executable,home=None,name='APK Revival',launch_options='--fullscreen',icon=''):
+    """Add one non-Steam shortcut: the library app, or a single game via --play."""
     home=pathlib.Path(home or pathlib.Path.home())
     pidfile=home/'.steam/steam.pid'
     if pidfile.exists():
         try:
             pid=int(pidfile.read_text().strip());os.kill(pid,0)
-            return {'registered':False,'reason':'Steam is running. Close Steam, then select Add to Steam in APK Revival. This prevents Steam from overwriting the new entry.'}
+            return {'registered':False,'reason':'Steam is running. Close Steam completely, then select Add to Steam again. Otherwise Steam overwrites the new entry when it exits.'}
         except ProcessLookupError:pass
         except (ValueError,OSError):return {'registered':False,'reason':'Steam status could not be confirmed. Close Steam and retry Add to Steam.'}
     configs=sorted((home/'.local/share/Steam/userdata').glob('*/config'))
@@ -41,12 +42,15 @@ def register(executable,home=None):
     path=configs[0]/'shortcuts.vdf';original=path.read_bytes() if path.exists() else b'\0shortcuts\0\x08\x08'
     records=parse(original);root=next((entry for entry in records if entry[0]==0 and entry[1]==b'shortcuts'),None)
     if root is None:raise RevivalError('Steam shortcuts root was not found.')
+    def field(entry,key):return next((value for typ,label,value in entry if label.lower()==key),None)
     for kind,index,entry in root[2]:
-        if kind==0 and any(name.lower()==b'appname' and value==b'APK Revival' for typ,name,value in entry):return {'registered':True,'already_present':True}
-    exe='"'+str(executable)+'"';app_id=zlib.crc32((exe+'APK Revival').encode())|0x80000000
+        if kind!=0:continue
+        if launch_options=='--fullscreen' and field(entry,b'appname')==name.encode():return {'registered':True,'already_present':True}
+        if launch_options!='--fullscreen' and field(entry,b'launchoptions')==launch_options.encode():return {'registered':True,'already_present':True}
+    exe='"'+str(executable)+'"';app_id=zlib.crc32((exe+name+('' if launch_options=='--fullscreen' else launch_options)).encode())|0x80000000
     def string(name,value):return (1,name.encode(),str(value).encode())
     def integer(name,value):return (2,name.encode(),struct.pack('<I',value))
-    shortcut=[integer('appid',app_id),string('AppName','APK Revival'),string('Exe',exe),string('StartDir','"'+str(pathlib.Path(executable).parent)+'"'),string('icon',''),string('ShortcutPath',''),string('LaunchOptions','--fullscreen'),integer('IsHidden',0),integer('AllowDesktopConfig',1),integer('AllowOverlay',1),integer('OpenVR',0),integer('Devkit',0),string('DevkitGameID',''),integer('DevkitOverrideAppID',0),integer('LastPlayTime',0),(0,b'tags',[string('0','Android')])]
+    shortcut=[integer('appid',app_id),string('AppName',name),string('Exe',exe),string('StartDir','"'+str(pathlib.Path(executable).parent)+'"'),string('icon',icon),string('ShortcutPath',''),string('LaunchOptions',launch_options),integer('IsHidden',0),integer('AllowDesktopConfig',1),integer('AllowOverlay',1),integer('OpenVR',0),integer('Devkit',0),string('DevkitGameID',''),integer('DevkitOverrideAppID',0),integer('LastPlayTime',0),(0,b'tags',[string('0','Android')])]
     used={int(index) for kind,index,value in root[2] if index.isdigit()};index=0
     while index in used:index+=1
     root[2].append((0,str(index).encode(),shortcut))
