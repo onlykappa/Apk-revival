@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 MAX_HEADER = 64 * 1024
 MAX_LOG_LINES = 5000
 OFFLINE_BODY = b'{}'
+LOOPBACK = ('localhost', '127.0.0.1', '::1')  # The game's own local services; always relayed.
 
 
 class Proxy:
@@ -26,6 +27,7 @@ class Proxy:
         self.lines = 0
         self.server = None
         self.thread = None
+        self.clients = set()
 
     def record(self, **entry):
         entry['time'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
@@ -38,12 +40,28 @@ class Proxy:
                 out.write(json.dumps(entry) + '\n')
             self.lines += 1
 
+    def trim_log(self):
+        """The log spans sessions: keep the newest half so it never grows past the cap."""
+        try:
+            kept = self.log_file.read_text(errors='replace').splitlines()[-(MAX_LOG_LINES // 2):]
+        except OSError:
+            return
+        self.log_file.write_text(''.join(line + '\n' for line in kept))
+        self.lines = len(kept)
+
     def start(self):
         proxy = self
+        self.trim_log()
 
         class Handler(socketserver.BaseRequestHandler):
             def handle(self):
-                proxy.handle(self.request)
+                with proxy.lock:
+                    proxy.clients.add(self.request)
+                try:
+                    proxy.handle(self.request)
+                finally:
+                    with proxy.lock:
+                        proxy.clients.discard(self.request)
 
         class Server(socketserver.ThreadingTCPServer):
             daemon_threads = True
@@ -60,6 +78,14 @@ class Proxy:
             self.server.shutdown()
             self.server.server_close()
             self.server = None
+        # End open tunnels too, so nothing keeps relaying after the game stops.
+        with self.lock:
+            clients, self.clients = list(self.clients), set()
+        for client in clients:
+            try:
+                client.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
 
     # One client connection
     def handle(self, client):
@@ -83,7 +109,7 @@ class Proxy:
         if method.upper() == 'CONNECT':
             host, _, port = target.rpartition(':')
             self.record(method='CONNECT', host=host.strip('[]').lower(), port=int(port) if port.isdigit() else 443, secure=True)
-            if self.mode == 'offline':
+            if self.mode == 'offline' and host.strip('[]').lower() not in LOOPBACK:
                 client.sendall(b'HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n')
                 return
             self.tunnel(client, host.strip('[]'), int(port) if port.isdigit() else 443)
@@ -96,7 +122,7 @@ class Proxy:
         host = url.hostname or headers.get('host', '').split(':')[0]
         port = url.port or 80
         self.record(method=method.upper(), host=(host or '').lower(), port=port, path=url.path or '/', secure=False)
-        if self.mode == 'offline':
+        if self.mode == 'offline' and (host or '').lower() not in LOOPBACK:
             client.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n' % len(OFFLINE_BODY) + OFFLINE_BODY)
             return
         self.forward(client, method, url, version, lines[1:], body, host, port, headers)

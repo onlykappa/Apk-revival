@@ -65,7 +65,7 @@ def resource_values(arsc,resid):
     return values
 
 def _resid(value):
-    if value and re.fullmatch(r'@0x[0-9a-f]{8}',value):return int(value[1:],16)
+    if value and re.fullmatch(r'@0x[0-9a-f]{8}',value,re.I):return int(value[1:],16)
     return None
 
 def _density(path):

@@ -20,7 +20,7 @@ class FakeProcess:
 class Screen:
     serial = 'emulator-5554'
     def __init__(self, output='Physical size: 1280x800\n'):self.output = output
-    def shell(self, *args, timeout=60):return self.output if args == ('wm', 'size') else ''
+    def shell(self, *args, timeout=60):return self.output if args in (('wm', 'size'), ('dumpsys', 'window', 'displays')) else ''
 
 
 class Ctx:
@@ -40,6 +40,7 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(touch_mapping.screen_size(Screen()), (1280, 800))
         self.assertEqual(touch_mapping.screen_size(Screen('Physical size: 1280x800\nOverride size: 800x1280\n')), (800, 1280))
         with self.assertRaises(RevivalError):touch_mapping.screen_size(Screen('error'))
+        self.assertEqual(touch_mapping.screen_size(Screen('  mDisplayInfo cur=800x1280 app=800x1232\nPhysical size: 1280x800\n')), (800, 1280), 'rotation is followed')
         self.assertEqual(touch_mapping.pixel((0, 0), (1280, 800)), (0, 0))
         self.assertEqual(touch_mapping.pixel((1, 1), (1280, 800)), (1279, 799))
 

@@ -5,6 +5,20 @@ from ..util import RevivalError
 
 def desktop_escape(value):return str(value).replace('\\','\\\\').replace('"','\\"').replace('`','\\`').replace('$','\\$')
 
+def remove_old_copies(home=None,keep=1):
+    """Delete all but the newest previous app copy, and update staging folders not in use."""
+    home=pathlib.Path(home or pathlib.Path.home())
+    try:
+        running=pathlib.Path(sys.executable).resolve().parent
+        previous=sorted(home.glob('.local/share/apk-revival-app.previous*'),key=lambda p:p.stat().st_mtime,reverse=True)
+        for old in previous[keep:]:
+            if old.resolve()!=running:shutil.rmtree(old,ignore_errors=True)
+        for staged in home.glob('.cache/apk-revival/updates/staged-*'):
+            if staged.resolve()!=running and running not in staged.resolve().parents:shutil.rmtree(staged,ignore_errors=True)
+        for pattern in ('.local/share/applications/apk-revival.desktop.previous-*','.config/mimeapps.list.previous-*','.config/kde-mimeapps.list.previous-*'):
+            for old in sorted(home.glob(pattern),key=lambda p:p.stat().st_mtime,reverse=True)[keep:]:old.unlink(missing_ok=True)
+    except OSError:pass  # Clean-up must never stop the app from starting.
+
 def install(source=None,home=None,register_steam=True):
     source=pathlib.Path(source or pathlib.Path(sys.executable).resolve().parent)
     if not (source/'APK-Revival').is_file():raise RevivalError('The update executable is missing; installed application was not changed')

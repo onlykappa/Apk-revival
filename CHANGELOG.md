@@ -2,6 +2,45 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.9.2] - 2026-10-17
+
+### Fixed
+
+**Playing games**
+* Pressing Play more than two minutes after APK Revival had started Android (for example after a backup, or after a failed launch) could stop Android with "authorization did not finish within 110 seconds". It now sees that Android is already ready.
+* Play time no longer counts time the Steam Deck spent asleep.
+* Games played from their original APK now record "last played", so they sort correctly under Recently played.
+* If Android could not be reached when a game stopped, its "Log connections" proxy could stay switched on for all of Android. It is now marked and reset on the next Play.
+* After a dropped Android connection is recovered, the network proxy and controller taps are set up again instead of silently stopping.
+* The 5-second running-game check no longer writes a log file each time (about 700 an hour) or crowds real errors out of diagnostics. Old ones are cleaned up.
+
+**Saves and per-game features**
+* Save backups with any part larger than 512 MB could be made but never restored. They now restore, and the limit for a whole backup is 32 GB.
+* A failed backup no longer leaves a broken file that shows up as the latest backup.
+* Force landscape now picks the right rotation for Android's display instead of possibly turning it to portrait.
+* Controller taps follow screen rotation.
+* In "Answer for dead servers" mode, the game's own local services on the Deck are still reached. The network log no longer grows without limit, and open connections close when the game stops.
+* Edit controls now sits next to Stop game while a game is playing. Before, it could only be reached with the controller's Y button.
+
+**Controller**
+* One press of A on a button that opens a question no longer answers the question as well.
+* Dropdown lists can now be moved through, chosen and closed with the controller.
+* Unplugging one of two controllers no longer makes the other press every button twice.
+* Controller focus stays on your game after the library refreshes.
+* Game options can no longer be opened with the Y button while a game is running. Restoring or testing from there could stop the game.
+
+**Importing, updating and preparing**
+* An import interrupted by a full disk or power loss could leave a game that could be neither imported again nor removed. Imports now finish all at once, and such leftovers are cleaned up on the next import.
+* Importing an XAPK for a game already in the library now adds its missing OBB and split files instead of silently ignoring them.
+* APKs containing a single file larger than 512 MB can now be imported.
+* Games show their real name when the preparation tools are not installed.
+* Each update left a full copy of the old app behind, and each Prepare left several copies of the APK. Only the newest previous app is kept now, and leftover files are removed.
+* A Steam shortcut for a game that was removed now opens the library with a message instead of failing silently.
+
+### Verification scope
+
+* Each fix has a regression test that fails without it (tests/test_bug_hunt.py), plus offscreen checks of the new Edit controls button, the Game options guard and dropdown control. Behaviour inside Android (rotation choice, controller taps after rotation, proxy reset after a lost connection) has not yet been observed on the Steam Deck.
+
 ## [0.9.1] - 2026-10-17
 
 ### Changed

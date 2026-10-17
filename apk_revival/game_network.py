@@ -74,9 +74,12 @@ def set_proxy(runtime, port):
 
 
 def clear_proxy(runtime, port=None):
+    """Reset Android's proxy; returns False if Android could not be reached."""
+    cleared = False
     for command in (('settings', 'put', 'global', 'http_proxy', ':0'), ('settings', 'delete', 'global', 'http_proxy')):
         try:
             runtime.shell(*command, timeout=10)
+            cleared = True
         except RevivalError:
             pass
     if port:
@@ -84,3 +87,4 @@ def clear_proxy(runtime, port=None):
             runtime.adb('reverse', '--remove', f'tcp:{int(port)}', timeout=5)
         except RevivalError:
             pass
+    return cleared

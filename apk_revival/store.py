@@ -4,6 +4,8 @@ from .util import RevivalError, atomic_json, digest, inspect_zip, now, read_json
 
 STATUSES={'Imported','Analyzed','Needs Evidence','Restoration In Progress','Exported but Unverified','Verified Offline'}
 
+APK_LIMIT=4*1024**3  # Games often pack a single asset file larger than 512 MiB inside the APK.
+
 class Store:
     def __init__(self, root=None):
         self.root=pathlib.Path(root or os.getenv('APKR_DATA', pathlib.Path.home()/'.local/share/apk-revival')).expanduser().resolve()
@@ -19,9 +21,9 @@ class Store:
             for i in p['inputs']:
                 if digest(d/'originals'/i['stored_name'])!=i['sha256']:raise RevivalError('Original input hash changed. Restore original or import a new version.')
         return p
-    def save(self, p):
+    def save(self, p, folder=None):
         if p['status'] not in STATUSES:raise RevivalError('Unknown status')
-        d=self.directory(p['id']); history=d/'history'; history.mkdir(exist_ok=True)
+        d=folder or self.directory(p['id']); history=d/'history'; history.mkdir(exist_ok=True)
         p['updated_at']=now(); p['revision']=p.get('revision',0)+1
         atomic_json(history/f'{p["revision"]:06d}.json',p)
         atomic_json(d/'profile.json',p)
@@ -97,18 +99,23 @@ class Store:
             staged=self.root/('bundle-'+uuid.uuid4().hex)
             try:
                 parts=unpack(apk,staged);base=parts['base']
-                existing=self.directory(digest(base)[:24])
-                if existing.exists():return self.import_game(base)
+                game_id=digest(base)[:24];self._discard_incomplete(game_id)
+                if self.directory(game_id).exists():
+                    # Already in the library: add whichever splits and OBBs it does not have yet.
+                    p=self.load(game_id,check=False);known={i['sha256'] for i in p['inputs']}
+                    extra=[x for x in [*parts['splits'],*parts['obbs'],*supporting] if digest(x[1] if isinstance(x,tuple) else x) not in known]
+                    return self.attach(game_id,extra) if extra else p
                 p=self.import_game(base,[*parts['splits'],*parts['obbs'],*supporting])
                 # Bundles usually call the base file base.apk; prefer the bundle's name.
                 if p['title']==base.stem:p['title']=apk.stem[:100];self.save(p)
                 return p
             finally:shutil.rmtree(staged,ignore_errors=True)
         if apk.suffix.lower()!='.apk':raise RevivalError('Choose an .apk, .xapk, .apks or .apkm file.')
-        names=inspect_zip(apk)
+        names=inspect_zip(apk,max_member=APK_LIMIT)
         if 'AndroidManifest.xml' not in names or not any(n.startswith('classes') and n.endswith('.dex') for n in names):
             raise RevivalError('Not an executable APK: manifest and DEX are required')
         h=digest(apk); game_id=h[:24]; target=self.directory(game_id)
+        self._discard_incomplete(game_id)
         if target.exists():
             p=self.load(game_id)
             if p['apk_sha256']!=h:raise RevivalError('Hash ID collision')
@@ -122,14 +129,20 @@ class Store:
                 role,source=s if isinstance(s,tuple) else (None,s)
                 self._add_source(pathlib.Path(source).resolve(),staged,inputs,role)
             p={'schema_version':1,'id':game_id,'title':apk.stem,'apk_sha256':h,'apk_version':None,'created_at':now(),'status':'Imported','inputs':inputs,'analysis':None,'adapter':None,'restoration':{'path':None,'operations':[],'artifact':None},'runtime':{'adapter':'waydroid','serial':None,'backend_port':18765},'verification':[],'rebuild':{'status':'Not Started','feasibility':None},'logs':[]}
-            target.parent.mkdir(parents=True,exist_ok=True); staged.rename(target); self.save(p); return p
+            # The profile is written before the folder appears, so a crash never leaves a game without one.
+            self.save(p,staged);target.parent.mkdir(parents=True,exist_ok=True); staged.rename(target); return p
         finally:
             if staged.exists():shutil.rmtree(staged)
+    def _discard_incomplete(self, game_id):
+        """Older versions could leave a game folder without a profile after a failed import."""
+        d=self.directory(game_id)
+        if d.is_dir() and not (d/'profile.json').exists() and {c.name for c in d.iterdir()}<={'originals','history'}:
+            shutil.rmtree(d)
     def _copy_input(self, source, role, d, inputs):
         if not source.is_file() or source.is_symlink():raise RevivalError('Input must be a regular non-symlink file')
         ext=source.suffix.lower(); allowed={'.apk','.obb','.log','.txt','.json','.sav','.dat','.bin','.db','.sqlite','.png','.jpg','.jpeg','.webp','.wav','.ogg','.mp3','.unity3d','.bundle','.xml','.pak','.pck','.ktx','.ktx2','.ttf','.otf','.webm','.mp4','.csv'}
         if ext not in allowed:raise RevivalError('Unsupported supporting format: '+ext)
-        if ext=='.apk':inspect_zip(source)
+        if ext=='.apk':inspect_zip(source,max_member=APK_LIMIT)
         h=digest(source); stored=f'{len(inputs):04d}_{source.name}'
         shutil.copyfile(source,d/'originals'/stored)
         if digest(d/'originals'/stored)!=h:raise RevivalError('Input changed while copying')

@@ -97,6 +97,7 @@ class FakeAndroid:
     def shell(self, *args, timeout=60):
         self.commands.append(args)
         if args == ('wm', 'density'):return self.density
+        if args == ('wm', 'size'):return 'Physical size: 1280x800\n'
         if args[:3] == ('settings', 'get', 'system'):return self.values[args[3]]
         return ''
 
@@ -109,7 +110,9 @@ class DisplayTests(unittest.TestCase):
         previous = display.apply(android, p, remembered.append)
         self.assertEqual(remembered, [previous])
         self.assertIn(('wm', 'density', '192'), android.commands)
-        self.assertIn(('settings', 'put', 'system', 'user_rotation', '1'), android.commands)
+        self.assertIn(('settings', 'put', 'system', 'user_rotation', '0'), android.commands, 'landscape-natural display stays at 0')
+        portrait = FakeAndroid();portrait.shell = lambda *a, timeout=60, s=portrait: 'Physical size: 800x1280\n' if a == ('wm', 'size') else FakeAndroid.shell(s, *a)
+        display.apply(portrait, p);self.assertIn(('settings', 'put', 'system', 'user_rotation', '1'), portrait.commands)
         display.restore(android, previous)
         self.assertIn(('wm', 'density', 'reset'), android.commands)
         self.assertIn(('settings', 'put', 'system', 'accelerometer_rotation', '1'), android.commands)

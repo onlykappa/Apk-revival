@@ -27,6 +27,16 @@ def _density(runtime):
     return int(physical.group(1)), int(override.group(1)) if override else None
 
 
+def _landscape_rotation(runtime):
+    """Rotation 0 is the display's natural orientation; Waydroid's is usually already landscape."""
+    try:
+        output = runtime.shell('wm', 'size', timeout=10)
+    except RevivalError:
+        return '0'
+    match = re.search(r'Override size:\s*(\d+)x(\d+)', output) or re.search(r'Physical size:\s*(\d+)x(\d+)', output)
+    return '1' if match and int(match.group(1)) < int(match.group(2)) else '0'
+
+
 def apply(runtime, p, remember=None):
     """Apply a game's display settings; returns what is needed to restore, or None.
 
@@ -48,7 +58,7 @@ def apply(runtime, p, remember=None):
         runtime.shell('wm', 'density', str(max(80, int(physical * SIZES[chosen['size']]))), timeout=10)
     if chosen['landscape']:
         runtime.shell('settings', 'put', 'system', 'accelerometer_rotation', '0', timeout=10)
-        runtime.shell('settings', 'put', 'system', 'user_rotation', '1', timeout=10)
+        runtime.shell('settings', 'put', 'system', 'user_rotation', _landscape_rotation(runtime), timeout=10)
     return previous
 
 

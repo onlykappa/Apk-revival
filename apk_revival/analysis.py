@@ -69,7 +69,7 @@ def dex_strings(data):
     return out
 
 def analyze(store,game_id):
-    p=store.load(game_id); path=store.base(p);names=inspect_zip(path); findings=[];endpoints=[]; references=[]; errors=[]
+    p=store.load(game_id); path=store.base(p);names=inspect_zip(path,max_member=4*1024**3); findings=[];endpoints=[]; references=[]; errors=[]
     def finding(kind,statement,evidence,confidence='medium',classification='inferred'):
         findings.append({'kind':kind,'statement':statement,'classification':classification,'confidence':confidence,'evidence':evidence})
     with zipfile.ZipFile(path) as z:

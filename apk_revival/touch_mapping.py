@@ -34,6 +34,13 @@ def store_format(points):
 
 
 def screen_size(runtime):
+    """The current size as input taps see it, following rotation when Android reports it."""
+    try:
+        current = re.search(r'\bcur=(\d+)x(\d+)', runtime.shell('dumpsys', 'window', 'displays', timeout=10))
+    except RevivalError:
+        current = None
+    if current:
+        return int(current.group(1)), int(current.group(2))
     output = runtime.shell('wm', 'size', timeout=10)
     match = re.search(r'Override size:\s*(\d+)x(\d+)', output) or re.search(r'Physical size:\s*(\d+)x(\d+)', output)
     if not match:

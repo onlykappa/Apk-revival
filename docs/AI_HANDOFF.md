@@ -1,3 +1,45 @@
+## 0.9.2 bug hunt fixes — released
+
+2026-10-17, Claude. Branch claude/next, merged into main.
+
+Four read-only review passes (play lifecycle, saves/features, UI/input, import/update)
+found ~30 issues; the confirmed ones are fixed with regressions in
+tests/test_bug_hunt.py (each fails on 0.9.1):
+- runtime_setup.wait_managed_startup reads the state before the 110 s deadline (a
+  runtime started earlier by APK Revival is ready, not late; this stopped Android).
+- service: active['clock'] (monotonic) for play time; play_original sets last_played;
+  stop_network keeps network_applied when game_network.clear_proxy (now returns bool)
+  cannot reach Android; reconnected() re-adds the proxy adb reverse and a new
+  TapSender after recover(); refresh_touch_size() in monitor follows rotation.
+- jobs.run(record=False) for the UI monitor; history capped; job-logs pruned to 200.
+- android_saves: backups written as .partial then renamed; restore max_member and
+  MAX_BACKUP 32 GiB.
+- display: user_rotation 0 on landscape-natural displays (was always 1).
+- touch_mapping.screen_size prefers `dumpsys window displays` cur=WxH.
+- netproxy: loopback always relayed in offline mode; log trimmed at start; stop()
+  shuts open client sockets.
+- store: profile saved into the staging folder before rename; _discard_incomplete;
+  bundle import attaches missing splits/OBBs to an existing game; APK_LIMIT 4 GiB per
+  member (also analysis).
+- restoration: other work/* folders and intermediates removed after success.
+- install.remove_old_copies() at startup (keeps newest .previous, removes stale
+  update staging dirs and old .desktop/mimeapps backups); entry --play of a removed
+  game shows the library with a message.
+- controller: poll re-entry guard (actions dispatched after reading), handles keyed by
+  SDL instance ID, choose_in_dropdown() for open combo popups.
+- ui: Edit controls button beside Stop game; options() refuses while a game is
+  active; refresh restores focus after layout; submit() records the game a job is
+  for (failed() and Verify use it); profile edits load with check=False.
+
+Not changed (noted for later): remove_game leaves a game's Steam shortcut; screenshot
+for Edit controls still runs on the UI thread; network_applied cleanup only runs at
+the next Play; APKs without classes.dex are still rejected.
+
+Tests: full suite, only the 7 known local-only failures (identical on main).
+
+Needs Deck confirmation: Play after a backup no longer stops Android; Force
+landscape orientation; taps after rotation; dropdowns with the controller.
+
 ## 0.9.1 new logo — released
 
 2026-10-17, Claude. Branch claude/next, merged into main.

@@ -98,9 +98,19 @@ class Restorer:
             # Publish the new artifact only after its service data is ready.
             # A failure/cancellation above must keep the old working reference.
             p['restoration']=restoration
-            p['status']='Restoration In Progress';p['verification']=[];p['logs'].append({'message':'APK rebuilt, aligned, signed and signature verified. Gameplay remains unverified.'});self.store.save(p);return p
+            p['status']='Restoration In Progress';p['verification']=[];p['logs'].append({'message':'APK rebuilt, aligned, signed and signature verified. Gameplay remains unverified.'});self.store.save(p)
+            # Older attempts are no longer referenced; each holds several copies of the APK.
+            for old in work.parent.iterdir():
+                if old!=work and old.is_dir():shutil.rmtree(old,ignore_errors=True)
+            self._drop_intermediates(work);return p
         except Exception as e:
-            p['logs'].append({'message':'Preparation failed: '+str(e)});self.store.save(p);raise
+            p['logs'].append({'message':'Preparation failed: '+str(e)});self.store.save(p)
+            self._drop_intermediates(work,keep_result=False);raise
+    @staticmethod
+    def _drop_intermediates(work,keep_result=True):
+        """Keep logs, the diff and the signed result; drop the decoded tree and unsigned copies."""
+        shutil.rmtree(work/'decoded',ignore_errors=True)
+        for name in ('unsigned.apk','aligned.apk')+(() if keep_result else ('restored.apk',)):(work/name).unlink(missing_ok=True)
     def _validate(self,p,plan,path):
         if plan.get('schema_version')!=1 or plan.get('apk_sha256')!=p['apk_sha256'] or plan.get('apk_version')!=p['apk_version'] or plan.get('path')!=path:raise RevivalError('Plan must match exact APK hash, version, schema and selected path')
         if plan.get('adapter')!=p.get('adapter') or path not in adapter(p).supported_paths:raise RevivalError('No implemented workflow for this adapter and path')

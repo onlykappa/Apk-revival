@@ -190,7 +190,8 @@ class RuntimeManager:
         if not self.bundle_process or not self.startup_state_path:return
         deadline=(self.bundle_started_at if self.bundle_started_at is not None else time.monotonic())+110
         previous=None
-        while time.monotonic()<deadline:
+        while True:
+            # Read before checking the deadline: a runtime started long ago is ready, not late.
             try:state=self.startup_state_path.read_text()[:128].strip()
             except OSError:state='starting'
             if state=='ready' and self.bundle_process.poll() is None:return
@@ -199,6 +200,7 @@ class RuntimeManager:
             if state!=previous:
                 progress('Waiting for runtime setup authorization on the desktop' if state=='authorizing' else 'Waiting for runtime setup to finish')
                 previous=state
+            if time.monotonic()>=deadline:break
             time.sleep(.5)
         raise RevivalError('Runtime setup authorization did not finish within 110 seconds. Retry Play and complete the graphical prompt. No game was launched or data reset.')
 

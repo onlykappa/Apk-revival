@@ -100,9 +100,9 @@ class TapPicker(QWidget):
 
 class Worker(QThread):
     update=Signal(object);succeeded=Signal(object);failed=Signal(str)
-    def __init__(self,service,title,operation,parent=None):super().__init__(parent);self.service=service;self.title=title;self.operation=operation
+    def __init__(self,service,title,operation,parent=None,record=True):super().__init__(parent);self.service=service;self.title=title;self.operation=operation;self.record=record
     def run(self):
-        try:self.succeeded.emit(self.service.jobs.run(self.title,self.operation,self.update.emit))
+        try:self.succeeded.emit(self.service.jobs.run(self.title,self.operation,self.update.emit,record=self.record))
         except Exception as e:self.failed.emit(str(e))
 
 PALETTES=[('#0f6cbd','#0a3d6b'),('#5c2e91','#321a52'),('#107c41','#0a4a27'),('#c239b3','#6b1f63'),('#ca5010','#6e2c09'),('#038387','#02494b')]
@@ -266,6 +266,7 @@ class Window(QMainWindow):
         self.prepare_button=button('Prepare game',self.prepare,'play','package');self.prepare_button.setMinimumHeight(46);right.addWidget(self.prepare_button);self.play_button=button('Play',self.play,'play','play');self.play_button.setMinimumHeight(46);right.addWidget(self.play_button);self.stop_button=button('Stop game',self.stop,None,'stop');self.stop_button.setMinimumHeight(46);right.addWidget(self.stop_button)
         self.options_button=button('Game options',self.options,None,'more');right.addWidget(self.options_button)
         self.mods_button=button('Mods',self.show_mods);right.addWidget(self.mods_button)
+        self.controls_button=button('Edit controls',lambda:self.current and self.edit_controls(self.current),None,'gamepad');right.addWidget(self.controls_button)
         self.divider=QFrame();self.divider.setObjectName('divider');right.addWidget(self.divider);self.details_heading=label('Details','strong');right.addWidget(self.details_heading)
         self.meta=QGridLayout();self.meta.setHorizontalSpacing(16);self.meta.setVerticalSpacing(7);self.meta.setColumnStretch(1,1);right.addLayout(self.meta)
         right.addStretch();controls=QHBoxLayout();controls.setSpacing(8);controls.addWidget(icon_label('gamepad',16,'#9d9d9d'),0,Qt.AlignmentFlag.AlignTop);self.controls_label=label('Touch, trackpad and controller-aware browsing.','caption',True);controls.addWidget(self.controls_label,1);right.addLayout(controls)
@@ -335,12 +336,14 @@ class Window(QMainWindow):
         if not self.current and games:self.current=games[0]['id']
         for p in filtered:
             card=GameCard(p,p['id']==self.current,lambda checked=False,game=p['id']:self.select(game),self.artwork(p),bool(arm_support.compatible(p,self.service.settings.get('android_arm'))));card.setProperty('game_id',p['id']);self.cards.append(card)
-            if p['id']==focus_game:card.setFocus()
         if not filtered:
             if games:self.grid.addWidget(label('No games match your search.','muted'),0,0)
             else:
                 welcome=QFrame();welcome.setObjectName('welcome');welcome.setMinimumHeight(420);box=QVBoxLayout(welcome);box.setContentsMargins(28,28,28,28);box.setSpacing(10);box.addStretch();mark=QLabel();mark.setPixmap(QPixmap(str(brand_asset())).scaled(88,88,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));box.addWidget(mark,alignment=Qt.AlignmentFlag.AlignCenter);box.addWidget(label('Bring your games back','subtitle'),alignment=Qt.AlignmentFlag.AlignCenter);copy=label('Drop an APK here or choose Add game to start your library.\nOr try Tap Quest, included and ready to play.','muted',True);copy.setAlignment(Qt.AlignmentFlag.AlignCenter);box.addWidget(copy);box.addStretch();self.grid.addWidget(welcome,0,0)
         self.layout_cards();self.update_details();self.update_tools();self.update_plugins();self.update_arm()
+        # Focus only works once layout_cards has placed the new card in the window.
+        for card in self.cards:
+            if card.property('game_id')==focus_game:card.setFocus()
     def sort_changed(self):
         self.service.settings['library_sort']=self.sort.currentData();self.service.save_settings();self.refresh()
     def select(self,game):
@@ -360,7 +363,7 @@ class Window(QMainWindow):
     def update_details(self):
         self.mods_button.hide()
         if not self.current:
-            for w in [self.play_button,self.prepare_button,self.stop_button]:w.hide();w.setEnabled(False)
+            for w in [self.play_button,self.prepare_button,self.stop_button,self.controls_button]:w.hide();w.setEnabled(False)
             self.options_button.setEnabled(False);self.options_button.hide();self.divider.hide();self.show_metadata([])
             return
         p=self.profile();ready=readiness(p,self.service.runtime_manager.last.get('ready',False))
@@ -390,6 +393,7 @@ class Window(QMainWindow):
         self.prepare_button.setVisible(bool(ready['prepare'] and not active))
         self.play_button.setVisible(bool(ready['play'] and not active))
         self.stop_button.setVisible(playing_here)
+        self.controls_button.setVisible(playing_here);self.controls_button.setEnabled(bool(not busy and playing_here))
         self.prepare_button.setEnabled(bool(not busy and not active and ready['prepare']))
         self.play_button.setEnabled(bool(not busy and not active and ready['play']))
         self.stop_button.setEnabled(bool(not busy and playing_here))
@@ -399,17 +403,19 @@ class Window(QMainWindow):
         if not self.current:return
         plugin=find(self.profile())
         if hasattr(plugin,'mods_dialog'):plugin.mods_dialog(self.service,self.current,self).exec()
-    def submit(self,title,operation,callback=None):
+    def submit(self,title,operation,callback=None,game=False):
+        # The game a job is for is fixed when it is requested, not when a queued job starts.
+        if game is False:game=self.current
         if self.worker:
             # One background task runs at a time. Never drop a request silently:
             # run the most recent one as soon as the current task finishes.
-            self.queued=(title,operation,callback);self.message.setText(title+' will start when '+self.worker.title[0].lower()+self.worker.title[1:]+' finishes.');return
+            self.queued=(title,operation,callback,game);self.message.setText(title+' will start when '+self.worker.title[0].lower()+self.worker.title[1:]+' finishes.');return
         if self.monitor_worker and self.monitor_worker.isRunning():
             # Status checks share the serialized service lock. Queue button
             # actions instead of making Stop/Play fail depending on timing.
-            if not getattr(self,'pending_submission',None):self.pending_submission=(title,operation,callback)
+            if not getattr(self,'pending_submission',None):self.pending_submission=(title,operation,callback,game)
             self.message.setText('Finishing the current status check...');return
-        self.worker=Worker(self.service,title,operation,self);worker=self.worker;self.callback=callback;worker.update.connect(self.progress);worker.succeeded.connect(self.completed);worker.failed.connect(self.failed);worker.finished.connect(lambda owned=worker:self.job_finished(owned));self.bar.show();self.cancel_button.show();self.add_button.setEnabled(False);self.demo_button.setEnabled(False);worker.start();self.update_details()
+        self.worker=Worker(self.service,title,operation,self);worker=self.worker;worker.game=game;self.callback=callback;worker.update.connect(self.progress);worker.succeeded.connect(self.completed);worker.failed.connect(self.failed);worker.finished.connect(lambda owned=worker:self.job_finished(owned));self.bar.show();self.cancel_button.show();self.add_button.setEnabled(False);self.demo_button.setEnabled(False);worker.start();self.update_details()
     def progress(self,job):
         self.last_job=job;step=job['steps'][-1]['label'] if job['steps'] else job['label'];self.message.setText(step+('...' if job['state']=='running' else ''))
     def completed(self,result):
@@ -417,7 +423,8 @@ class Window(QMainWindow):
         if self.active_page=='game' and not self.service.active:self.return_to_library()
         if self.callback:self.callback(result)
     def failed(self,message):
-        if 'prepared game file is missing or changed' in message and self.current:self.repair_games.add(self.current)
+        game=getattr(self.worker,'game',None)
+        if 'prepared game file is missing or changed' in message and game:self.repair_games.add(game)
         self.message.setText(message);self.refresh()
         if getattr(self.worker,'title',None) in {'Check for updates','Download update'}:self.update_label.setText(message)
         from ..arm_support import ERROR_PREFIX
@@ -556,7 +563,7 @@ class Window(QMainWindow):
         except RevivalError as error:QMessageBox.information(self,'Edit controls',str(error));return
         image=QPixmap();image.loadFromData(data,'PNG')
         if image.isNull():QMessageBox.information(self,'Edit controls','The screenshot could not be read. Try again.');return
-        points=mapping(self.service.store.load(game))
+        points=mapping(self.service.store.load(game,check=False))
         dialog=QDialog(self);dialog.setWindowTitle('Edit controls');dialog.resize(1000,720)
         box,footer=dialog_shell(dialog,'Edit controls','Pick a button, then click where it should tap on the game screen. Taps are sent while the game window has focus and take about a fifth of a second, so they suit menus and slower games best.')
         choice=QComboBox();choice.setMinimumWidth(220)
@@ -728,7 +735,8 @@ class Window(QMainWindow):
     def manual_connect(self):
         address=self.address.text();self.submit('Connect Android',lambda ctx:(ctx.step('Connecting the selected Android guest'),self.service.runtime_manager.connect_manual(address))[1],self.runtime_result)
     def options(self):
-        if not self.current or (self.worker and self.worker.isRunning()):return
+        # Matches the disabled button: restore and verify would stop a running game.
+        if not self.current or (self.worker and self.worker.isRunning()) or self.service.active:return
         p=self.profile();dialog=QDialog(self);dialog.setWindowTitle('Game options');dialog.resize(780,760);box,footer=dialog_shell(dialog,p['title'],'Saves, files and how this game is prepared.')
         # Cards scroll so Save and Close stay on screen at 1280 x 800.
         holder=QWidget();holder.setObjectName('page');holder.setStyleSheet('QWidget#page{background:transparent;}');cards=QVBoxLayout(holder);cards.setContentsMargins(0,0,6,0);cards.setSpacing(8)
@@ -777,9 +785,12 @@ class Window(QMainWindow):
         cards.addWidget(setting_card('window','Display','Text and button size in Android, applied while this game plays.',size,landscape))
         from ..touch_mapping import mapping
         mapped=len(mapping(p))
-        cards.addWidget(setting_card('gamepad','Controller','Turn controller buttons into screen taps for touch-only games. '+(f'{mapped} button{"s" if mapped!=1 else ""} mapped.' if mapped else 'Start the game, then place buttons on its screen.'),button('Edit controls',lambda:(dialog.accept(),self.edit_controls(p['id'])))));cards.addStretch()
+        def clear_controls():
+            self.service.save_controls(p['id'],{});dialog.accept();self.message.setText('Controller taps turned off for this game.')
+        controller_controls=[button('Clear controls',clear_controls)] if mapped else []
+        cards.addWidget(setting_card('gamepad','Controller','Turn controller buttons into screen taps for touch-only games. '+(f'{mapped} button{"s" if mapped!=1 else ""} mapped. ' if mapped else '')+'Start the game, then choose Edit controls next to Stop game.',*controller_controls));cards.addStretch()
         def save():
-            current=self.service.store.load(p['id']);launcher=current.setdefault('launcher',{});launcher['preferred_path']=choice.currentData();launcher['network']=network.currentData();launcher['display']={'size':size.currentData(),'landscape':landscape.isChecked()};self.service.store.save(current);dialog.accept();self.update_details()
+            current=self.service.store.load(p['id'],check=False);launcher=current.setdefault('launcher',{});launcher['preferred_path']=choice.currentData();launcher['network']=network.currentData();launcher['display']={'size':size.currentData(),'landscape':landscape.isChecked()};self.service.store.save(current);dialog.accept();self.update_details()
             self.message.setText('Options saved.'+(' Prepare once if the preparation method is new.' if choice.currentData()!=(p.get('launcher',{}).get('preferred_path') or p['restoration']['path']) else '')+(' Network and display settings apply the next time you press Play.' if network.currentData()!=game_network.mode(p) or {'size':size.currentData(),'landscape':landscape.isChecked()}!=chosen_display else ''))
         footer.addStretch();save_button=button('Save options',save,'primary');save_button.setMinimumWidth(130);footer.addWidget(save_button);close=button('Close',dialog.reject);close.setMinimumWidth(130);footer.addWidget(close);dialog.exec()
     def add_game_to_steam(self,game):
@@ -816,7 +827,7 @@ class Window(QMainWindow):
             finally:self.guided_test_dialog=None
             self.refresh()
             if self.closing:QTimer.singleShot(0,self.close)
-        else:self.submit('Verify offline',lambda ctx:self.service.verify(self.current,ctx),lambda result:self.message.setText('Verified Offline' if result['passed'] else 'Offline verification incomplete: '+result.get('error','Checks did not pass.')))
+        else:self.submit('Verify offline',lambda ctx,game=self.current:self.service.verify(game,ctx),lambda result:self.message.setText('Verified Offline' if result['passed'] else 'Offline verification incomplete: '+result.get('error','Checks did not pass.')))
     def toggle_fullscreen(self):
         if self.isFullScreen():self.showNormal()
         else:self.showFullScreen()
@@ -848,7 +859,7 @@ class Window(QMainWindow):
         self.open_apk(apks[0])
     def monitor(self):
         if not self.service.android or (self.worker and self.worker.isRunning()) or (self.monitor_worker and self.monitor_worker.isRunning()):return
-        self.monitor_worker=Worker(self.service,'Check running game',lambda ctx:self.service.monitor(),self);self.monitor_worker.succeeded.connect(self.monitored);self.monitor_worker.finished.connect(self.monitor_finished);self.monitor_worker.start()
+        self.monitor_worker=Worker(self.service,'Check running game',lambda ctx:self.service.monitor(),self,record=False);self.monitor_worker.succeeded.connect(self.monitored);self.monitor_worker.finished.connect(self.monitor_finished);self.monitor_worker.start()
     def monitored(self,message):
         if not message:return
         self.message.setText(message)

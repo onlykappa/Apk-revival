@@ -34,11 +34,21 @@ class Jobs:
         self.lock=threading.Lock();self.active=None;self.history=[]
         self.history_dir=pathlib.Path(history_dir) if history_dir is not None else None
         self.last_history_error=None
-    def run(self,label,operation,notify=lambda _:None):
+        self.prune()
+    def prune(self,keep=200):
+        """Keep the newest job logs only; older versions logged every game check."""
+        if self.history_dir is None or not self.history_dir.is_dir():return
+        try:
+            logs=sorted(self.history_dir.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)
+            for old in logs[keep:]:old.unlink(missing_ok=True)
+        except OSError:pass
+    def run(self,label,operation,notify=lambda _:None,record=True):
+        """record=False runs frequent background checks without history or job-log files."""
         if not self.lock.acquire(blocking=False):raise RevivalError('Another task is running. Wait for it to finish or cancel at the next safe stage.')
-        job=Job(label);self.active=job;self.history.append(job)
+        job=Job(label);self.active=job
+        if record:self.history.append(job);del self.history[:-100]
         def emit(snapshot):
-            if self.history_dir is not None:
+            if record and self.history_dir is not None:
                 try:
                     self.history_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
                     atomic_json(self.history_dir/(job.id+'.json'),snapshot)

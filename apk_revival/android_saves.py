@@ -12,7 +12,7 @@ from .util import RevivalError, inspect_zip, now
 PACKAGE = re.compile(r'[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+')
 SKIPPED = ('cache', 'code_cache', 'lib')
 TEMP = '/data/local/tmp'
-MAX_BACKUP = 8 * 1024**3
+MAX_BACKUP = 32 * 1024**3  # Backups are written by APK Revival itself; large asset folders are common.
 
 
 def package_for(p):
@@ -51,6 +51,17 @@ def backup(runtime, p, target):
     runtime.shell('am', 'force-stop', package, timeout=10)
     target = pathlib.Path(target)
     target.parent.mkdir(parents=True, exist_ok=True)
+    # Written aside and renamed when complete, so a failed backup never looks like a real one.
+    partial = target.with_name(target.name + '.partial')
+    try:
+        _write_backup(runtime, p, package, partial)
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
+    return str(target)
+
+
+def _write_backup(runtime, p, package, target):
     files = {}
     with tempfile.TemporaryDirectory() as temp, zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as z:
         for name, (cwd, path) in roots(package).items():
@@ -77,7 +88,6 @@ def backup(runtime, p, target):
         z.writestr('backup.json', json.dumps({'schema_version': 1, 'kind': 'android', 'package': package,
                                               'version_code': version, 'apk_sha256': p.get('apk_sha256'),
                                               'time': now(), 'files': files}, indent=2))
-    return str(target)
 
 
 def read_meta(backup_zip):
@@ -91,7 +101,7 @@ def read_meta(backup_zip):
 def restore(runtime, p, backup_zip):
     """Replace the game's Android data with a validated backup."""
     package = package_for(p)
-    inspect_zip(backup_zip, max_total=MAX_BACKUP)
+    inspect_zip(backup_zip, max_total=MAX_BACKUP, max_member=MAX_BACKUP)  # Each part is one large tar.
     meta = read_meta(backup_zip)
     if meta.get('schema_version') != 1 or meta.get('kind') != 'android':
         raise RevivalError('This backup is not an Android game backup.')

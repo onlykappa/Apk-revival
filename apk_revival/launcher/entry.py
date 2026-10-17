@@ -37,14 +37,18 @@ def main():
         from .install import install_dialog
         return install_dialog()
     from ..store import Store
-    store=Store(args.data)
+    store=Store(args.data);request_error=None
     action='play' if args.play else 'stop' if args.stop_game else 'restart-runtime' if args.restart_runtime else 'quit' if args.quit else None
     if action:
         if args.apks:parser.error('Open APKs and library controls must be separate requests.')
         from .requests import enqueue
+        from ..util import RevivalError
         import json
-        queued=enqueue(store,action,args.play)
-        print(json.dumps(queued),flush=True)
+        try:queued=enqueue(store,action,args.play)
+        except RevivalError as error:
+            # A Steam shortcut can outlive its game; open the library instead of failing silently.
+            request_error=str(error);args.play=None;print(request_error,file=sys.stderr,flush=True)
+        else:print(json.dumps(queued),flush=True)
     if args.launch_check:
         from .service import Launcher
         from ..util import RevivalError
@@ -90,6 +94,10 @@ def main():
     signal.signal(signal.SIGTERM,lambda *_:QTimer.singleShot(0,window.close))
     signal.signal(signal.SIGINT,lambda *_:QTimer.singleShot(0,window.close))
     window.show()
+    if request_error and hasattr(window,'message'):
+        QTimer.singleShot(0,lambda:window.message.setText(request_error+' It may have been removed from the library.'))
+    from .install import remove_old_copies
+    remove_old_copies()
     from .requests import process_requests
     def open_requests():process_requests(window)
     window.request_timer=QTimer(window);window.request_timer.timeout.connect(open_requests);window.request_timer.start(500)

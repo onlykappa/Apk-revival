@@ -31,7 +31,9 @@ class Launcher:
         from .apk_info import inspect_apk
         p.setdefault('launcher',{})['apk']=inspect_apk(self.store.base(p),self.store.directory(p['id']))
         from .metadata import resolve_label
-        title=p['launcher']['apk'].get('label') or resolve_label(self.store.base(p),p['analysis']['metadata']['application'].get('label'))
+        # Without aapt the label is a raw resource reference such as @0x7f0e001b; resolve it.
+        title=p['launcher']['apk'].get('label')
+        if not title or title.startswith('@'):title=resolve_label(self.store.base(p),title or p['analysis']['metadata']['application'].get('label'))
         if p['analysis']['fixture']:p['title']='Tap Quest'
         elif find(p) is not None and getattr(find(p),'title',None):p['title']=find(p).title
         elif title and not title.startswith('@'):p['title']=title[:100]
@@ -80,7 +82,7 @@ class Launcher:
         if direct:return self.play_original(p,ctx)
         if p['restoration']['path']=='rebuild':
             if not p['rebuild'].get('feasibility'):raise RevivalError('Prepare the rebuild first.')
-            self.active={'game':game,'kind':'rebuild','started_at':now()}
+            self.active={'game':game,'kind':'rebuild','started_at':now(),'clock':time.monotonic()}
             p.setdefault('launcher',{})['last_played']=self.active['started_at'];self.store.save(p);return self.active
         artifact=p.get('restoration',{}).get('artifact')
         expected=p.get('restoration',{}).get('artifact_sha256')
@@ -96,7 +98,7 @@ class Launcher:
             if p['restoration']['path']=='local_backend':ctx.step('Starting local services');runtime.start_backend(self.store,p)
             self.start_network(p,runtime,ctx);self.start_display(p,runtime,ctx);self.start_touch(p,runtime,ctx);self.clear_crash_buffer(runtime)
             ctx.step('Launching the game');runtime.launch(p)
-            self.active={'game':game,'kind':'android','started_at':now(),'serial':serial}
+            self.active={'game':game,'kind':'android','started_at':now(),'clock':time.monotonic(),'serial':serial}
             p=self.store.load(game);p.setdefault('launcher',{}).setdefault('launch_checks',[]).append({'kind':'android_activity','time':now(),'artifact_sha256':p['restoration']['artifact_sha256'],'serial':serial,'offline_gameplay_verified':False});p['launcher']['last_played']=self.active['started_at']
             self.store.save(p);return self.active
         except Exception:
@@ -127,6 +129,25 @@ class Launcher:
             self.touch=None
             try:ctx.step('Controller taps are off for this session: '+str(error))
             except Exception:pass
+    def refresh_touch_size(self):
+        touch=getattr(self,'touch',None)
+        if not touch:return
+        from .. import touch_mapping
+        try:touch['size']=touch_mapping.screen_size(self.android)
+        except Exception:pass  # Keep the last known size.
+    def reconnected(self):
+        """adb reverse rules and shells die with the old connection; set them up again."""
+        from .. import game_network, touch_mapping
+        network=getattr(self,'network',None)
+        if network and network.get('proxy'):
+            try:game_network.set_proxy(self.android,network['proxy'].port)
+            except Exception:pass
+        touch=getattr(self,'touch',None)
+        if touch:
+            try:touch['sender'].close()
+            except Exception:pass
+            try:touch['sender']=touch_mapping.TapSender(self.android.serial)
+            except Exception:self.touch=None
     def stop_touch(self):
         touch=getattr(self,'touch',None);self.touch=None
         if touch:touch['sender'].close()
@@ -147,7 +168,7 @@ class Launcher:
         return data
     def save_controls(self,game,points):
         from .. import touch_mapping
-        p=self.store.load(game);p.setdefault('launcher',{})['controls']=touch_mapping.store_format(points);self.store.save(p)
+        p=self.store.load(game,check=False);p.setdefault('launcher',{})['controls']=touch_mapping.store_format(points);self.store.save(p)
         if self.active and self.active['game']==game and self.android:
             if getattr(self,'touch',None):self.touch['points']=touch_mapping.mapping(p)
             else:self.start_touch(p,self.android,type('Quiet',(),{'step':lambda *a:None})())
@@ -198,7 +219,8 @@ class Launcher:
         from .. import game_network
         runtime=state['runtime']
         try:
-            if state['proxy']:game_network.clear_proxy(runtime,state['proxy'].port)
+            if state['proxy'] and not game_network.clear_proxy(runtime,state['proxy'].port):
+                raise RevivalError('Android proxy was not reset')  # Keeps network_applied so the next Play resets it.
             if state['uid'] is not None:game_network.unblock(runtime,state['uid'])
             self.settings['network_applied']=False;self.save_settings()
         except RevivalError:pass  # Cleaned up before the next Play instead.
@@ -230,9 +252,9 @@ class Launcher:
             ctx.step('Installing APK without removing game data');runtime.install(self.store,p,original=True)
             self.start_network(p,runtime,ctx);self.start_display(p,runtime,ctx);self.start_touch(p,runtime,ctx);self.clear_crash_buffer(runtime)
             ctx.step('Opening the game');runtime.launch(p)
-            self.active={'game':p['id'],'kind':'android','started_at':now(),'serial':serial}
+            self.active={'game':p['id'],'kind':'android','started_at':now(),'clock':time.monotonic(),'serial':serial}
             p.setdefault('launcher',{}).setdefault('launch_checks',[]).append({'kind':'original_activity','time':now(),'apk_sha256':p['apk_sha256'],'offline_gameplay_verified':False})
-            self.store.save(p);return self.active
+            p['launcher']['last_played']=self.active['started_at'];self.store.save(p);return self.active
         except Exception:
             try:
                 try:ctx.step('Launch failed; releasing game connections')
@@ -286,8 +308,10 @@ class Launcher:
         active=self.active
         if not active or not active.get('started_at') or not active.get('game'):return
         try:
-            started=calendar.timegm(time.strptime(active['started_at'],'%Y-%m-%dT%H:%M:%SZ'))
-            seconds=max(0,min(24*3600,int(time.time()-started)))
+            # The monotonic clock stops while the Deck sleeps, so suspend is not counted.
+            if active.get('clock') is not None:elapsed=time.monotonic()-active['clock']
+            else:elapsed=time.time()-calendar.timegm(time.strptime(active['started_at'],'%Y-%m-%dT%H:%M:%SZ'))
+            seconds=max(0,min(24*3600,int(elapsed)))
             p=self.store.load(active['game'],check=False);launcher=p.setdefault('launcher',{})
             launcher['playtime_seconds']=int(launcher.get('playtime_seconds',0))+seconds;self.store.save(p)
         except Exception:pass  # Play time must never block stopping a game.
@@ -326,7 +350,7 @@ class Launcher:
                 pid=''
             elif pid:self.offscreen_checks=0
             if pid:
-                self.connection_failures=0
+                self.connection_failures=0;self.refresh_touch_size()
                 state=getattr(getattr(self.android.backend,'server',None),'state',None)
                 notice=state.take_action_notice() if state and hasattr(state,'take_action_notice') else None
                 return 'Game action: '+notice if notice else None
@@ -336,7 +360,7 @@ class Launcher:
         except RevivalError as e:
             from .connection_recovery import recover
             result=recover(self.runtime_manager,self.android,self.active)
-            if result['state']=='recovered':self.connection_failures=0;return 'Reconnected to the game runtime.'
+            if result['state']=='recovered':self.connection_failures=0;self.reconnected();return 'Reconnected to the game runtime.'
             if result['state']=='paused':self.connection_failures=0;return result['detail']
             self.connection_failures+=1
             if self.connection_failures<3:return f'Reconnecting to the game runtime ({self.connection_failures}/3): '+result['detail']
