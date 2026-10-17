@@ -22,6 +22,13 @@ def brand_asset():
     return pathlib.Path(getattr(sys,'_MEIPASS',pathlib.Path(__file__).resolve().parents[2]))/'resources/apk-revival-logo.png'
 
 PATH_NAMES={'offline_patch':'Preserve the APK offline','local_backend':'Use a local backend','rebuild':'Create a separate rebuild'}
+SORTS={'recent':'Recently played','name':'Name','added':'Recently added','ready':'Ready to play first'}
+def sort_games(games,order):
+    launcher=lambda p:p.get('launcher') or {}
+    if order=='name':return sorted(games,key=lambda p:p['title'].casefold())
+    if order=='added':return sorted(games,key=lambda p:p.get('created_at') or '',reverse=True)
+    if order=='ready':return sorted(games,key=lambda p:(not readiness(p)['play'],p['title'].casefold()))
+    return sorted(games,key=lambda p:(launcher(p).get('last_played') or '',p.get('created_at') or ''),reverse=True)
 TILE_WIDTH=184;TILE_HEIGHT=262;TILE_GAP=12
 STATUS_PILLS={'Game plugin needed':('Plugin needed','pill_warn'),'Restoration work needed':('Not supported yet','pill_warn'),'Additional files needed':('Files needed','pill_warn'),'Imported':('Checking','pill_warn'),'Preparation needs repair':('Needs repair','pill_warn')}
 
@@ -89,7 +96,10 @@ class GameArt(QWidget):
         self.title=title;self.seed=seed;self.image=image if image and not image.isNull() else None;self.logo=logo;self.update()
     def paintEvent(self,event):
         p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing);p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        side=self.width()*.86;r=QRectF((self.width()-side)/2,(self.height()-side)/2,side,side);radius=side*.2
+        self.paint(p,QRectF(self.rect()))
+    def paint(self,p,area):
+        """Draw the icon into area on any painter (widgets, Steam artwork)."""
+        side=area.width()*.86;r=QRectF(area.x()+(area.width()-side)/2,area.y()+(area.height()-side)/2,side,side);radius=side*.2
         if self.image or self.logo:
             source=self.image or QPixmap(str(brand_asset()))
             scaled=source.scaled(r.size().toSize()*2,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation);scaled.setDevicePixelRatio(2)
@@ -101,6 +111,27 @@ class GameArt(QWidget):
         initials=(words[0][0]+(words[1][0] if len(words)>1 else '')).upper() if words else 'A'
         font=QFont(QApplication.font());font.setPixelSize(int(side*.4));font.setWeight(QFont.Weight.DemiBold);p.setFont(font);p.setPen(QColor('#ffffff'))
         p.drawText(r,Qt.AlignmentFlag.AlignCenter,initials)
+
+def steam_artwork(p,image,folder):
+    """Draw Steam library artwork (tall cover, wide capsule, hero) for a game; returns {suffix: path}."""
+    from PySide6.QtGui import QImage
+    folder.mkdir(parents=True,exist_ok=True);seed=p['id']
+    index=int(seed[:2],16)%len(PALETTES) if len(seed)>=2 and all(c in '0123456789abcdef' for c in seed[:2]) else 0
+    a,b=PALETTES[index];result={}
+    for suffix,(w,h) in {'p':(600,900),'':(920,430),'_hero':(1920,620)}.items():
+        canvas=QImage(w,h,QImage.Format.Format_ARGB32);canvas.fill(QColor(b))
+        painter=QPainter(canvas);painter.setRenderHint(QPainter.RenderHint.Antialiasing);painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        gradient=QLinearGradient(0,0,w,h);gradient.setColorAt(0,QColor(a));gradient.setColorAt(1,QColor('#101010'));painter.fillRect(0,0,w,h,gradient)
+        side=int(min(w,h)*(0.42 if suffix=='p' else 0.5));art=GameArt(side);art.set_game(p['title'],seed,image)
+        tall=suffix=='p';x=(w-side)//2 if tall else int(h*0.18);y=int(h*0.22) if tall else (h-side)//2
+        art.paint(painter,QRectF(x,y,side,side))
+        if suffix!='_hero':  # Steam draws the game's name over hero art itself.
+            font=QFont(QApplication.font());font.setPixelSize(int(h*(0.065 if tall else 0.1)));font.setWeight(QFont.Weight.DemiBold);painter.setFont(font);painter.setPen(QColor('#ffffff'))
+            area=QRect(40,y+side+40,w-80,h-(y+side+60)) if tall else QRect(x+side+40,0,w-(x+side+80),h)
+            painter.drawText(area,(Qt.AlignmentFlag.AlignHCenter|Qt.AlignmentFlag.AlignTop if tall else Qt.AlignmentFlag.AlignVCenter|Qt.AlignmentFlag.AlignLeft)|Qt.TextFlag.TextWordWrap,p['title'])
+        painter.end();path=folder/f'steam{suffix or "-wide"}.png'
+        if canvas.save(str(path),'PNG'):result[suffix]=path
+    return result
 
 class GameCard(QPushButton):
     def __init__(self,p,selected,action,image=None,arm_problem=False):
@@ -201,6 +232,9 @@ class Window(QMainWindow):
         page=QWidget();page.setObjectName('page');layout=QVBoxLayout(page);layout.setContentsMargins(36,28,28,16);layout.setSpacing(18)
         head=QHBoxLayout();head.setSpacing(8);titles=QVBoxLayout();titles.setSpacing(0);titles.addWidget(label('Library','title'));self.library_count=label('','caption');titles.addWidget(self.library_count);head.addLayout(titles);head.addStretch()
         self.search=QLineEdit();self.search.setPlaceholderText('Search your games');self.search.setFixedWidth(260);self.search.setClearButtonEnabled(True);self.search.textChanged.connect(self.refresh);head.addWidget(self.search,0,Qt.AlignmentFlag.AlignVCenter)
+        self.sort=QComboBox();self.sort.setAccessibleName('Sort games')
+        for key,text in SORTS.items():self.sort.addItem(text,key)
+        self.sort.setCurrentIndex(max(0,self.sort.findData(self.service.settings.get('library_sort','recent'))));self.sort.currentIndexChanged.connect(self.sort_changed);head.addWidget(self.sort,0,Qt.AlignmentFlag.AlignVCenter)
         self.demo_button=button('Try desktop demo',self.demo,'quiet','spark');head.addWidget(self.demo_button,0,Qt.AlignmentFlag.AlignVCenter)
         self.add_button=button('Add game',self.add_game,'primary','add');head.addWidget(self.add_button,0,Qt.AlignmentFlag.AlignVCenter);layout.addLayout(head)
         body=QHBoxLayout();body.setSpacing(20);layout.addLayout(body,1)
@@ -275,7 +309,7 @@ class Window(QMainWindow):
             item=self.grid.takeAt(0)
             widget=item.widget()
             if widget:widget.hide();widget.setParent(None);widget.deleteLater()
-        games=self.service.store.games();query=self.search.text().casefold();filtered=[p for p in games if query in p['title'].casefold()]
+        games=self.service.store.games();query=self.search.text().casefold();filtered=sort_games([p for p in games if query in p['title'].casefold()],self.sort.currentData())
         if self.current not in {p['id'] for p in games}:self.current=None
         if self.service.store.last_library_errors:self.message.setText('Some saved library entries could not be read. See the library error report in diagnostics.')
         self.library_count.setText(f'{len(games)} game'+('s' if len(games)!=1 else '') if games else 'No games yet')
@@ -288,6 +322,8 @@ class Window(QMainWindow):
             else:
                 welcome=QFrame();welcome.setObjectName('welcome');welcome.setMinimumHeight(420);box=QVBoxLayout(welcome);box.setContentsMargins(28,28,28,28);box.setSpacing(10);box.addStretch();mark=QLabel();mark.setPixmap(QPixmap(str(brand_asset())).scaled(88,88,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));box.addWidget(mark,alignment=Qt.AlignmentFlag.AlignCenter);box.addWidget(label('Bring your games back','subtitle'),alignment=Qt.AlignmentFlag.AlignCenter);copy=label('Drop an APK here or choose Add game to start your library.\nOr try Tap Quest, included and ready to play.','muted',True);copy.setAlignment(Qt.AlignmentFlag.AlignCenter);box.addWidget(copy);box.addStretch();self.grid.addWidget(welcome,0,0)
         self.layout_cards();self.update_details();self.update_tools();self.update_plugins();self.update_arm()
+    def sort_changed(self):
+        self.service.settings['library_sort']=self.sort.currentData();self.service.save_settings();self.refresh()
     def select(self,game):
         self.current=game
         for c in self.cards:c.setChecked(c.property('game_id')==game)
@@ -495,6 +531,19 @@ class Window(QMainWindow):
         if not ready and info.get('session')=='RUNNING':self.runtime_label.setText('Android session is running, but ADB is not connected. '+('Guest IP: '+str(info['ip'])+'. Use Connect below. ' if info.get('ip') else '')+'Check the connection details below.')
         if not ready and any(d['state']=='unauthorized' for d in info['devices']):self.runtime_label.setText('Authorization needed. Choose Open Android and approve Allow USB debugging. Select Always allow from this computer, then Check again.')
         self.message.setText(self.service.runtime_manager.last_start_note or ('; '.join(info.get('errors',[])[-2:]) if not ready and info.get('errors') else 'Setup check complete.'));self.service.runtime_manager.last_start_note=None;self.update_details()
+    def show_crash_logs(self,game):
+        logs=self.service.crash_logs(game)
+        dialog=QDialog(self);dialog.setWindowTitle('Crash logs');dialog.resize(860,600)
+        box,footer=dialog_shell(dialog,'Crash logs',(f'{len(logs)} saved, newest first. ' if logs else '')+'Saved automatically when this game crashes or fails to start. Share one when reporting a problem; it may mention your device and the game\'s files.')
+        picker=QComboBox()
+        for path in logs:
+            day,_,clock=path.stem.partition('T')  # Saved as 2026-10-17T03-05-00Z.
+            picker.addItem(friendly_date(day+'T'+clock.replace('-',':')) or path.stem,str(path))
+        view=QPlainTextEdit(logs[0].read_text(errors='replace') if logs else 'No crash logs for this game.');view.setReadOnly(True)
+        picker.currentIndexChanged.connect(lambda i:view.setPlainText(pathlib.Path(picker.itemData(i)).read_text(errors='replace')) if i>=0 else None)
+        if logs:box.addWidget(picker)
+        box.addWidget(view,1)
+        footer.addWidget(button('Copy',lambda:(QApplication.clipboard().setText(view.toPlainText()),self.message.setText('Crash log copied.'))));footer.addStretch();close=button('Close',dialog.accept);close.setMinimumWidth(130);footer.addWidget(close);dialog.exec()
     def show_network_log(self,game):
         from ..netproxy import summary
         rows=summary(self.service.network_log(game))
@@ -639,7 +688,10 @@ class Window(QMainWindow):
         address=self.address.text();self.submit('Connect Android',lambda ctx:(ctx.step('Connecting the selected Android guest'),self.service.runtime_manager.connect_manual(address))[1],self.runtime_result)
     def options(self):
         if not self.current or (self.worker and self.worker.isRunning()):return
-        p=self.profile();dialog=QDialog(self);dialog.setWindowTitle('Game options');dialog.resize(760,720);box,footer=dialog_shell(dialog,p['title'],'Saves, files and how this game is prepared.')
+        p=self.profile();dialog=QDialog(self);dialog.setWindowTitle('Game options');dialog.resize(780,760);box,footer=dialog_shell(dialog,p['title'],'Saves, files and how this game is prepared.')
+        # Cards scroll so Save and Close stay on screen at 1280 x 800.
+        holder=QWidget();holder.setObjectName('page');holder.setStyleSheet('QWidget#page{background:transparent;}');cards=QVBoxLayout(holder);cards.setContentsMargins(0,0,6,0);cards.setSpacing(8)
+        scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff);scroll.setWidget(holder);box.addWidget(scroll,1)
         def selected_file(title,save=False):
             return (QFileDialog.getSaveFileName(dialog,title,'APK-Revival-'+p['id'][:8]+'.zip','ZIP package (*.zip)') if save else QFileDialog.getOpenFileName(dialog,title,'','ZIP package (*.zip)'))[0]
         def start(title,fn):dialog.accept();self.submit(title,fn,lambda r:self.message.setText('Completed: '+(r.get('file','') if isinstance(r,dict) else str(r))))
@@ -658,37 +710,43 @@ class Window(QMainWindow):
             if picker.exec()==QDialog.DialogCode.Accepted and picker.support:start('Add supporting files',lambda ctx:self.service.attach(p['id'],picker.support,ctx))
         backups=self.service.backups(p['id'])
         latest=('Last backup: '+(friendly_date(time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(backups[0].stat().st_mtime))) or 'saved')+'  ·  '+str(len(backups))+' kept') if backups else 'No backups yet.'
-        box.addWidget(setting_card('folder','Saves','Back up your progress or restore an earlier backup. '+latest,button('Backup save',lambda:start('Backup save',lambda ctx:self.service.backup(p['id'],ctx))),button('Restore save',restore)))
-        box.addWidget(setting_card('package','Game files','Add expansion files, or export a portable copy of this game.',button('Add supporting files',attach),button('Export game',export)))
-        box.addWidget(setting_card('info','Troubleshooting','Share a privacy-safe report, or inspect the full evidence.',button('Export diagnostics',diagnostics),button('Advanced',lambda:(dialog.accept(),self.advanced()))))
-        box.addWidget(setting_card('gamepad','Steam','Adds this game to Steam so it starts straight from Gaming Mode. Close Steam first.',button('Add game to Steam',lambda:(dialog.accept(),self.add_game_to_steam(p['id'])))))
-        box.addWidget(setting_card('stop','Remove from library','Removes this game from APK Revival. Its saves and backups are kept.',button('Remove game',lambda:(dialog.accept(),self.remove_game(p['id'])))))
+        cards.addWidget(setting_card('folder','Saves','Back up your progress or restore an earlier backup. '+latest,button('Backup save',lambda:start('Backup save',lambda ctx:self.service.backup(p['id'],ctx))),button('Restore save',restore)))
+        cards.addWidget(setting_card('package','Game files','Add expansion files, or export a portable copy of this game.',button('Add supporting files',attach),button('Export game',export)))
+        cards.addWidget(setting_card('info','Troubleshooting','Share a privacy-safe report, or inspect the full evidence.',button('Export diagnostics',diagnostics),button('Crash logs',lambda:self.show_crash_logs(p['id'])),button('Advanced',lambda:(dialog.accept(),self.advanced()))))
+        cards.addWidget(setting_card('gamepad','Steam','Adds this game to Steam so it starts straight from Gaming Mode. Close Steam first.',button('Add game to Steam',lambda:(dialog.accept(),self.add_game_to_steam(p['id'])))))
+        cards.addWidget(setting_card('stop','Remove from library','Removes this game from APK Revival. Its saves and backups are kept.',button('Remove game',lambda:(dialog.accept(),self.remove_game(p['id'])))))
         for action in self.service.game_actions(p['id']):
-            box.addWidget(setting_card(action['icon'],action['title'],action['description'],button(action['button'],lambda checked=False,a=action:start(a['title'],lambda ctx:self.service.run_game_action(p['id'],a['key'],ctx)))))
+            cards.addWidget(setting_card(action['icon'],action['title'],action['description'],button(action['button'],lambda checked=False,a=action:start(a['title'],lambda ctx:self.service.run_game_action(p['id'],a['key'],ctx)))))
         choice=QComboBox();choice.setMinimumWidth(240)
         for key,value in PATH_NAMES.items():choice.addItem(value,key)
         preferred=p.get('launcher',{}).get('preferred_path') or p['restoration']['path'] or (p['analysis']['recommended_path'] if p['analysis'] else 'offline_patch');choice.setCurrentIndex(choice.findData(preferred));choice.setEnabled(bool(p.get('adapter')));
         plugin=find(p)
         if plugin is not None and p.get('adapter')!='tapquest-v1':
             for i in range(choice.count()):choice.model().item(i).setEnabled(choice.itemData(i) in plugin.supported_paths)
-        box.addWidget(setting_card('setup','Preparation method','A rebuild is a separate implementation. Prefer preserving the original APK when supported.',choice))
+        cards.addWidget(setting_card('setup','Preparation method','A rebuild is a separate implementation. Prefer preserving the original APK when supported.',choice))
         from .. import game_network
         network=QComboBox();network.setMinimumWidth(240)
         for key in game_network.MODES:network.addItem(game_network.LABELS[key],key)
         network.setCurrentIndex(network.findData(game_network.mode(p)))
-        box.addWidget(setting_card('link','Network','Applied while this game plays. Answer for dead servers replies at once instead of waiting on servers that are gone.',network,button('View network log',lambda:self.show_network_log(p['id']))));box.addStretch()
+        cards.addWidget(setting_card('link','Network','Applied while this game plays. Answer for dead servers replies at once instead of waiting on servers that are gone.',network,button('View network log',lambda:self.show_network_log(p['id']))))
+        from .. import display
+        chosen_display=display.settings(p);size=QComboBox();size.setMinimumWidth(200)
+        for key,text in display.SIZE_LABELS.items():size.addItem(text,key)
+        size.setCurrentIndex(size.findData(chosen_display['size']));landscape=QCheckBox('Force landscape');landscape.setChecked(chosen_display['landscape'])
+        cards.addWidget(setting_card('window','Display','Text and button size in Android, applied while this game plays.',size,landscape));cards.addStretch()
         def save():
-            current=self.service.store.load(p['id']);launcher=current.setdefault('launcher',{});launcher['preferred_path']=choice.currentData();launcher['network']=network.currentData();self.service.store.save(current);dialog.accept();self.update_details()
-            self.message.setText('Options saved.'+(' Prepare once if the preparation method is new.' if choice.currentData()!=(p.get('launcher',{}).get('preferred_path') or p['restoration']['path']) else '')+(' The network setting applies the next time you press Play.' if network.currentData()!=game_network.mode(p) else ''))
+            current=self.service.store.load(p['id']);launcher=current.setdefault('launcher',{});launcher['preferred_path']=choice.currentData();launcher['network']=network.currentData();launcher['display']={'size':size.currentData(),'landscape':landscape.isChecked()};self.service.store.save(current);dialog.accept();self.update_details()
+            self.message.setText('Options saved.'+(' Prepare once if the preparation method is new.' if choice.currentData()!=(p.get('launcher',{}).get('preferred_path') or p['restoration']['path']) else '')+(' Network and display settings apply the next time you press Play.' if network.currentData()!=game_network.mode(p) or {'size':size.currentData(),'landscape':landscape.isChecked()}!=chosen_display else ''))
         footer.addStretch();save_button=button('Save options',save,'primary');save_button.setMinimumWidth(130);footer.addWidget(save_button);close=button('Close',dialog.reject);close.setMinimumWidth(130);footer.addWidget(close);dialog.exec()
     def add_game_to_steam(self,game):
         p=self.service.store.load(game,check=False);icon=None;image=self.artwork(p)
         if image:
             icon=self.service.store.directory(game)/'artwork'/'steam-icon.png';icon.parent.mkdir(parents=True,exist_ok=True)
             if not image.save(str(icon),'PNG'):icon=None
-        try:result=self.service.add_to_steam(game,icon)
+        art=steam_artwork(p,image,self.service.store.directory(game)/'artwork')
+        try:result=self.service.add_to_steam(game,icon,art)
         except RevivalError as error:QMessageBox.warning(self,'Add to Steam',str(error));return
-        QMessageBox.information(self,'Add to Steam',(p['title']+' is already in Steam.' if result.get('already_present') else p['title']+' was added to Steam. Start Steam and find it under Non-Steam games.') if result['registered'] else result['reason'])
+        QMessageBox.information(self,'Add to Steam',(p['title']+' is already in Steam.' if result.get('already_present') else p['title']+' was added to Steam with its own artwork. Start Steam and find it under Non-Steam games.') if result['registered'] else result['reason'])
     def remove_game(self,game):
         p=self.service.store.load(game,check=False)
         box=QMessageBox(QMessageBox.Icon.Question,'Remove '+p['title'],'Remove '+p['title']+' from your library?\n\nIts saves and backups are kept in the removed-games folder.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.Cancel,self)

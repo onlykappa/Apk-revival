@@ -27,7 +27,19 @@ def parse(data):
 def encode(entries):
     return b''.join(bytes([kind])+name+b'\0'+(encode(value) if kind==0 else value+b'\0' if kind==1 else value) for kind,name,value in entries)+b'\x08'
 
-def register(executable,home=None,name='APK Revival',launch_options='--fullscreen',icon=''):
+# Steam library artwork file suffixes: tall cover, wide capsule, hero header.
+ARTWORK=('p','','_hero')
+
+def write_artwork(config,app_id,artwork):
+    """Copy PNG artwork into Steam's grid folder for a non-Steam shortcut."""
+    if not artwork:return []
+    grid=config/'grid';grid.mkdir(parents=True,exist_ok=True);written=[]
+    for suffix,source in artwork.items():
+        if suffix in ARTWORK and source and pathlib.Path(source).is_file():
+            target=grid/f'{app_id}{suffix}.png';target.write_bytes(pathlib.Path(source).read_bytes());written.append(str(target))
+    return written
+
+def register(executable,home=None,name='APK Revival',launch_options='--fullscreen',icon='',artwork=None):
     """Add one non-Steam shortcut: the library app, or a single game via --play."""
     home=pathlib.Path(home or pathlib.Path.home())
     pidfile=home/'.steam/steam.pid'
@@ -45,8 +57,10 @@ def register(executable,home=None,name='APK Revival',launch_options='--fullscree
     def field(entry,key):return next((value for typ,label,value in entry if label.lower()==key),None)
     for kind,index,entry in root[2]:
         if kind!=0:continue
-        if launch_options=='--fullscreen' and field(entry,b'appname')==name.encode():return {'registered':True,'already_present':True}
-        if launch_options!='--fullscreen' and field(entry,b'launchoptions')==launch_options.encode():return {'registered':True,'already_present':True}
+        if (launch_options=='--fullscreen' and field(entry,b'appname')==name.encode()) or (launch_options!='--fullscreen' and field(entry,b'launchoptions')==launch_options.encode()):
+            existing=field(entry,b'appid')
+            art=write_artwork(configs[0],struct.unpack('<I',existing)[0],artwork) if existing and len(existing)==4 else []
+            return {'registered':True,'already_present':True,'artwork':art}
     exe='"'+str(executable)+'"';app_id=zlib.crc32((exe+name+('' if launch_options=='--fullscreen' else launch_options)).encode())|0x80000000
     def string(name,value):return (1,name.encode(),str(value).encode())
     def integer(name,value):return (2,name.encode(),struct.pack('<I',value))
@@ -57,4 +71,4 @@ def register(executable,home=None,name='APK Revival',launch_options='--fullscree
     backup=path.with_name('shortcuts.vdf.apkr-backup-'+str(time.time_ns()))
     if path.exists():backup.write_bytes(original)
     temporary=path.with_name('shortcuts.vdf.apkr-new');temporary.write_bytes(encode(records));os.replace(temporary,path)
-    return {'registered':True,'appid':app_id,'backup':str(backup)}
+    return {'registered':True,'appid':app_id,'backup':str(backup),'artwork':write_artwork(configs[0],app_id,artwork)}

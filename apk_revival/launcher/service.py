@@ -1,6 +1,6 @@
 """V2 application service: all buttons call real V1 operations."""
 from __future__ import annotations
-import hashlib,json,pathlib,re,threading,uuid,zipfile,sys,os
+import calendar,hashlib,json,pathlib,re,threading,time,uuid,zipfile,sys,os
 from ..analysis import analyze,markdown
 from ..adapters import adapter,find,load_plugins
 from ..exporter import export_game
@@ -94,7 +94,7 @@ class Launcher:
             p=self.before_play(p,runtime,ctx)
             ctx.step('Installing the prepared client if needed');runtime.install(self.store,p)
             if p['restoration']['path']=='local_backend':ctx.step('Starting local services');runtime.start_backend(self.store,p)
-            self.start_network(p,runtime,ctx)
+            self.start_network(p,runtime,ctx);self.start_display(p,runtime,ctx);self.clear_crash_buffer(runtime)
             ctx.step('Launching the game');runtime.launch(p)
             self.active={'game':game,'kind':'android','started_at':now(),'serial':serial}
             p=self.store.load(game);p.setdefault('launcher',{}).setdefault('launch_checks',[]).append({'kind':'android_activity','time':now(),'artifact_sha256':p['restoration']['artifact_sha256'],'serial':serial,'offline_gameplay_verified':False});p['launcher']['last_played']=self.active['started_at']
@@ -103,12 +103,36 @@ class Launcher:
             try:
                 try:ctx.step('Launch failed; releasing game connections')
                 except Exception:pass
-                try:self.stop_network()
+                self.release_game_settings()
+                try:self.capture_crash(p['id'],runtime,'The game failed to start.')
                 except Exception:pass
                 try:runtime.stop()
                 except Exception:pass
             finally:self.android=None;self.active=None
             raise
+    def release_game_settings(self):
+        """Undo network and display changes. Never raises: Stop must always finish."""
+        for step in (self.stop_network,self.stop_display):
+            try:step()
+            except Exception:pass  # Leftovers are undone before the next Play.
+    def start_display(self,p,runtime,ctx):
+        """Apply the game's display settings, after undoing any left by a crash."""
+        from .. import display
+        self.display_runtime=runtime
+        leftover=self.settings.get('display_restore')
+        if leftover:
+            try:display.restore(runtime,leftover)
+            except RevivalError:pass
+            self.settings['display_restore']=None;self.save_settings()
+        if display.settings(p)!={'size':'default','landscape':False}:ctx.step('Applying display settings')
+        def remember(previous):self.settings['display_restore']=previous;self.save_settings()
+        display.apply(runtime,p,remember)
+    def stop_display(self):
+        from .. import display
+        previous=getattr(self,'settings',{}).get('display_restore');runtime=getattr(self,'display_runtime',None)
+        if not previous or runtime is None:return
+        try:display.restore(runtime,previous);self.settings['display_restore']=None;self.save_settings()
+        except RevivalError:pass  # Restored before the next Play instead.
     def network_log(self,game):return self.store.directory(game)/'network-log.jsonl'
     def start_network(self,p,runtime,ctx):
         """Apply the game's network setting; anything left from a crash is undone first."""
@@ -167,7 +191,7 @@ class Launcher:
         self.android=runtime;runtime.launch_progress=ctx.step
         try:
             ctx.step('Installing APK without removing game data');runtime.install(self.store,p,original=True)
-            self.start_network(p,runtime,ctx)
+            self.start_network(p,runtime,ctx);self.start_display(p,runtime,ctx);self.clear_crash_buffer(runtime)
             ctx.step('Opening the game');runtime.launch(p)
             self.active={'game':p['id'],'kind':'android','started_at':now(),'serial':serial}
             p.setdefault('launcher',{}).setdefault('launch_checks',[]).append({'kind':'original_activity','time':now(),'apk_sha256':p['apk_sha256'],'offline_gameplay_verified':False})
@@ -176,7 +200,8 @@ class Launcher:
             try:
                 try:ctx.step('Launch failed; releasing game connections')
                 except Exception:pass
-                try:self.stop_network()
+                self.release_game_settings()
+                try:self.capture_crash(p['id'],runtime,'The game failed to start.')
                 except Exception:pass
                 try:runtime.stop()
                 except Exception:pass
@@ -184,9 +209,10 @@ class Launcher:
             raise
     def stop(self,ctx=None):
         if ctx:ctx.step('Stopping the selected game')
+        self.record_playtime()
         try:
             if self.android:
-                try:self.stop_network()
+                try:self.release_game_settings()
                 finally:self.android.stop()
         finally:
             try:
@@ -194,6 +220,40 @@ class Launcher:
                 self.runtime_manager.stop_owned_session()
             finally:self.android=None;self.active=None;self.connection_failures=0;self.offscreen_checks=0
         return {'stopped':True}
+    def crash_logs(self,game):
+        folder=self.store.directory(game)/'crash-logs'
+        return sorted(folder.glob('*.txt'),reverse=True) if folder.is_dir() else []
+    def clear_crash_buffer(self,runtime):
+        try:runtime.adb('logcat','-b','crash','-c',timeout=5)
+        except Exception:pass  # Not every Android allows clearing; capture filters by package anyway.
+    def capture_crash(self,game,runtime,reason):
+        """Save Android crash records that name this game; returns the file or None."""
+        try:return self._capture_crash(game,runtime,reason)
+        except Exception:return None  # A crash log must never get in the way of stopping a game.
+    def _capture_crash(self,game,runtime,reason):
+        from ..android_saves import package_for
+        p=self.store.load(game,check=False);package=getattr(runtime,'package',None) or package_for(p)
+        crash=runtime.adb('logcat','-d','-b','crash','-v','threadtime',timeout=10)
+        main=runtime.adb('logcat','-d','-t','400','-v','threadtime',timeout=10)
+        markers=('FATAL EXCEPTION','Fatal signal','AndroidRuntime','DEBUG  ','UnsatisfiedLinkError','dlopen failed','ANR in')
+        lines=[l for l in crash.splitlines() if l.strip()]
+        related=[l for l in main.splitlines() if package in l or any(m in l for m in markers)]
+        if not any(package in l for l in lines+related):return None
+        folder=self.store.directory(game)/'crash-logs';folder.mkdir(parents=True,exist_ok=True)
+        path=folder/(now().replace(':','-')+'.txt')
+        path.write_text(f'APK Revival crash log\nGame: {p["title"]} ({package})\nWhen: {now()}\nWhat happened: {reason}\n\n== Android crash buffer ==\n'+'\n'.join(lines[-300:])+'\n\n== Related log lines ==\n'+'\n'.join(related[-150:])+'\n')
+        for old in self.crash_logs(game)[20:]:old.unlink(missing_ok=True)
+        return path
+    def record_playtime(self):
+        """Add the finished session to the game's total play time."""
+        active=self.active
+        if not active or not active.get('started_at') or not active.get('game'):return
+        try:
+            started=calendar.timegm(time.strptime(active['started_at'],'%Y-%m-%dT%H:%M:%SZ'))
+            seconds=max(0,min(24*3600,int(time.time()-started)))
+            p=self.store.load(active['game'],check=False);launcher=p.setdefault('launcher',{})
+            launcher['playtime_seconds']=int(launcher.get('playtime_seconds',0))+seconds;self.store.save(p)
+        except Exception:pass  # Play time must never block stopping a game.
     def mod_state(self, game):
         # Play already validates original/prepared APK hashes. A timer-picker
         # refresh needs metadata only, not synchronous hashing on the UI thread.
@@ -219,6 +279,7 @@ class Launcher:
             return 'The local game service stopped. Play again to recover it.'
         try:
             pid=self.android.shell('pidof',self.android.package,timeout=6).strip()
+            process_gone=not pid
             if pid and self.game_left_screen():
                 # Android keeps closed apps cached, so a live process is not proof
                 # the game is open. End only after the game stays off screen for
@@ -233,6 +294,8 @@ class Launcher:
                 notice=state.take_action_notice() if state and hasattr(state,'take_action_notice') else None
                 return 'Game action: '+notice if notice else None
             message='The game has closed.'
+            if process_gone and self.capture_crash(self.active['game'],self.android,'The game process ended while playing.'):
+                message='The game closed unexpectedly. A crash log was saved: Game options > Crash logs.'
         except RevivalError as e:
             from .connection_recovery import recover
             result=recover(self.runtime_manager,self.android,self.active)
@@ -310,11 +373,11 @@ class Launcher:
                 ctx.step('Uninstalling the game from Android');runtime.adb('uninstall',package,timeout=120);uninstalled=True
         ctx.step('Removing the game from your library');kept=self.store.remove(game)
         return {'removed':True,'title':p['title'],'uninstalled':uninstalled,'kept':kept}
-    def add_to_steam(self,game,icon=None):
+    def add_to_steam(self,game,icon=None,artwork=None):
         if not getattr(sys,'frozen',False):raise RevivalError('Steam shortcuts for games are available in the packaged Linux app.')
         p=self.store.load(game,check=False)
         from .steam import register
-        return register(pathlib.Path(sys.executable),name=p['title'],launch_options='--fullscreen --play '+game,icon=str(icon or ''))
+        return register(pathlib.Path(sys.executable),name=p['title'],launch_options='--fullscreen --play '+game,icon=str(icon or ''),artwork=artwork)
     def export(self,game,output,ctx):
         ctx.step('Checking and packaging the game');result=export_game(self.store,game,output)
         if not getattr(sys,'frozen',False):return result

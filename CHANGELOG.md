@@ -2,6 +2,21 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.8.0] - 2026-10-17
+
+### Added
+
+* **Library sorting**: recently played (default), name, recently added or ready to play first. The choice is remembered.
+* **Play time** for each game, shown in its details.
+* **Crash logs**: when a game crashes or fails to start, Android's crash records naming that game are saved automatically (up to 20 per game). View and copy them from Game options > Troubleshooting > Crash logs. They are not added to diagnostics exports.
+* **Steam library artwork**: Add game to Steam now also creates a tall cover, wide banner and header image from the game's icon and name, so it looks like a real title in Gaming Mode.
+* **Display settings per game**, in Game options: smaller, default or larger text and buttons (Android screen density) and Force landscape. Applied while the game plays and restored afterwards, including after a crash.
+* Game options now scrolls, so its buttons stay on screen at 1280 × 800.
+
+### Verification scope
+
+* Tests cover play-time accounting, sorting, crash capture and filtering, Steam grid files and display apply/restore against a simulated Android guest. The display settings, crash capture and Steam artwork have not yet been observed on the Steam Deck or its Android.
+
 ## [0.7.0] - 2026-10-17
 
 ### Added

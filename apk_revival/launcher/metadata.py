@@ -175,6 +175,7 @@ def details(p):
     launcher=p.get('launcher') or {}
     played=friendly_date(launcher.get('last_played'))
     rows.append(('Last played',played or 'Never'))
+    if launcher.get('playtime_seconds'):rows.append(('Play time',playtime(launcher['playtime_seconds'])))
     return rows
 
 def subtitle(p):
@@ -182,3 +183,10 @@ def subtitle(p):
     version=meta.get('version_name')
     kind='Desktop rebuild' if (p.get('restoration') or {}).get('path')=='rebuild' else 'Android game'
     return kind+('  ·  v'+str(version) if version else '')
+
+
+def playtime(seconds):
+    minutes=int(seconds)//60
+    if minutes<1:return 'Under a minute'
+    hours,minutes=divmod(minutes,60)
+    return ' '.join(part for part in (f'{hours} h' if hours else '',f'{minutes} min' if minutes else '') if part)

@@ -1,3 +1,31 @@
+## 0.8.0 library polish — released
+
+2026-10-17, Claude. Branch feat/library-polish, merged into main.
+
+- Play time: Launcher.record_playtime() (called first in stop()) adds the session to
+  launcher.playtime_seconds; details show "Play time".
+- Sorting: ui.sort_games + header combo (recent/name/added/ready), saved in
+  settings.library_sort.
+- Crash logs: Play clears `logcat -b crash`; Launcher.capture_crash saves crash
+  buffer + related lines to games/<id>/crash-logs/ only if they name the package
+  (monitor when the process dies, and failed launches). Max 20; never raises.
+  Game options > Troubleshooting > Crash logs. Not in diagnostics exports.
+- Steam artwork: ui.steam_artwork draws <appid>p.png, <appid>.png, <appid>_hero.png;
+  steam.register(..., artwork=) writes them to userdata/<id>/config/grid, also for
+  existing shortcuts. GameArt.paint() draws icons onto any painter.
+- Display: apk_revival/display.py (wm density x0.8/x1.25, lock landscape via
+  accelerometer_rotation/user_rotation). Values are saved to settings.display_restore
+  before changing anything and restored on Stop or before the next Play.
+- Launcher.release_game_settings() undoes network and display and never raises, so
+  Stop always completes (caught by tests/test_owned_runtime_cleanup.py).
+- Game options cards now scroll.
+
+Tests: tests/test_library_polish.py (8). Full suite passes (three runtime-access tests
+need a non-root account).
+
+Needs Deck confirmation: display size/landscape take effect and reset after Stop;
+a crashing game produces a crash log; Steam shows the generated artwork.
+
 ## 0.7.0 ARM support check and per-game network modes — released
 
 2026-10-17, Claude. Branch feat/arm-and-network, merged into main.
