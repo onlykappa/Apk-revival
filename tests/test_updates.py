@@ -25,8 +25,10 @@ class UpdateTests(unittest.TestCase):
         def release(v,draft=False):
             return {'tag_name':v,'draft':draft,'prerelease':True,'assets':[{'name':'APK-Revival-'+v[1:]+'-linux-x86_64.tar.gz','url':API+'/releases/assets/1'},{'name':'SHA256SUMS.txt','url':API+'/releases/assets/2'}]}
         updater=Updater()
-        with patch.object(updater,'request',return_value=Reply(json.dumps([release('v0.3.0'),release('v0.4.0'),release('v0.5.0',True)]).encode())):result=updater.check()
-        self.assertEqual(result['version'],'0.4.0')
+        # Relative to the running version: older ignored, newer prerelease offered, draft skipped.
+        major,minor,_=version(__version__);draft='v{}.{}.0'.format(major,minor+2)
+        with patch.object(updater,'request',return_value=Reply(json.dumps([release('v0.0.1'),release('v'+NEWER),release(draft,True)]).encode())):result=updater.check()
+        self.assertEqual(result['version'],NEWER)
     def test_credentials_are_stripped_on_redirect(self):
         updater=Updater('private-test-value');seen={}
         def build(*handlers):
