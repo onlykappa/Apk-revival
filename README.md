@@ -9,7 +9,7 @@
   <a href="docs/INSTALL_V2.md">Steam Deck setup</a>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.6.0-9fe5c4?labelColor=16242b" alt="Version 0.6.0" />
+  <img src="https://img.shields.io/badge/version-0.7.0-9fe5c4?labelColor=16242b" alt="Version 0.7.0" />
   <img src="https://img.shields.io/badge/Linux-x86__64-9fe5c4?labelColor=16242b" alt="Linux x86_64" />
   <img src="https://img.shields.io/badge/status-preview-efce7d?labelColor=16242b" alt="Preview" />
   <img src="https://img.shields.io/badge/license-MIT-9fe5c4?labelColor=16242b" alt="MIT licence" />
@@ -36,6 +36,7 @@ Want to look around first? **Try desktop demo** plays the included Tap Quest dem
 - **Keeps your progress safe.** Back up and restore any game's progress from Game options. Restores keep a copy of what they replace.
 - **Fits Steam Deck.** Controller, touch and trackpad navigation, a 1280 × 800 layout, and a Steam shortcut for the library or for any single game, with its own icon.
 - **Shows what's inside.** Each game's icon, name, version, engine, Android requirement and chip support, read from the APK.
+- **Helps with old games.** ARM game support is detected, with a guided setup when it is missing. Each game has a Network setting: log the servers it contacts, answer instantly for dead servers, or block its internet.
 - **Repairs offline games.** For supported games, Prepare creates a separate, re-signed copy that works without the original servers, plus any local service it needs. A launch is never presented as proof of offline play: *Imported*, *Prepared*, *Launch tested* and *Verified Offline* are separate states.
 - **Updates itself** from GitHub releases, keeping your games and saves.
 

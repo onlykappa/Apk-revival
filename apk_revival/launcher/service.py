@@ -8,6 +8,7 @@ from ..restoration import Restorer
 from ..saves import Saves
 from ..util import RevivalError,atomic_json,digest,now,read_json
 from ..verification import verify
+from ..netproxy import summary as server_summary
 from .jobs import Jobs
 from .runtime_setup import RuntimeManager,ManagedAndroid
 from .tools_setup import configure,health
@@ -22,7 +23,7 @@ def host_saves(p):
 class Launcher:
     def __init__(self,store):
         load_plugins(store.root/'plugins')
-        self.store=store;self.jobs=Jobs(store.root/'job-logs');self.runtime_manager=RuntimeManager(store.root/'runtime-state.json');self.android=None;self.active=None;self.connection_failures=0;self.offscreen_checks=0;self.runtime_factory=ManagedAndroid;configure()
+        self.store=store;self.jobs=Jobs(store.root/'job-logs');self.runtime_manager=RuntimeManager(store.root/'runtime-state.json');self.android=None;self.active=None;self.connection_failures=0;self.offscreen_checks=0;self.network=None;self.runtime_factory=ManagedAndroid;configure()
         file=store.root/'launcher-settings.json';self.settings=read_json(file) if file.exists() else {'schema_version':1,'serial':None,'fullscreen':False,'verify_after_prepare':True}
     def save_settings(self):atomic_json(self.store.root/'launcher-settings.json',self.settings)
     def import_game(self,apk,support,ctx):
@@ -66,7 +67,7 @@ class Launcher:
         if not info['ready']:
             ctx.skipped('Testing offline play','Android is not connected. The APK is prepared; complete runtime setup to test it.');return self.store.load(game)
         serial=self.runtime_manager.ensure(self.settings.get('serial'));p['runtime']['serial']=serial;self.store.save(p)
-        self.runtime_factory(serial).compatible(p)
+        self.check_compatible(self.runtime_factory(serial),p)
         if getattr(plugin,'verify_note',None):ctx.skipped('Testing offline play',plugin.verify_note);return self.store.load(game)
         if self.settings.get('verify_after_prepare',True):
             ctx.step('Testing offline play');result=verify(self.store,game)
@@ -88,11 +89,12 @@ class Launcher:
         if not prepared.is_file() or digest(prepared)!=expected:
             raise RevivalError('The prepared game file is missing or changed. Choose Prepare game to repair it. Your saves are preserved.')
         ctx.step('Starting the game runtime');serial=self.runtime_manager.ensure(progress=ctx.step);p['runtime']['serial']=serial;self.store.save(p)
-        ctx.step('Checking game compatibility');runtime=self.runtime_factory(serial);runtime.compatible(p);self.android=runtime;runtime.launch_progress=ctx.step
+        ctx.step('Checking game compatibility');runtime=self.runtime_factory(serial);self.check_compatible(runtime,p);self.android=runtime;runtime.launch_progress=ctx.step
         try:
             p=self.before_play(p,runtime,ctx)
             ctx.step('Installing the prepared client if needed');runtime.install(self.store,p)
             if p['restoration']['path']=='local_backend':ctx.step('Starting local services');runtime.start_backend(self.store,p)
+            self.start_network(p,runtime,ctx)
             ctx.step('Launching the game');runtime.launch(p)
             self.active={'game':game,'kind':'android','started_at':now(),'serial':serial}
             p=self.store.load(game);p.setdefault('launcher',{}).setdefault('launch_checks',[]).append({'kind':'android_activity','time':now(),'artifact_sha256':p['restoration']['artifact_sha256'],'serial':serial,'offline_gameplay_verified':False});p['launcher']['last_played']=self.active['started_at']
@@ -101,10 +103,59 @@ class Launcher:
             try:
                 try:ctx.step('Launch failed; releasing game connections')
                 except Exception:pass
+                try:self.stop_network()
+                except Exception:pass
                 try:runtime.stop()
                 except Exception:pass
             finally:self.android=None;self.active=None
             raise
+    def network_log(self,game):return self.store.directory(game)/'network-log.jsonl'
+    def start_network(self,p,runtime,ctx):
+        """Apply the game's network setting; anything left from a crash is undone first."""
+        from .. import game_network
+        from ..android_saves import package_for
+        if self.settings.get('network_applied'):
+            game_network.clear_proxy(runtime);game_network.remove_leftovers(runtime)
+            self.settings['network_applied']=False;self.save_settings()
+        chosen=game_network.mode(p);self.network=None
+        if chosen=='normal':return
+        ctx.step('Applying network setting: '+game_network.LABELS[chosen])
+        state={'runtime':runtime,'proxy':None,'uid':None}
+        self.settings['network_applied']=True;self.save_settings();self.network=state
+        try:
+            if chosen in ('log','offline'):
+                from ..netproxy import Proxy
+                state['proxy']=Proxy(self.network_log(p['id']),'offline' if chosen=='offline' else 'log').start()
+                game_network.set_proxy(runtime,state['proxy'].port)
+            if chosen in ('offline','block'):
+                state['uid']=game_network.package_uid(runtime,package_for(p));game_network.block(runtime,state['uid'])
+        except Exception:
+            self.stop_network();raise
+    def stop_network(self):
+        state=getattr(self,'network',None);self.network=None
+        if not state:return
+        from .. import game_network
+        runtime=state['runtime']
+        try:
+            if state['proxy']:game_network.clear_proxy(runtime,state['proxy'].port)
+            if state['uid'] is not None:game_network.unblock(runtime,state['uid'])
+            self.settings['network_applied']=False;self.save_settings()
+        except RevivalError:pass  # Cleaned up before the next Play instead.
+        finally:
+            if state['proxy']:state['proxy'].stop()
+    def check_compatible(self,runtime,p):
+        """Check the game against Android and remember Android's ARM support for the library."""
+        try:return runtime.compatible(p)
+        finally:
+            status=getattr(runtime,'arm_status',None)
+            if isinstance(status,dict) and status.get('known'):self.settings['android_arm']=status;self.save_settings()
+    def check_arm(self,ctx):
+        """Start Android if needed and read its ARM support."""
+        from .. import arm_support
+        runtime=self.android_runtime(ctx);ctx.step('Reading Android processor support');report=runtime.probe()
+        if not report.get('available'):raise RevivalError('Android is not connected. '+report.get('error','Start Android from Setup and try again.'))
+        status=arm_support.android_status(report.get('abis'),report.get('native_bridge'))
+        self.settings['android_arm']=status;self.save_settings();return status
     def before_play(self,p,runtime,ctx):
         """Let the game's plugin update its prepared client once Android is ready."""
         plugin=find(p)
@@ -112,10 +163,11 @@ class Launcher:
     def play_original(self,p,ctx):
         ctx.step('Starting the game runtime');serial=self.runtime_manager.ensure(progress=ctx.step)
         runtime=self.runtime_factory(serial)
-        ctx.step('Checking architecture and Android version');runtime.compatible(p)
+        ctx.step('Checking architecture and Android version');self.check_compatible(runtime,p)
         self.android=runtime;runtime.launch_progress=ctx.step
         try:
             ctx.step('Installing APK without removing game data');runtime.install(self.store,p,original=True)
+            self.start_network(p,runtime,ctx)
             ctx.step('Opening the game');runtime.launch(p)
             self.active={'game':p['id'],'kind':'android','started_at':now(),'serial':serial}
             p.setdefault('launcher',{}).setdefault('launch_checks',[]).append({'kind':'original_activity','time':now(),'apk_sha256':p['apk_sha256'],'offline_gameplay_verified':False})
@@ -124,6 +176,8 @@ class Launcher:
             try:
                 try:ctx.step('Launch failed; releasing game connections')
                 except Exception:pass
+                try:self.stop_network()
+                except Exception:pass
                 try:runtime.stop()
                 except Exception:pass
             finally:self.android=None;self.active=None
@@ -131,7 +185,9 @@ class Launcher:
     def stop(self,ctx=None):
         if ctx:ctx.step('Stopping the selected game')
         try:
-            if self.android:self.android.stop()
+            if self.android:
+                try:self.stop_network()
+                finally:self.android.stop()
         finally:
             try:
                 if ctx:ctx.step('Closing the game runtime started by APK Revival')
@@ -286,7 +342,7 @@ class Launcher:
         from .. import __version__
         self.store.games()
         # Summary only: no APKs, assets, secrets, saves or raw imported logs.
-        report={'schema_version':1,'version':__version__,'apk_sha256':p['apk_sha256'],'apk_version':p['apk_version'],'status':p['status'],'analysis':p['analysis'],'restoration_path':p['restoration']['path'],'verification':p['verification'],'runtime':self.runtime_manager.last,'library_errors':self.store.last_library_errors,'job_history':[j.snapshot() for j in self.jobs.history[-20:]]}
+        report={'schema_version':1,'version':__version__,'apk_sha256':p['apk_sha256'],'apk_version':p['apk_version'],'status':p['status'],'analysis':p['analysis'],'restoration_path':p['restoration']['path'],'verification':p['verification'],'runtime':self.runtime_manager.last,'library_errors':self.store.last_library_errors,'job_history':[j.snapshot() for j in self.jobs.history[-20:]],'servers_contacted':[{k:r[k] for k in ('host','port','secure','count')} for r in server_summary(self.network_log(game))[:100]]}
         text=json.dumps(report,indent=2)
         text=text.replace(str(pathlib.Path.home()),'<HOME>').replace(str(self.store.root),'<DATA>')
         text=re.sub(r'(?i)(token|password|authorization|api[_-]?key)(["\s:=]+)[^\s,"}]+',r'\1\2<REDACTED>',text)

@@ -2,6 +2,21 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.7.0] - 2026-10-17
+
+### Added
+
+* **ARM game support check.** Most Android games are built for ARM phones and need translation on a PC. Setup > ARM game support shows whether your Android has it (and which translator), and the library flags games that need it. When a game cannot start for this reason, a guided setup opens with copyable commands for the community waydroid_script tool, recommending libndk on AMD (such as the Steam Deck) and libhoudini on Intel.
+* **Network setting for each game**, in Game options, applied only while the game plays:
+  - *Log connections*: the game stays online and APK Revival records every server it contacts (Game options > View network log; also in diagnostics exports).
+  - *Answer for dead servers*: no internet; plain web requests get an instant empty reply and secure ones fail at once, so games stop hanging on servers that no longer exist.
+  - *Block internet*: a firewall rule for that game alone.
+  Secure connections are recorded by server name only, and URL query strings (which often hold tokens) are never logged. Settings are undone when the game stops, and anything left from a crash is removed before the next Play.
+
+### Verification scope
+
+* Tests run the proxy against real local sockets (relaying, tunnelling, offline answers, oversized or invalid requests) and check the Android firewall and proxy commands and the ARM logic against a simulated Android guest. None of this has yet been run on the Steam Deck's Android: Android's proxy and firewall behaviour, and whether a given game respects the system proxy, still need to be observed on hardware.
+
 ## [0.6.0] - 2026-10-17
 
 ### Changed

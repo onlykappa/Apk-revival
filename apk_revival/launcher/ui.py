@@ -16,6 +16,7 @@ from .presentation import CONTROL_PROFILES,readiness
 from .service import Launcher
 from .style import ACCENT,FONT_FAMILIES,STYLE
 from . import tools_setup
+from .. import arm_support
 
 def brand_asset():
     return pathlib.Path(getattr(sys,'_MEIPASS',pathlib.Path(__file__).resolve().parents[2]))/'resources/apk-revival-logo.png'
@@ -102,13 +103,13 @@ class GameArt(QWidget):
         p.drawText(r,Qt.AlignmentFlag.AlignCenter,initials)
 
 class GameCard(QPushButton):
-    def __init__(self,p,selected,action,image=None):
+    def __init__(self,p,selected,action,image=None,arm_problem=False):
         super().__init__();self.setObjectName('card');self.setCheckable(True);self.setChecked(selected);self.ensurePolished();self.setFixedSize(TILE_WIDTH,TILE_HEIGHT);self.setAccessibleName(p['title']);self.setToolTip(p['title']);self.clicked.connect(action)
         box=QVBoxLayout(self);box.setContentsMargins(14,14,14,12);box.setSpacing(4)
         art=GameArt(TILE_WIDTH-28);art.set_game(p['title'],p['id'],image);art.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents);box.addWidget(art);box.addSpacing(6)
         title=label(QFontMetrics(QApplication.font()).elidedText(p['title'],Qt.TextElideMode.ElideRight,TILE_WIDTH-30),'strong');box.addWidget(title)
         detail=label(subtitle(p),'caption');box.addWidget(detail)
-        ready=readiness(p);text,kind=STATUS_PILLS.get(ready['label'],('Ready to play','pill_ok') if ready['play'] else ('Needs preparing','pill_info') if ready['prepare'] else (ready['label'],'pill_warn'))
+        ready=readiness(p);text,kind=('Needs ARM support','pill_warn') if arm_problem and ready['play'] else STATUS_PILLS.get(ready['label'],('Ready to play','pill_ok') if ready['play'] else ('Needs preparing','pill_info') if ready['prepare'] else (ready['label'],'pill_warn'))
         pill=label(text,kind);row=QHBoxLayout();row.setContentsMargins(0,2,0,0);row.addWidget(pill);row.addStretch();box.addLayout(row)
         for w in (title,detail,pill):w.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         box.addStretch()
@@ -228,6 +229,8 @@ class Window(QMainWindow):
         box.addWidget(setting_card('phone','Android connection',self.runtime_label,button('Check again',self.check_runtime,None,'refresh')))
         self.devices=QComboBox();self.devices.setAccessibleName('Android device');self.devices.setMinimumWidth(240);self.devices.currentIndexChanged.connect(self.device_selected)
         box.addWidget(setting_card('link','Android device','Which connected Android environment to use.',self.devices))
+        self.arm_label=label('','caption',True)
+        box.addWidget(setting_card('package','ARM game support',self.arm_label,button('Check ARM support',self.check_arm),button('How to add it',self.show_arm_guide)))
         box.addWidget(setting_card('play','Start Android','Starts your existing Waydroid session. Starting the container asks for your administrator password.',button('Start Android',self.start_android),button('Start container',self.start_container)))
         box.addWidget(setting_card('setup','Runtime startup access','One-time administrator setup allows the existing main runtime to start without repeated password prompts.',button('Enable password-free startup',self.enable_runtime_access)))
         box.addWidget(setting_card('refresh','Runtime recovery','Restart the owned Android runtime while preserving saves and controls.',button('Restart Android',self.restart_android)))
@@ -278,13 +281,13 @@ class Window(QMainWindow):
         self.library_count.setText(f'{len(games)} game'+('s' if len(games)!=1 else '') if games else 'No games yet')
         if not self.current and games:self.current=games[0]['id']
         for p in filtered:
-            card=GameCard(p,p['id']==self.current,lambda checked=False,game=p['id']:self.select(game),self.artwork(p));card.setProperty('game_id',p['id']);self.cards.append(card)
+            card=GameCard(p,p['id']==self.current,lambda checked=False,game=p['id']:self.select(game),self.artwork(p),bool(arm_support.compatible(p,self.service.settings.get('android_arm'))));card.setProperty('game_id',p['id']);self.cards.append(card)
             if p['id']==focus_game:card.setFocus()
         if not filtered:
             if games:self.grid.addWidget(label('No games match your search.','muted'),0,0)
             else:
                 welcome=QFrame();welcome.setObjectName('welcome');welcome.setMinimumHeight(420);box=QVBoxLayout(welcome);box.setContentsMargins(28,28,28,28);box.setSpacing(10);box.addStretch();mark=QLabel();mark.setPixmap(QPixmap(str(brand_asset())).scaled(88,88,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));box.addWidget(mark,alignment=Qt.AlignmentFlag.AlignCenter);box.addWidget(label('Bring your games back','subtitle'),alignment=Qt.AlignmentFlag.AlignCenter);copy=label('Drop an APK here or choose Add game to start your library.\nOr try Tap Quest, included and ready to play.','muted',True);copy.setAlignment(Qt.AlignmentFlag.AlignCenter);box.addWidget(copy);box.addStretch();self.grid.addWidget(welcome,0,0)
-        self.layout_cards();self.update_details();self.update_tools();self.update_plugins()
+        self.layout_cards();self.update_details();self.update_tools();self.update_plugins();self.update_arm()
     def select(self,game):
         self.current=game
         for c in self.cards:c.setChecked(c.property('game_id')==game)
@@ -313,7 +316,14 @@ class Window(QMainWindow):
         self.game_title.setText(p['title'] if len(p['title'])<40 else p['title'][:38]+'...');self.game_title.setToolTip(p['title']);self.hero.set_game(p['title'],p['id'],self.artwork(p))
         self.game_kind.setText(('Independent rebuild' if p['restoration']['path']=='rebuild' else 'Android game')+('  ·  self-authored demo' if p['analysis'] and p['analysis']['fixture'] else ''));self.readiness_label.setText(ready['label']);self.description.setText(ready['detail'])
         self.infobar.setProperty('severity','success' if ready['play'] else 'info' if ready['prepare'] else 'warning');restyle(self.infobar)
-        self.show_metadata(details(p))
+        rows=details(p)
+        from .. import arm_support
+        if arm_support.needs_arm(p):
+            status=self.service.settings.get('android_arm')
+            problem=arm_support.compatible(p,status)
+            rows.append(('ARM support','Needed — not available in your Android' if problem else 'Needed — available ('+status['translator']+')' if status and status.get('known') and status.get('translator') else 'Needed — check in Setup'))
+            if problem and ready['play']:self.description.setText(ready['detail']+' This game needs ARM support, which your Android does not have yet. See Setup > ARM game support.')
+        self.show_metadata(rows)
         self.options_button.show();self.divider.show()
         busy=bool(self.worker and self.worker.isRunning());active=self.service.active
         # Play can open an original APK; Prepare can create a restored copy.
@@ -355,6 +365,8 @@ class Window(QMainWindow):
         if 'prepared game file is missing or changed' in message and self.current:self.repair_games.add(self.current)
         self.message.setText(message);self.refresh()
         if getattr(self.worker,'title',None) in {'Check for updates','Download update'}:self.update_label.setText(message)
+        from ..arm_support import ERROR_PREFIX
+        if message.startswith(ERROR_PREFIX):QTimer.singleShot(0,lambda:self.show_arm_guide(message[len(ERROR_PREFIX):].split(' Architecture mismatch')[0]))
         if self.last_job and self.last_job.get('label') in {'Start Android container','Start Android'}:QMessageBox.warning(self,'Android startup failed',message)
         if 'Preparation tools are missing' in message:self.show_setup()
         elif 'java: not found' in message or 'Missing tool:' in message and 'java' in message:
@@ -483,6 +495,42 @@ class Window(QMainWindow):
         if not ready and info.get('session')=='RUNNING':self.runtime_label.setText('Android session is running, but ADB is not connected. '+('Guest IP: '+str(info['ip'])+'. Use Connect below. ' if info.get('ip') else '')+'Check the connection details below.')
         if not ready and any(d['state']=='unauthorized' for d in info['devices']):self.runtime_label.setText('Authorization needed. Choose Open Android and approve Allow USB debugging. Select Always allow from this computer, then Check again.')
         self.message.setText(self.service.runtime_manager.last_start_note or ('; '.join(info.get('errors',[])[-2:]) if not ready and info.get('errors') else 'Setup check complete.'));self.service.runtime_manager.last_start_note=None;self.update_details()
+    def show_network_log(self,game):
+        from ..netproxy import summary
+        rows=summary(self.service.network_log(game))
+        dialog=QDialog(self);dialog.setWindowTitle('Network log');dialog.resize(760,560)
+        box,footer=dialog_shell(dialog,'Network log','Servers this game contacted while its Network setting was Log connections or Answer for dead servers, busiest first. Secure (HTTPS) connections show the server name only; their contents are never read.')
+        text='\n'.join(f"{r['host']}:{r['port']}  {'secure' if r['secure'] else 'plain HTTP'}  ·  {r['count']} request{'s' if r['count']!=1 else ''}  ·  last {friendly_date(r['last']) or r['last']}"+(''.join('\n      '+path for path in r['paths'][:8])) for r in rows) or 'Nothing recorded yet. Choose Log connections in Game options > Network, then play the game.'
+        view=QPlainTextEdit(text);view.setReadOnly(True);box.addWidget(view,1)
+        def clear():
+            self.service.network_log(game).unlink(missing_ok=True);view.setPlainText('Log cleared.')
+        footer.addWidget(button('Clear log',clear));footer.addStretch();close=button('Close',dialog.accept);close.setMinimumWidth(130);footer.addWidget(close);dialog.exec()
+    def update_arm(self):
+        from .. import arm_support
+        status=self.service.settings.get('android_arm')
+        arm_games=[p['title'] for p in self.service.store.games() if arm_support.needs_arm(p)]
+        need=(' '+str(len(arm_games))+' of your games need it.') if arm_games else ''
+        if not status or not status.get('known'):text='Most Android games are built for ARM phones and need ARM translation on a PC. Not checked yet: start Android, then choose Check ARM support.'+need
+        elif status.get('arm'):text='Available'+(' ('+status['translator']+')' if status.get('translator') else '')+': '+', '.join(status['arm_abis'])+'. ARM-only games can run.'
+        else:text='Not available: your Android runs x86 apps only, so ARM-only games will not start.'+need+' Choose How to add it.'
+        self.arm_label.setText(text)
+    def check_arm(self):
+        def done(status):
+            self.update_arm();self.update_details()
+            self.message.setText('ARM support: '+('available' if status.get('arm') else 'not available')+'.')
+        self.submit('Check ARM support',lambda ctx:self.service.check_arm(ctx),done)
+    def show_arm_guide(self,reason=None):
+        from .. import arm_support
+        info=arm_support.guide(arm_support.cpu_vendor())
+        dialog=QDialog(self);dialog.setWindowTitle('Add ARM game support');dialog.resize(720,600)
+        box,footer=dialog_shell(dialog,'Add ARM game support',(reason+' ' if reason else '')+'Android on a PC needs a translation library to run games built for ARM phones. APK Revival cannot include one, but you can add it to Waydroid once.')
+        for n,step in enumerate(info['steps'],1):box.addWidget(label(f'{n}.  {step}','muted',True))
+        box.addWidget(label(info['why'],'caption',True))
+        commands=QPlainTextEdit(info['commands']);commands.setReadOnly(True);commands.setMinimumHeight(130);box.addWidget(commands)
+        box.addWidget(label(info['note'],'caption',True));box.addStretch()
+        copy=button('Copy commands',lambda:(QApplication.clipboard().setText(info['commands']),self.message.setText('Commands copied. Paste them into Konsole.')),'primary')
+        footer.addWidget(button('Open guide',lambda:QDesktopServices.openUrl(QUrl(info['url']))));footer.addStretch();footer.addWidget(copy);close=button('Close',dialog.accept);close.setMinimumWidth(130);footer.addWidget(close)
+        dialog.exec()
     def plugins_folder(self):return self.service.store.root/'plugins'
     def needed_plugins(self):
         """Plugins that games in the library need, or that are older than this app."""
@@ -623,9 +671,15 @@ class Window(QMainWindow):
         plugin=find(p)
         if plugin is not None and p.get('adapter')!='tapquest-v1':
             for i in range(choice.count()):choice.model().item(i).setEnabled(choice.itemData(i) in plugin.supported_paths)
-        box.addWidget(setting_card('setup','Preparation method','A rebuild is a separate implementation. Prefer preserving the original APK when supported.',choice));box.addStretch()
+        box.addWidget(setting_card('setup','Preparation method','A rebuild is a separate implementation. Prefer preserving the original APK when supported.',choice))
+        from .. import game_network
+        network=QComboBox();network.setMinimumWidth(240)
+        for key in game_network.MODES:network.addItem(game_network.LABELS[key],key)
+        network.setCurrentIndex(network.findData(game_network.mode(p)))
+        box.addWidget(setting_card('link','Network','Applied while this game plays. Answer for dead servers replies at once instead of waiting on servers that are gone.',network,button('View network log',lambda:self.show_network_log(p['id']))));box.addStretch()
         def save():
-            current=self.service.store.load(p['id']);current.setdefault('launcher',{})['preferred_path']=choice.currentData();self.service.store.save(current);dialog.accept();self.update_details();self.message.setText('Preparation method saved. Prepare once if this method is new.')
+            current=self.service.store.load(p['id']);launcher=current.setdefault('launcher',{});launcher['preferred_path']=choice.currentData();launcher['network']=network.currentData();self.service.store.save(current);dialog.accept();self.update_details()
+            self.message.setText('Options saved.'+(' Prepare once if the preparation method is new.' if choice.currentData()!=(p.get('launcher',{}).get('preferred_path') or p['restoration']['path']) else '')+(' The network setting applies the next time you press Play.' if network.currentData()!=game_network.mode(p) else ''))
         footer.addStretch();save_button=button('Save options',save,'primary');save_button.setMinimumWidth(130);footer.addWidget(save_button);close=button('Close',dialog.reject);close.setMinimumWidth(130);footer.addWidget(close);dialog.exec()
     def add_game_to_steam(self,game):
         p=self.service.store.load(game,check=False);icon=None;image=self.artwork(p)

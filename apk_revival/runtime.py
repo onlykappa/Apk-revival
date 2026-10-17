@@ -27,14 +27,20 @@ class WaydroidRuntime:
         try:
             if self.adb('get-state').strip()!='device':raise RevivalError('ADB device not ready')
             report.update(available=True,abis=self.shell('getprop','ro.product.cpu.abilist').strip().split(','),sdk=self.shell('getprop','ro.build.version.sdk').strip(),release=self.shell('getprop','ro.build.version.release').strip())
+            try:report['native_bridge']=self.shell('getprop','ro.dalvik.vm.native.bridge',timeout=10).strip()
+            except RevivalError:report['native_bridge']=''
         except RevivalError as e:report['error']=str(e)
         return report
     def compatible(self,p):
         r=self.probe()
         if not r['available']:raise RevivalError('Runtime unavailable. '+r.get('error','Connect the configured Waydroid ADB serial first.'))
+        from . import arm_support
+        self.arm_status=arm_support.android_status(r['abis'],r.get('native_bridge'))
         required=p['analysis']['abis']
         if 'armeabi' in required and 'armeabi-v7a' in r['abis']:required=required+['armeabi-v7a']
-        if required and not set(required)&set(r['abis']):raise RevivalError(f'Architecture mismatch: APK {required}, Android {r["abis"]}. Configure a compatible runtime or ARM translation separately.')
+        if required and not set(required)&set(r['abis']):
+            reason=arm_support.compatible(p,self.arm_status) or 'This game was built for a different processor.'
+            raise RevivalError(f'{arm_support.ERROR_PREFIX}{reason} Architecture mismatch: APK {required}, Android {r["abis"]}. See Setup > ARM game support.')
         sdk=p['analysis']['metadata']['min_sdk']
         if sdk and sdk.isdigit() and int(sdk)>int(r['sdk']):raise RevivalError(f'APK requires Android API {sdk}; this runtime provides API {r["sdk"]}. Use a newer compatible Android runtime.')
         if p['analysis']['input_errors']:raise RevivalError('Input split mismatch must be fixed')

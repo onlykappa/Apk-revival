@@ -1,3 +1,40 @@
+## 0.7.0 ARM support check and per-game network modes — released
+
+2026-10-17, Claude. Branch feat/arm-and-network, merged into main.
+
+Deck confirmation from the user before this work: 0.5.0 Android save backup/restore
+works on the Deck.
+
+- apk_revival/arm_support.py: needs_arm (game has only ARM ABIs), android_status
+  (ro.product.cpu.abilist + ro.dalvik.vm.native.bridge -> libndk_translation /
+  libhoudini), compatible() reasons, CPU vendor from /proc/cpuinfo, and a guide
+  using casualsnek/waydroid_script (`sudo venv/bin/python3 main.py install libndk`,
+  libhoudini on Intel). WaydroidRuntime.probe reads the native bridge;
+  compatible() raises "ARM support needed: ..." (still containing "Architecture
+  mismatch"), and the UI opens the guide for that prefix. Launcher.check_compatible
+  stores settings['android_arm']; Launcher.check_arm probes on demand.
+  UI: Setup > ARM game support card, guide dialog with Copy commands, library tile
+  "Needs ARM support", details row.
+- apk_revival/netproxy.py: loopback HTTP proxy. 'log' relays HTTP and CONNECT and
+  records host/port/path (query strings dropped); 'offline' answers HTTP with 200 {}
+  and refuses CONNECT with 502. summary() aggregates per server.
+- apk_revival/game_network.py: modes normal/log/offline/block. Proxy via adb reverse +
+  `settings put global http_proxy 127.0.0.1:PORT` (cleared with :0 and delete).
+  Blocking via guest root: chain APKR_GAME_<uid> (ACCEPT -o lo, then REJECT) hooked
+  into OUTPUT for the app uid (cmd package list packages -U), iptables and ip6tables.
+- Launcher.start_network/stop_network wrap Play (both prepared and original paths)
+  and failed launches; settings['network_applied'] triggers leftover cleanup before
+  the next Play. Game options > Network (saved with Save options) and View network
+  log; diagnostics include servers_contacted (no paths).
+
+Tests: tests/test_network_and_arm.py (12; proxy uses real local sockets). Full suite
+passes (three runtime-access tests need a non-root account, pass on GitHub).
+
+Needs Deck confirmation: Check ARM support result; a game with Log connections
+records servers; Answer for dead servers/Block internet stop a game reaching the
+internet and are undone after Stop (`adb shell settings get global http_proxy`
+should be :0 or null afterwards).
+
 ## 0.6.0 game plugins, README and tidy-up — released
 
 2026-10-17, Claude. Branch feat/game-plugins, merged into main.
