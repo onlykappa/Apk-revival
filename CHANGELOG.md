@@ -2,6 +2,16 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.9.1] - 2026-10-17
+
+### Changed
+
+* **New logo**: a white pixel-art heart with a play button, on black. It is used for the app window, the application menu and desktop shortcuts (which switch over automatically after updating) and the README. A newly created APK Revival Steam shortcut now uses it as its icon too.
+
+### Verification scope
+
+* Only artwork and the Steam shortcut icon changed; no Android, runtime or game behaviour is affected. The logo was checked at 16 to 1024 pixels. It has not yet been seen in the Steam Deck taskbar or in Gaming Mode.
+
 ## [0.9.0] - 2026-10-17
 
 ### Added

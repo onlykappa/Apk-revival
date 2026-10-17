@@ -52,7 +52,7 @@ def install(source=None,home=None,register_steam=True):
         with staged.open('w') as output:settings.write(output,space_around_delimiters=False)
         staged.replace(mime)
     from .steam import register
-    steam=register(exe,home) if register_steam else {'registered':False,'reason':'Host Steam process status is unavailable in the build sandbox. Close Steam and select Setup > Add to Steam in the installed application.'}
+    steam=register(exe,home,icon=str(icon)) if register_steam else {'registered':False,'reason':'Host Steam process status is unavailable in the build sandbox. Close Steam and select Setup > Add to Steam in the installed application.'}
     return {'gaming_launcher':str(gaming),'steam':steam,'executable':str(exe),'desktop_file':str(path),'previous_install':str(prior) if source.resolve()!=target.resolve() else None}
 
 def install_dialog():

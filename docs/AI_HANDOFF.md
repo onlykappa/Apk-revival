@@ -1,3 +1,19 @@
+## 0.9.1 new logo — released
+
+2026-10-17, Claude. Branch claude/next, merged into main.
+
+- resources/apk-revival.svg and resources/apk-revival-logo.png (1024 px, rendered
+  from the SVG) replaced with the user's chosen design: a white pixel heart (21 x 19
+  grid) with a centred play-button cutout, on a black rounded square.
+  ui.brand_asset() and the .desktop entry already point at these files; install.py
+  now also passes the logo as the icon of a newly registered Steam shortcut.
+- From now on Claude works on the single branch claude/next instead of a new branch
+  per feature (the user deletes old branches; this session cannot delete them).
+
+Tests: full suite, same known local-only failures as 0.9.0.
+
+Needs Deck confirmation: the logo in the taskbar, the app menu and Gaming Mode.
+
 ## 0.9.0 controller-to-touch mapping — released
 
 2026-10-17, Claude. Branch feat/touch-mapping, merged into main.
