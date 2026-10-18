@@ -39,7 +39,7 @@ class MeegoEcologyTests(unittest.TestCase):
         ident = self.advance(self.now + e.INTERVAL_SECONDS)
         node = self.data['game_state']['buildings'][str(ident)]
         self.assertEqual((node['building_type'], node['location'], node['count']),
-                         (2, 10 * g.MAP_SIZE + 10, 40))
+                         (2, 10 * g.MAP_SIZE + 10, 250))
         self.assertEqual(set(node), set(g.building(1, 2, 1, 0, 0)))
 
     def test_empty_migration_never_guesses_off_island_coordinates(self):
@@ -55,7 +55,7 @@ class MeegoEcologyTests(unittest.TestCase):
         when = self.now + 200 * e.INTERVAL_SECONDS
         self.assertEqual(self.advance(when), 5)
         nodes=[b for b in self.data['game_state']['buildings'].values() if b['building_type'] in e.RESOURCE_LIMITS]
-        self.assertEqual(sorted((b['building_type'],b['count']) for b in nodes),[(2,40),(3,30),(4,75)])
+        self.assertEqual(sorted((b['building_type'],b['count']) for b in nodes),[(2,250),(3,250),(4,250)])
         self.assertEqual(self.data[e.STATE_KEY]['replenishment_count'],3)
         self.data = json.loads(json.dumps(self.data))
         before = copy.deepcopy(self.data)
@@ -81,19 +81,19 @@ class MeegoEcologyTests(unittest.TestCase):
 
     def test_both_old_policies_keep_cycle_start_and_polling_cannot_postpone_respawn(self):
         baseline=copy.deepcopy(self.data)
-        for old_policy in (e.LEGACY_POLICY,e.PREVIOUS_POLICY):
+        for old_policy in (e.LEGACY_POLICY,e.PREVIOUS_POLICY,e.FIVE_MINUTE_POLICY):
             with self.subTest(policy=old_policy):
                 self.data=copy.deepcopy(baseline)
                 self.advance(self.now)
                 for ident in ('2','3','4'):del self.data['game_state']['buildings'][ident]
                 state=self.data[e.STATE_KEY]
-                state.update(policy=old_policy,next_due=self.now+900)
-                for seconds in (1,60,120,299):
+                state.update(policy=old_policy,next_due=self.now+(300 if old_policy==e.FIVE_MINUTE_POLICY else 900))
+                for seconds in (1,20,40,59):
                     self.assertIsNone(self.advance(self.now+seconds))
-                    self.assertEqual(state['next_due'],self.now+300)
-                self.assertIsNotNone(self.advance(self.now+300))
+                    self.assertEqual(state['next_due'],self.now+60)
+                self.assertIsNotNone(self.advance(self.now+60))
                 self.assertEqual(state['replenishment_count'],3)
-                self.assertEqual(state['next_due'],self.now+600)
+                self.assertEqual(state['next_due'],self.now+120)
                 self.assertEqual(state['policy'],e.POLICY)
 
     def test_occupied_sites_skipped_and_full_map_does_not_overwrite_buildings(self):
@@ -128,10 +128,10 @@ class MeegoEcologyTests(unittest.TestCase):
             self.assertEqual(self.data['game_state'][key], before['game_state'][key])
         self.assertEqual(self.data['breeding_tokens'], before['breeding_tokens'])
 
-    def test_requested_six_per_kind_cap_is_independent_and_never_adds_a_seventh(self):
+    def test_requested_five_per_kind_cap_is_independent_and_never_adds_a_sixth(self):
         ident=5
         for kind in (2,3,4):
-            for offset in range(5):
+            for offset in range(4):
                 self.add(ident,kind,(10+kind*10)*g.MAP_SIZE+offset*6)
                 ident+=1
         self.advance(self.now)
@@ -143,7 +143,7 @@ class MeegoEcologyTests(unittest.TestCase):
         del self.data['game_state']['buildings']['2']
         self.assertIsNotNone(self.advance(self.now+2*e.INTERVAL_SECONDS))
         for kind in (2,3,4):
-            self.assertEqual(sum(b['building_type']==kind for b in self.data['game_state']['buildings'].values()),6)
+            self.assertEqual(sum(b['building_type']==kind for b in self.data['game_state']['buildings'].values()),5)
 
     def test_native_placed_sites_are_learned_before_future_depletion(self):
         self.advance(self.now)
@@ -155,7 +155,7 @@ class MeegoEcologyTests(unittest.TestCase):
             del self.data['game_state']['buildings'][ident]
         self.data[e.STATE_KEY]['next_kind'] = 4
         ident = self.advance(self.now + e.INTERVAL_SECONDS)
-        self.assertEqual(self.data['game_state']['buildings'][str(ident)]['count'], 75)
+        self.assertEqual(self.data['game_state']['buildings'][str(ident)]['count'], 250)
 
     def test_ids_consider_native_models_dictionary_keys_and_persisted_cursor(self):
         self.add(30, 5, 60 * g.MAP_SIZE + 60, key='legacy-model')
@@ -181,5 +181,42 @@ class MeegoEcologyTests(unittest.TestCase):
         self.assertEqual(self.data, before)
 
 
+    def test_stock_upgrade_preserves_harvested_amount_and_restart_is_idempotent(self):
+        nodes=self.data['game_state']['buildings']
+        for ident, count in (('2',30),('3',10),('4',65)):
+            nodes[ident]['count']=count
+        bank=copy.deepcopy(self.data['game_state']['resources'])
+        e.upgrade_resource_stocks(self.data,self.rules)
+        self.assertEqual([nodes[k]['count'] for k in ('2','3','4')],[240,230,240])
+        restored=json.loads(json.dumps(self.data))
+        e.upgrade_resource_stocks(restored,self.rules)
+        self.assertEqual(restored,self.data)
+        self.rules['buildings']['1']['state_data']={'1':{'temple_level':3}}
+        e.upgrade_resource_stocks(self.data,self.rules)
+        self.assertEqual([nodes[k]['count'] for k in ('2','3','4')],[340,330,340])
+        self.assertEqual(self.data['game_state']['resources'],bank)
+        e.upgrade_resource_stocks(self.data,self.rules)
+        self.assertEqual(nodes['2']['count'],340)
+
+    def test_depleted_node_never_refills_and_construction_does_not_grant_level(self):
+        node=self.data['game_state']['buildings']['2'];node['count']=0
+        self.rules['buildings']['1']['state_data']={'1':{'temple_level':2}}
+        e.upgrade_resource_stocks(self.data,self.rules)
+        self.assertEqual(node['count'],0)
+        self.rules['buildings']['1']['state_data']['1']={'temple_level':3,'buildable':True}
+        self.assertEqual(e.resource_stocks(self.data,self.rules),{2:300,3:300,4:300})
+
+    def test_respawn_at_current_burg_level_does_not_get_double_boosted(self):
+        self.rules['buildings']['1']['state_data']={'1':{'temple_level':4}}
+        self.advance(self.now)
+        del self.data['game_state']['buildings']['2']
+        ident=self.advance(self.now+60)
+        node=self.data['game_state']['buildings'][str(ident)]
+        self.assertEqual(node['count'],400)
+        e.upgrade_resource_stocks(self.data,self.rules)
+        self.assertEqual(node['count'],400)
+
+
 if __name__ == '__main__':
     unittest.main()
+

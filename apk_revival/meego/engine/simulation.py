@@ -8,7 +8,7 @@ from pathlib import Path
 from . import local_game as g
 from . import community, skills, catalog, ecology, food, birthstones, production, population, progression, effects, harvesting, commercial, adventures, islands
 
-SETTINGS = {'construction_seconds': 45, 'gather_update_seconds': 10, 'gather_seconds': 8, 'travel_seconds': 4, 'resource_stocks': {2: 40, 3: 30, 4: 75}, 'maximum_offline_seconds': 86400, 'hours_per_age': 1, 'baby_age': 2, 'adult_age': 10, 'elder_age': 65, 'death_age': 100}
+SETTINGS = {'construction_seconds': 45, 'gather_update_seconds': 10, 'gather_seconds': 8, 'travel_seconds': 4, 'resource_stocks': ecology.DEFAULT_STOCKS, 'maximum_offline_seconds': 86400, 'hours_per_age': 1, 'baby_age': 2, 'adult_age': 10, 'elder_age': 65, 'death_age': 100}
 ActionError = g.ActionError
 
 
@@ -84,7 +84,7 @@ def migrate_economy(data, now):
     if 'completed-trips-2' in data.get('local_migrations', []):return
     gs = data['game_state']
     for source in gs['buildings'].values():
-        stock = SETTINGS['resource_stocks'].get(source['building_type'])
+        stock = ecology.LEGACY_STOCKS.get(source['building_type'])
         if stock is not None:
             source['count'] = max(0, min(int(source.get('count', stock)), stock))
             source['expire_date'] = 0
@@ -118,11 +118,11 @@ def _advance_segment(data, now=None, *, food_active=True):
     new = copy.deepcopy(data)
     gs = new['game_state']
     migrate_economy(new, now)
-    ecology.upgrade_bush_stock(new)
+    ecology.upgrade_resource_stocks(new, g.RULES)
     skills.migrate_work_progress(new)
     catalog.normalize_research_cursors(gs, g.RULES)
     birthstones.discover_owned(new, g.RULES.get('birthsigns', {}))
-    ecology.advance(new, now, rules=g.RULES, stocks=SETTINGS['resource_stocks'])
+    ecology.advance(new, now, rules=g.RULES, stocks=ecology.resource_stocks(new, g.RULES))
     if 'last_simulated_at' not in new:
         new['last_simulated_at'] = now
         community.advance(new, now, housing_capacity=housing(gs), rules=g.RULES, hours_per_age=SETTINGS['hours_per_age'])
@@ -552,7 +552,9 @@ def mutate(data, route, params, now=None):
         if route == 'game/village/place_resource':
             for key,b in result['game_state']['buildings'].items():
                 if key not in data['game_state']['buildings']:
-                    b['count'] = SETTINGS['resource_stocks'][b['building_type']]
+                    b['count'] = ecology.resource_stocks(result, g.RULES)[b['building_type']]
+                    ecology.register_stock(result, b, b['count'])
         return result
     return None
+
 

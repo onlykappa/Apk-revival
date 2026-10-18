@@ -1,8 +1,8 @@
 """Bounded local replenishment of the original client's resource node pools.
 
 The original 1.32 client recovers missing resource nodes on startup. The local
-requested cap is six of each type (original caps were4/3/3). Its server's timing
-is unavailable. Five-minute replenishment is a requested local policy, not
+requested cap is five of each type (original caps were4/3/3). Its server's timing
+is unavailable. One-minute replenishment is a requested local policy, not
 an original timer. Only previously observed resource sites are reused: guessing
 free coordinates without the client's terrain mask can place nodes off-island.
 """
@@ -10,13 +10,16 @@ import math
 
 from . import local_game as g
 
-INTERVAL_SECONDS = 5 * 60
+INTERVAL_SECONDS = 60
 STATE_KEY = 'local_ecology'
 LEGACY_POLICY = 'local-resource-replenishment-15m-v1'
 PREVIOUS_POLICY = 'local-resource-replenishment-per-kind-15m-v2'
-POLICY = 'local-resource-replenishment-per-kind-5m-v3'
-RESOURCE_LIMITS = {2: 6, 3: 6, 4: 6}
-DEFAULT_STOCKS = {2: 40, 3: 30, 4: 75}
+FIVE_MINUTE_POLICY = 'local-resource-replenishment-per-kind-5m-v3'
+POLICY = 'local-resource-replenishment-per-kind-1m-v4'
+RESOURCE_LIMITS = {2: 5, 3: 5, 4: 5}
+LEGACY_STOCKS = {2: 40, 3: 30, 4: 75}
+DEFAULT_STOCKS = {2: 250, 3: 250, 4: 250}
+CAPACITY_KEY = "local_resource_capacities"
 MAX_ID = 2147483647
 MAX_SITES = 64
 BUSH_STOCK_MIGRATION = 'bush-stock-75-v1'
@@ -51,6 +54,52 @@ def upgrade_bush_stock(data):
             node['count']=count+55
     migrations.append(BUSH_STOCK_MIGRATION)
     return True
+
+
+def resource_stocks(data, rules=None):
+    """250 at completed burg level one, then 50 per completed upgrade."""
+    rules = g.RULES if rules is None else rules
+    level = 1
+    for node in data['game_state']['buildings'].values():
+        if node.get('building_type') == 1:
+            rule = rules.get('buildings', {}).get('1', {}).get('state_data', {}).get(str(node.get('state')), {})
+            # Construction states must not grant the next level early.
+            if not rule.get('buildable'):
+                level = max(level, int(rule.get('temple_level', 1)))
+    # Preserve the last completed level while an upgrade is in progress.
+    previous = data.get('local_resource_burg_level', 1)
+    level = max(level, previous)
+    data['local_resource_burg_level'] = level
+    return {kind: base + 50 * (level - 1) for kind, base in DEFAULT_STOCKS.items()}
+
+
+def register_stock(data, node, capacity):
+    data.setdefault(CAPACITY_KEY, {})[str(node['building_id'])] = dict(
+        kind=node['building_type'], location=node['location'], capacity=capacity)
+
+
+def upgrade_resource_stocks(data, rules=None):
+    """Add only newly earned capacity; never refill spent stock or balances."""
+    upgrade_bush_stock(data)
+    stocks = resource_stocks(data, rules)
+    records = data.setdefault(CAPACITY_KEY, {})
+    buildings = data['game_state']['buildings']
+    live = {str(n['building_id']) for n in buildings.values() if n.get('building_type') in RESOURCE_LIMITS}
+    for key in list(records):
+        if key not in live:
+            del records[key]
+    for node in buildings.values():
+        kind = node.get('building_type')
+        if kind not in RESOURCE_LIMITS:
+            continue
+        old = records.get(str(node['building_id']), {})
+        capacity = (old['capacity'] if old.get('kind') == kind and
+                    old.get('location') == node['location'] else LEGACY_STOCKS[kind])
+        count = node.get('count', 0)
+        if type(count) is int and count > 0:
+            node['count'] = count + max(0, stocks[kind] - capacity)
+        register_stock(data, node, stocks[kind])
+    return stocks
 
 
 def _clock(value):
@@ -137,7 +186,7 @@ def advance(data, now, *, rules=None, stocks=None):
 
     Migration observes existing nodes and waits a full interval. Each overdue
     check creates at most one missing node PER TYPE and schedules from the
-    current time. Migrate older15min policies to5min from the same cycle start,
+    current time. Migrate older policies to one minute from the same cycle start,
     so frequent polling cannot postpone the shortened deadline.
     No stored backlog, rollback reward, resource bank refill,
     or alteration to existing nodes occurs. Occupied sites are skipped; unknown
@@ -145,7 +194,7 @@ def advance(data, now, *, rules=None, stocks=None):
     """
     now = _clock(now)
     rules = g.RULES if rules is None else rules
-    stocks = DEFAULT_STOCKS if stocks is None else stocks
+    stocks = resource_stocks(data, rules) if stocks is None else stocks
     if any(isinstance(stocks.get(kind), bool) or
            not isinstance(stocks.get(kind), int) or stocks[kind] <= 0
            for kind in RESOURCE_LIMITS):
@@ -161,7 +210,7 @@ def advance(data, now, *, rules=None, stocks=None):
                               next_kind=2, replenishment_count=0,
                               sites=_sites(buildings, [], rules))
         return None
-    if (not isinstance(state, dict) or state.get('policy') not in (POLICY, LEGACY_POLICY, PREVIOUS_POLICY) or
+    if (not isinstance(state, dict) or state.get('policy') not in (POLICY, LEGACY_POLICY, PREVIOUS_POLICY, FIVE_MINUTE_POLICY) or
             not isinstance(state.get('sites'), list) or
             state.get('next_kind') not in RESOURCE_LIMITS or
             isinstance(state.get('replenishment_count'), bool) or
@@ -173,7 +222,7 @@ def advance(data, now, *, rules=None, stocks=None):
     if now <= checked:
         return None
     if state['policy'] != POLICY:
-        due -= 15 * 60 - INTERVAL_SECONDS
+        due -= (300 if state['policy'] == FIVE_MINUTE_POLICY else 900) - INTERVAL_SECONDS
         state['next_due'] = due
     state['policy'] = POLICY
     sites = _sites(buildings, state['sites'], rules)
@@ -198,6 +247,7 @@ def advance(data, now, *, rules=None, stocks=None):
         node = g.building(ident, kind, default_state, candidate['location'],
                           now, candidate['orientation'])
         node['count'] = stocks[kind]
+        register_stock(data, node, stocks[kind])
         buildings[str(ident)] = node
         state.update(next_building_id=ident + 1,
                      next_kind=kinds[(kinds.index(kind) + 1) % len(kinds)],
@@ -208,3 +258,4 @@ def advance(data, now, *, rules=None, stocks=None):
     state.update(sites=sites, last_checked_at=now,
                  next_due=now + INTERVAL_SECONDS)
     return first_ident
+

@@ -189,12 +189,12 @@ class State:
             print('Backed up and added starter population, balances and temple unlocks.', flush=True)
         new = copy.deepcopy(self.data)
         migrate_economy(new, time.time())
-        ecology.upgrade_bush_stock(new)
+        ecology.upgrade_resource_stocks(new, g.RULES)
         skills.migrate_work_progress(new)
         catalog.normalize_research_cursors(new['game_state'], g.RULES)
         refresh_aging_jobs(new, time.time())
         if ecology.STATE_KEY not in new:
-            ecology.advance(new, time.time(), rules=g.RULES, stocks=SETTINGS['resource_stocks'])
+            ecology.advance(new, time.time(), rules=g.RULES, stocks=ecology.resource_stocks(new, g.RULES))
         if community.STATE_KEY not in new:
             community.advance(new, time.time(), housing_capacity=housing(new['game_state']))
         # New host session: preserve saved food instead of charging the hours
@@ -476,4 +476,5 @@ def main():
     finally: server.server_close()
 
 if __name__ == '__main__': main()
+
 

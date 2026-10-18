@@ -1,3 +1,26 @@
+## 0.9.3 Meego resource abundance — committed
+
+2026-10-18, Codex. Branch codex/meego-resource-abundance, commit identified by
+this entry's containing commit.
+
+- Wild node capacity is 250 + 50 per completed burg (Temple) level above one.
+  Persistent per-node capacity records add only new capacity to standing nodes,
+  preserving harvested amounts, earned balances, workers and partial trips.
+- Both native resource placement and ecology respawns use current burg capacity.
+- Respawn checks shortened to 60 seconds, with five independent nodes per kind.
+  Older timer policies preserve cycle start; no offline spawn backlog. Existing
+  nodes above five are retained until harvested and prevent new spawns.
+- Resource jobs 16/17/18 carry 20 + max(0, STR-10)/5 per trip. Research and
+  other jobs retain their scaling; equipment/effects compose once, fractional
+  carry and delivered-unit XP accounting remain intact.
+- Version bumped to 0.9.3 for the updater and separate Meego plugin asset.
+
+Tests: ecology/carry regressions pass. Full 677-test run had three known errors
+because runtime-access tests require a non-root home account. Excluding that
+environment-specific module, 667 tests pass (176 skipped). Android/private APK
+and GUI tests remain unavailable/skipped here. No files installed on the Deck.
+Next: GitHub CI/release and Deck confirmation after updating the Meego plugin.
+
 ## 0.9.2 bug hunt fixes — released
 
 2026-10-17, Claude. Branch claude/next, merged into main.
@@ -774,3 +797,4 @@ the tests reference a user-supplied APK via APKR_MEEGO_APK.
 Next: verify finite infant countdown (a new baby is the clearest check), final
 node disappearance, two-unit pickups, and password-free host startup. Preserve
 the current island. See OVERNIGHT_HANDOFF.md for full chronological evidence.
+

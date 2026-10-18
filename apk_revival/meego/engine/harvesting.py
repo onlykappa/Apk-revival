@@ -37,11 +37,14 @@ def parameters(person, job_id, rules, data=None, now=0, *, gather_seconds=8, tra
         overlay=effects.production_modifiers(data,person,job_id,now,rules)
         modifier+=overlay['rate_modifier'];multiplier*=overlay['rate_multiplier']
         time_modifier+=overlay['time_modifier'];time_multiplier*=overlay['time_multiplier']
-    # Local balance: each ten strength above the starting ten adds one
-    # resource per trip (fractional trips accumulate without rounding loss).
-    # Research retains its separate INT scaling; tools/effects compose once.
-    stat_step=100 if job_id==20 else 10
-    base=min(5.0,(2.0 if job_id in (16,17,18) else 1.0)+max(0,value-10)/stat_step)
+    # Resource carrying capacity: 20 at starting STR 10, +2 per ten STR.
+    # Keep fractional yield for trip accounting; research retains INT scaling.
+    if job_id in (16,17,18):
+        base=20.0+max(0,value-10)/5
+    else:
+        stat_step=100 if job_id==20 else 10
+        base=min(5.0,1.0+max(0,value-10)/stat_step)
     rate=max(.001,(base+modifier)*multiplier)
     gather=max(1,math.ceil(max(.001,(gather_seconds+time_modifier)*time_multiplier)))
     return {'gather_rate':rate,'gather_time':gather,'trip_time':gather+travel_seconds}
+
