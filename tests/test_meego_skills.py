@@ -288,12 +288,15 @@ class ProductiveUnitIntegrationTests(unittest.TestCase):
             },
         }
         self.data['game_state']['buildings']['2']['count'] = 100
+        # Explicit test stock is already using the new capacity policy.
+        from apk_revival.meego.engine import ecology
+        ecology.register_stock(self.data, self.data['game_state']['buildings']['2'], 250)
 
     def test_actual_multi_unit_delivery_awards_one_point_not_one_trip(self):
         result = self.sim.advance(self.data, self.now + 12)
-        self.assertEqual(result['game_state']['resources']['1']['count'], 5)
-        self.assertEqual(result['game_state']['all_villagers']['1']['stats']['strength'], 411)
-        self.assertEqual(result['skill_progress']['1']['strength'], 2)
+        self.assertEqual(result['game_state']['resources']['1']['count'], 100)
+        self.assertEqual(result['game_state']['all_villagers']['1']['stats']['strength'], 412)
+        self.assertEqual(result['skill_progress']['1']['strength'], 37)
         self.assertEqual(self.data['skill_progress']['1']['strength'], 57)
 
     def test_partial_storage_delivery_only_credits_delivered_units(self):
@@ -328,3 +331,4 @@ class ProductiveUnitIntegrationTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

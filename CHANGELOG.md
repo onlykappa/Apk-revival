@@ -2,6 +2,28 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.9.3] - 2026-10-18
+
+Trees, rocks and bushes now hold 250 materials at completed burg level 1,
+plus 50 for every completed burg upgrade. Existing nodes gain only the extra
+capacity, preserving resources already harvested. Respawns check every 60 seconds,
+with independent limits of five trees, five rocks and five bushes. Old five- and
+fifteen-minute schedules retain their cycle start when shortened. No offline
+spawn backlog is accumulated; occupied terrain is never overwritten.
+
+Villagers now carry 20 materials at strength 10, plus 2 per ten additional
+strength (28 at 50, 38 at 100). Equipment/effects still compose once, fractional
+carry persists across trips, and storage/remaining stock bound actual delivery.
+Research retains its existing intelligence scaling.
+
+### Verification scope
+
+Ecology, stock migration, burg upgrade, restart, depletion and cap regressions
+pass locally. Full unit suite passes except three existing root-account runtime
+access errors. Original Android APK and Steam Deck gameplay are not available in
+this environment; Android hardware verification remains pending. Existing nodes
+above the new cap are preserved and block replacement until harvested below five.
+
 ## [0.9.2] - 2026-10-17
 
 ### Fixed
@@ -457,3 +479,4 @@ The local V2 suite exercised real Qt workflows, actual APK signing, private tool
 [0.1.0]: https://github.com/onlykappa/Apk-revival/tree/7458887bf687eaaf8cf29242ba40be518e761abf
 
 [0.3.0]: https://github.com/onlykappa/Apk-revival/releases/tag/v0.3.0
+

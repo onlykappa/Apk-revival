@@ -77,6 +77,8 @@ class FoodSessionTests(unittest.TestCase):
         for ident,kind,count,location in ((90,4,75,3845),(91,3,30,500)):
             gs['buildings'][str(ident)]=g.building(ident,kind,1,location,self.now)
             gs['buildings'][str(ident)]['count']=count
+            from apk_revival.meego.engine import ecology
+            ecology.register_stock(self.state.data,gs['buildings'][str(ident)],250)
         for person,job,source in ((1,18,90),(2,17,91)):
             fields=dict(villager_id=[str(person)],job_id=[str(job)],job_data=[json.dumps(dict(source_id=source,destination_id=1))])
             self.state.data=sim.mutate(self.state.data,'game/village/set_job',fields,self.now)
@@ -94,3 +96,4 @@ class FoodSessionTests(unittest.TestCase):
         restarted.handle('game/village/get_resources',{})
         self.assertGreater(restarted.data['game_state']['resources']['3']['count'],100)
         self.assertLess(restarted.data['game_state']['buildings']['90']['count'],75)
+

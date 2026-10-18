@@ -96,6 +96,9 @@ def synchronize(data, now, rules=None):
     data['game_user'].update(village_level=level, affluence=affluence)
     from . import progression
     progression.synchronize(data,now,rules)
+    from . import ecology
+    if "completed-trips-2" in data.get("local_migrations", []):
+        ecology.upgrade_resource_stocks(data, rules)
 
 
 def migrate(data, now=None):
@@ -328,4 +331,5 @@ def mutate(data, route, params, now=None):
                               text(params, 'use_points', 'false').lower() in ('true', '1'), RULES, now)
     synchronize(new, now)
     return new
+
 

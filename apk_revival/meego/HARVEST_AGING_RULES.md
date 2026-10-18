@@ -45,3 +45,17 @@ Verification:121 original-rule source regressions and52 related timing, trip,
 simulation and skill checks pass. Native on-screen confirmation is pending the
 updated launcher restart. Static evidence came from the privately supplied
 original libverde.so using offline LLVM/ELF analysis, not a live REA capture.
+
+
+## Resource abundance policy (0.9.3)
+
+Wild trees, rocks and bushes each start with 250 material at completed burg
+(Temple) level 1 and gain 50 capacity per completed upgrade. Standing nodes gain
+only the capacity difference; depleted nodes never refill. Native placement and
+local respawns share the same capacity and a limit of five per type. Respawn
+checks run on active simulation requests every 60 seconds, adding at most one
+missing node of each type per check at known unoccupied sites. No backlog is
+replayed after inactivity. Existing sixth nodes are preserved until harvested,
+then cannot be replaced while five remain. Production buildings retain their separate stock rules. Resource carrying
+capacity for jobs 16/17/18 is now 20 + max(0, STR-10)/5, including eligible tools
+and effects exactly once; research uses its original INT formula.

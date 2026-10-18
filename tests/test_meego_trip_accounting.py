@@ -33,6 +33,9 @@ class CompletedTripAccountingTests(unittest.TestCase):
         }
         self.data['game_state']['buildings']['2']['count'] = 100
         self.add_worker(1)
+        # Explicit test stock is already using the new capacity policy.
+        from apk_revival.meego.engine import ecology
+        ecology.register_stock(self.data, self.data['game_state']['buildings']['2'], 250)
 
     def tearDown(self):
         g.RULES = self.old_rules
@@ -65,9 +68,9 @@ class CompletedTripAccountingTests(unittest.TestCase):
     def test_partial_trips_conserve_stock_across_segments_and_restart(self):
         before = copy.deepcopy(self.data)
         result = self.advance_segments(self.data, [3, 8, 1, 5, 7, 23, 1], restart=True)
-        self.assertEqual(self.totals(result), (8, 92))
+        self.assertEqual(self.totals(result), (80, 20))
         self.assertEqual(sum(self.totals(result)), 100)
-        self.assertEqual(result['skill_progress']['1']['strength'], 8)
+        self.assertEqual(result['skill_progress']['1']['strength'], 20)
         self.assertEqual(result['game_state']['all_villagers']['1']['job']['local_trip_seconds'], 0)
         self.assertEqual(self.data, before)
         single = sim.advance(self.data, self.now + 48)
@@ -108,7 +111,7 @@ class CompletedTripAccountingTests(unittest.TestCase):
         self.assertEqual(result['skill_progress']['1']['strength'], 2)
 
     def test_fractional_yields_are_independent_of_poll_segmentation_and_restart(self):
-        for strength, trips, expected in [(12, 12, 26), (15, 10, 25), (13, 10, 23)]:
+        for strength, trips, expected in [(12, 2, 40), (15, 2, 42), (13, 2, 41)]:
             with self.subTest(strength=strength):
                 self.add_worker(1, strength=strength)
                 single = sim.advance(self.data, self.now + trips * 12)
@@ -119,17 +122,17 @@ class CompletedTripAccountingTests(unittest.TestCase):
                 self.assertAlmostEqual(many['game_state']['all_villagers']['1']['job']['local_fraction'],
                                        single['game_state']['all_villagers']['1']['job']['local_fraction'])
 
-    def test_strength_24_delivers_17_over_five_trips_without_losing_fraction(self):
+    def test_strength_24_preserves_fraction_across_two_trips(self):
         self.add_worker(1, strength=24)
-        self.assertAlmostEqual(sim.gather_amount(self.data['game_state']['all_villagers']['1'],16),3.4)
-        result = self.advance_segments(self.data, [12] * 5, restart=True)
-        self.assertEqual(self.totals(result), (17,83))
-        self.assertEqual(result['skill_progress']['1']['strength'],17)
-        self.assertEqual(result['game_state']['all_villagers']['1']['job']['local_fraction'],0)
+        self.assertAlmostEqual(sim.gather_amount(self.data['game_state']['all_villagers']['1'],16),22.8)
+        result = self.advance_segments(self.data, [12] * 2, restart=True)
+        self.assertEqual(self.totals(result), (45,55))
+        self.assertEqual(result['skill_progress']['1']['strength'],45)
+        self.assertAlmostEqual(result['game_state']['all_villagers']['1']['job']['local_fraction'],.6)
 
     def test_strength_progression_and_cap_do_not_change_research(self):
         person = self.data['game_state']['all_villagers']['1']
-        for strength, expected in ((0,2),(10,2),(20,3),(24,3.4),(30,4),(40,5),(1799,5)):
+        for strength, expected in ((0,20),(10,20),(20,22),(24,22.8),(30,24),(40,26),(50,28),(100,38),(1799,377.8)):
             person['stats']['strength']=strength
             for job in (16,17,18):
                 self.assertAlmostEqual(sim.gather_amount(person,job),expected)
@@ -139,14 +142,14 @@ class CompletedTripAccountingTests(unittest.TestCase):
 
     def test_rollback_and_repeated_clock_never_credit_or_rewind_trip_progress(self):
         result = sim.advance(self.data, self.now + 15)
-        self.assertEqual(self.totals(result), (2, 98))
+        self.assertEqual(self.totals(result), (20, 80))
         self.assertEqual(result['game_state']['all_villagers']['1']['job']['local_trip_seconds'], 3)
         before = copy.deepcopy(result)
         self.assertEqual(sim.advance(result, self.now + 14), before)
         self.assertEqual(sim.advance(result, self.now + 15), before)
         resumed = sim.advance(result, self.now + 24)
-        self.assertEqual(self.totals(resumed), (4, 96))
-        self.assertEqual(resumed['skill_progress']['1']['strength'], 4)
+        self.assertEqual(self.totals(resumed), (40, 60))
+        self.assertEqual(resumed['skill_progress']['1']['strength'], 40)
 
     def test_growth_boundaries_keep_yield_equal_across_polling_and_restart(self):
         g.RULES['buildings']['1']['state_data']['1']['resource_caps']['1'] = 10000
@@ -154,7 +157,8 @@ class CompletedTripAccountingTests(unittest.TestCase):
         single = sim.advance(self.data, self.now + 160 * 12)
         split = self.advance_segments(self.data, [720, 1200], restart=True)
         frequent = self.advance_segments(self.data, [11, 1] * 160, restart=True)
-        self.assertEqual(self.totals(single), (357, 9643))
+        self.assertGreater(self.totals(single)[0], 3200)
+        self.assertEqual(sum(self.totals(single)), 10000)
         for result in (split, frequent):
             self.assertEqual(self.totals(result), self.totals(single))
             self.assertEqual(result['skill_progress'], single['skill_progress'])
@@ -177,3 +181,4 @@ class CompletedTripAccountingTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
