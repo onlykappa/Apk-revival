@@ -59,3 +59,17 @@ replayed after inactivity. Existing sixth nodes are preserved until harvested,
 then cannot be replaced while five remain. Production buildings retain their separate stock rules. Resource carrying
 capacity for jobs 16/17/18 is now 20 + max(0, STR-10)/5, including eligible tools
 and effects exactly once; research uses its original INT formula.
+
+## Half-speed closed-session aging (0.9.4)
+
+The server uses its existing session boundary detection (startup, logout and
+login/resume) to distinguish closed time from active play. Closed time advances
+age at 50 percent: one day away adds twelve game-age hours, with active aging
+unchanged. Apply the saved clock gap exactly once before effect segmentation or
+work catch-up clipping. Move both birthday and deathday forward by the skipped
+half so lifespan, native age categories and baby/child job deadlines agree.
+Owned travellers share this policy; adventure render snapshots receive the same
+age dates. Previously settled age and dead villagers remain unchanged. Food
+remains frozen while closed; construction, travel and production timers retain
+their separate real-time rules. Growth skip tokens exclude the accumulated
+offline date offset so opening Mods before resuming does not invalidate them.

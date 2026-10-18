@@ -6,7 +6,7 @@ import time
 import uuid
 from pathlib import Path
 from . import local_game as g
-from . import community, skills, catalog, ecology, food, birthstones, production, population, progression, effects, harvesting, commercial, adventures, islands
+from . import aging, community, skills, catalog, ecology, food, birthstones, production, population, progression, effects, harvesting, commercial, adventures, islands
 
 SETTINGS = {'construction_seconds': 45, 'gather_update_seconds': 10, 'gather_seconds': 8, 'travel_seconds': 4, 'resource_stocks': ecology.DEFAULT_STOCKS, 'maximum_offline_seconds': 86400, 'hours_per_age': 1, 'baby_age': 2, 'adult_age': 10, 'elder_age': 65, 'death_age': 100}
 ActionError = g.ActionError
@@ -99,11 +99,13 @@ def migrate_economy(data, now):
     data.setdefault('local_migrations', []).append('completed-trips-2')
 
 
-def advance(data,now=None,*,food_active=True):
+def advance(data,now=None,*,food_active=True,offline=False):
     """Settle modifier expiry boundaries without applying boosts retroactively."""
     now=time.time() if now is None else now
     working=copy.deepcopy(data)
     previous=float(working.get('last_simulated_at',now))
+    if offline:
+        aging.slow_offline(working,previous,now)
     if now>previous:
         previous=max(previous,now-SETTINGS['maximum_offline_seconds'])
         working['last_simulated_at']=previous

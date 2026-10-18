@@ -216,6 +216,10 @@ def mutate(data, route, params, now=None):
         location = integer(params, 'location', high=MAP_SIZE * MAP_SIZE - 1)
         for ident, b in list(houses.items()):
             if b['location'] == location and b['building_type'] in (2, 3, 4):
+                from . import ecology
+                ecology.remember_depletion(new, b, now)
+                from . import relocation
+                relocation.stop_removed_workers(new, b['building_id'], now)
                 del houses[ident]
                 break
     elif route == 'game/village/update_villager_job':
@@ -275,6 +279,9 @@ def mutate(data, route, params, now=None):
             state = RULES['buildings'][str(b['building_type'])]['state_data'][str(b['state'])]
             if b['building_type'] == 1 or not state.get('can_user_delete'):
                 raise ActionError('This building cannot be deleted.')
+            from . import relocation
+            relocation.remember_removal(new, ident, now)
+            relocation.stop_removed_workers(new, b['building_id'], now)
             del houses[ident]
         else:
             kind = integer(params, 'building_type_id', low=1)
