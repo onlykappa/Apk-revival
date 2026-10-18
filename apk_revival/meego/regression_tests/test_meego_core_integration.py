@@ -262,6 +262,7 @@ class CoreIntegrationTests(unittest.TestCase):
         node = g.building(9, kind, 1, 3845, self.now)
         node['count'] = stock
         data['game_state']['buildings']['9'] = node
+        ecology.register_stock(data,node,ecology.resource_stocks(data,g.RULES)[kind])
         data = sim.mutate(data, 'game/village/set_job', params(
             villager_id=1, job_id=job_id,
             job_data=json.dumps({'source_id': 9, 'destination_id': 1})), self.now)
@@ -327,17 +328,17 @@ class CoreIntegrationTests(unittest.TestCase):
         self.assertEqual(data['game_state']['all_villagers']['3']['job']['job_id'],0)
         self.assertEqual(data['game_state']['all_villagers']['3']['birthday'],self.now)
 
-    def test_two_resource_base_delivers_two_and_strength_and_tools_still_improve_it(self):
+    def test_twenty_resource_base_and_strength_and_tools_improve_it(self):
         for kind,job_id,resource in ((2,16,'1'),(3,17,'2'),(4,18,'3')):
             with self.subTest(kind=kind):
-                data=self.source(kind,job_id,10)
+                data=self.source(kind,job_id,100)
                 person=data['game_state']['all_villagers']['1']
-                self.assertEqual(person['job']['gather_rate'],2)
+                self.assertEqual(person['job']['gather_rate'],20)
                 settled=sim.advance(data,self.now+12)
-                self.assertEqual(settled['game_state']['resources'][resource]['count'],2)
-                self.assertEqual(settled['game_state']['buildings']['9']['count'],8)
+                self.assertEqual(settled['game_state']['resources'][resource]['count'],20)
+                self.assertEqual(settled['game_state']['buildings']['9']['count'],80)
                 person['stats']['strength']=20
-                self.assertEqual(sim.gather_amount(person,job_id,data,self.now),3)
+                self.assertEqual(sim.gather_amount(person,job_id,data,self.now),22)
         self.assertEqual(sim.gather_amount(self.data['game_state']['all_villagers']['1'],20,self.data,self.now),1)
 
     def test_original_safe_sites_replenish_all_three_kinds_after_json_restart(self):
@@ -358,7 +359,7 @@ class CoreIntegrationTests(unittest.TestCase):
         when=data[ecology.STATE_KEY]['next_due']
         self.assertIsNotNone(ecology.advance(data,when,rules=g.RULES))
         nodes=[b for b in data['game_state']['buildings'].values() if b['building_type'] in ecology.RESOURCE_LIMITS]
-        self.assertEqual(sorted((b['building_type'],b['count']) for b in nodes),[(2,40),(3,30),(4,75)])
+        self.assertEqual(sorted((b['building_type'],b['count']) for b in nodes),[(2,250),(3,250),(4,250)])
         self.assertEqual(data['game_state']['resources'],old_bank)
         self.assertEqual(data['game_state']['all_villagers'],old_people)
         packet=server.native_payload(data['game_state'],depleted_nodes=data[ecology.REMOVED_KEY])
@@ -367,14 +368,14 @@ class CoreIntegrationTests(unittest.TestCase):
         self.assertIsNone(ecology.advance(data,when,rules=g.RULES))
         self.assertEqual(data,unchanged)
 
-    def test_six_node_cap_applies_to_native_spawn_requests_and_timer_without_refills(self):
+    def test_five_node_cap_applies_to_native_spawn_requests_and_timer_without_refills(self):
         for kind in (2,3,4):
             with self.subTest(kind=kind):
                 data=copy.deepcopy(self.data)
                 for index in range(6):
                     data=g.mutate(data,'game/village/place_resource',params(building_type_id=kind,location=20*g.MAP_SIZE+index*6,orientation=0),self.now)
                 buildings=data['game_state']['buildings']
-                self.assertEqual(sum(b['building_type']==kind for b in buildings.values()),6)
+                self.assertEqual(sum(b['building_type']==kind for b in buildings.values()),5)
                 before=copy.deepcopy(data)
                 rejected=g.mutate(data,'game/village/place_resource',params(building_type_id=kind,location=40*g.MAP_SIZE+40,orientation=0),self.now)
                 self.assertEqual(rejected,before)
@@ -383,7 +384,7 @@ class CoreIntegrationTests(unittest.TestCase):
                 bank=copy.deepcopy(data['game_state']['resources'])
                 for cycle in range(1,5):
                     ecology.advance(data,self.now+cycle*300+1,rules=g.RULES)
-                    self.assertEqual(sum(b['building_type']==kind for b in buildings.values()),6)
+                    self.assertEqual(sum(b['building_type']==kind for b in buildings.values()),5)
                 self.assertEqual(data['game_state']['resources'],bank)
 
     def test_native_move_rekeys_destination_model_and_clears_old_cached_building(self):
@@ -493,7 +494,7 @@ class CoreIntegrationTests(unittest.TestCase):
         person=data['game_state']['all_villagers']['1']
         person['items']['371']=dict(item_id=371,count=1,layer=4,cooldown=0,last_update=self.now)
         data=sim.mutate(data,'game/village/use_villager_item',params(villager_id=1,item_id=371),self.now)
-        self.assertEqual(data['game_state']['all_villagers']['1']['job']['gather_rate'],3)
+        self.assertEqual(data['game_state']['all_villagers']['1']['job']['gather_rate'],30)
         expected=dict(effect_id=371,expire_date=self.now+180)
         self.assertEqual(data['game_state']['global_state']['effects'],[expected])
         for offset in (0,10,179):
@@ -531,9 +532,9 @@ class CoreIntegrationTests(unittest.TestCase):
         self.assertFalse(ecology.upgrade_bush_stock(data))
         self.assertEqual(data['game_state']['resources'], bank)
 
-    def test_new_bush_has_seventy_five_food(self):
+    def test_new_bush_has_two_hundred_fifty_food(self):
         data = sim.mutate(self.data, 'game/village/place_resource', params(building_type_id=4, location=3845), self.now)
-        self.assertEqual(next(b['count'] for b in data['game_state']['buildings'].values() if b['building_type'] == 4), 75)
+        self.assertEqual(next(b['count'] for b in data['game_state']['buildings'].values() if b['building_type'] == 4), 250)
 
     def test_three_idle_factories_accept_jobs_finish_then_deplete_to_idle(self):
         for kind, job_id, duration, harvest_job in ((10, 30, 900, 19), (13, 24, 1350, 25), (16, 28, 1080, 29)):
@@ -573,7 +574,7 @@ class CoreIntegrationTests(unittest.TestCase):
         equipped = sim.mutate(data, 'game/village/assign_item_to_villager', params(villager_id=1, item_id=1217), self.now)
         self.assertAlmostEqual(equipped['game_state']['all_villagers']['1']['job']['gather_rate'], baseline + 2.32)
         settled = sim.advance(equipped, self.now + 12)
-        self.assertEqual(settled['game_state']['resources']['2']['count'], 4)
+        self.assertEqual(settled['game_state']['resources']['2']['count'], 22)
         removed = sim.mutate(equipped, 'game/village/remove_item_from_villager', params(villager_id=1, item_id=1217), self.now)
         self.assertEqual(removed['game_state']['all_villagers']['1']['job']['gather_rate'], baseline)
         self.assertEqual(removed['game_state']['items']['1217']['count'], 1)

@@ -6,7 +6,7 @@ the plugin can be loaded while the core is still importing.
 """
 from __future__ import annotations
 from ..util import RevivalError, atomic_json, now, read_json
-from . import timer_mod
+from . import timer_mod, lifecycle_mod
 from .adapter import MeegoAdapter, ORIGINAL_SHA
 
 
@@ -15,7 +15,7 @@ class MeegoPlugin(MeegoAdapter):
     recommended_path = 'local_backend'
     recommendation_reason = 'Reviewed Meego local responder preserves the native game, with provisional simulation and limited features.'
     binary_targets = frozenset({'lib/armeabi/libverde.so', 'AndroidManifest.xml', 'resources.arsc'})
-    operation_types = frozenset({'meego_timer_panel'})
+    operation_types = frozenset({'meego_timer_panel', 'meego_lifecycle_panel'})
     verify_note = 'Meego requires a guided Android gameplay test. Signing and host service tests do not certify the game.'
     controls = 'Controls: touch or trackpad.'
     save_file = 'saves/village.json'
@@ -35,11 +35,20 @@ class MeegoPlugin(MeegoAdapter):
 
     # Restoration operations beyond the core text/byte patches
     def validate_operation(self, op, p):
+        if op.get('type') == 'meego_lifecycle_panel':
+            if (p.get('adapter') != self.name or p['apk_sha256'] != ORIGINAL_SHA
+                    or op.get('file') not in lifecycle_mod.ASSETS
+                    or op.get('expected_sha256') != lifecycle_mod.ASSETS[op['file']]
+                    or op.get('revision') != lifecycle_mod.REVISION):
+                raise RevivalError('Villager age panel requires the exact reviewed original asset.')
+            return
         if (p.get('adapter') != self.name or p['apk_sha256'] != ORIGINAL_SHA or op['file'] != timer_mod.ASSET or
                 op.get('expected_sha256') != timer_mod.ASSET_SHA or op.get('revision') != timer_mod.REVISION):
             raise RevivalError('Timer panel operation requires the exact reviewed Meego asset.')
 
     def apply_operation(self, op, raw):
+        if op.get('type') == 'meego_lifecycle_panel':
+            return lifecycle_mod.patched_panel(op['file'],raw), 'Native stats age-20 control and stat-preserving revival confirmation.\n'
         return timer_mod.patched_panel(raw), 'Reviewed Meego countdown panel: move bound completion button beside X and add Skip timer label.\n'
 
     # Saves and local service
@@ -79,7 +88,7 @@ class MeegoPlugin(MeegoAdapter):
         if camera.prepared(p.get('restoration', {}), hz):
             return p
         if not health()['preparation_ready']:
-            raise RevivalError('Meego needs its camera client update, but preparation tools are missing. Open Setup and select Install preparation tools. The previous APK and saves are preserved.')
+            raise RevivalError('Meego needs its villager controls update, but preparation tools are missing. Open Setup and select Install preparation tools. The previous APK and saves are preserved.')
         ctx.step('Preparing Meego client controls (' + str(hz) + ' Hz)')
         p['runtime']['meego_timer_hz'] = hz
         service.store.save(p)

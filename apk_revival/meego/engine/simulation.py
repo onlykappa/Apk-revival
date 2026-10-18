@@ -161,6 +161,9 @@ def _advance_segment(data, now=None, *, food_active=True):
             person['job'] = g.idle_job(now); job = person['job']; job_id = 0
         if now >= death_date(person) and job_id not in (6, 8):
             person['job'] = g.idle_job(now); person['job']['job_id'] = 6
+            person['last_update'] = now
+            from . import lifecycle
+            lifecycle._release_parent(new, person['villager_id'], now)
             continue
         source = buildings.get(str(job.get('source_id', 0)))
         if source and source['building_id'] in handled_cycles:
@@ -532,14 +535,9 @@ def mutate(data, route, params, now=None):
                                                              adult_age=SETTINGS['adult_age'], hours_per_age=SETTINGS['hours_per_age'])['report_cards']
         return new
     if route == 'game/village/confirm_dead_villager':
-        person = get_person(gs, params)
-        if person['job']['job_id'] != 6:
-            raise ActionError('This villager is alive.')
-        # The configured local game allows free resurrection.
-        person['birthday'] = int(now - 20 * 3600 * SETTINGS['hours_per_age'])
-        person['deathday'] = int(now + 80 * 3600 * SETTINGS['hours_per_age'])
-        person['job'] = g.idle_job(now)
-        return new
+        from . import lifecycle
+        return lifecycle.resolve(data,params,now,hours_per_age=SETTINGS['hours_per_age'],
+                                 death_age=SETTINGS['death_age'])
     result = g.mutate(data, route, params, now)
     if result is not None:
         # Replace diagnostic instant construction with real worker construction.

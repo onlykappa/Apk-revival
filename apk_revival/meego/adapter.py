@@ -1,7 +1,7 @@
 from __future__ import annotations
 import hashlib,json,pathlib,plistlib,struct,sys,zipfile
 from ..util import RevivalError,atomic_json,digest
-from . import camera, timer_mod
+from . import camera, timer_mod, lifecycle_mod
 ORIGINAL_SHA='030613cbc63bd03786545999c3590456a264796866127898928a4d59988d29a2'
 PACKAGE='ata.apkrv.meego'
 
@@ -24,6 +24,10 @@ class MeegoAdapter:
             timer_mod.patched_panel(z.read(timer_mod.ASSET))  # Validate the exact original before planning.
             operations.append(dict(type='meego_timer_panel',file=timer_mod.ASSET,
                 expected_sha256=timer_mod.ASSET_SHA,revision=timer_mod.REVISION))
+            for name, sha in lifecycle_mod.ASSETS.items():
+                lifecycle_mod.patched_panel(name,z.read(name))
+                operations.append(dict(type='meego_lifecycle_panel',file=name,
+                    expected_sha256=sha,revision=lifecycle_mod.REVISION))
             for name,old,new in [('AndroidManifest.xml','ata.squid.meego',PACKAGE),('resources.arsc','Meego\0','Reviv\0')]:
                 raw=z.read(name);patches=[]
                 for encoding in ['utf-8','utf-16le']:
