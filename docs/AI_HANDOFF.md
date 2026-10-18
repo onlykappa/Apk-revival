@@ -1,3 +1,32 @@
+## 0.9.5 resurrection repair and return to age 20 — committed
+
+2026-10-18, Codex. Branch codex/meego-revival. Commit: the commit containing this
+entry, subsequently merged into main.
+
+- Native stats panels (phone/tablet) add Return to age 20 using the existing
+  onResurrect callback, plus a single free stat-preserving confirmation. Original
+  asset hashes and animation-preserving CCBI round trips guard panel rewrites.
+- Revival refreshes person/job model dates, returns dead Meego idle at twenty,
+  clears stale death/quest state, keeps all earned stats/equipment/identity/skills,
+  and accepts immediate duplicate callbacks without another age reset.
+- Death resolution honors native alive=true/false; Free up space only clears a
+  dead owned home villager and sends an explicit native null removal. Living
+  adults may return to twenty while retaining their work and partial trips.
+- The plan's native_lifecycle_mod revision triggers the normal same-signature
+  re-prepare/install on next Play, preserving saves and half-speed offline aging.
+- Original-APK resource regressions now match the 0.9.3 resource rebalance; their
+  custom stock fixtures are explicitly marked to avoid testing migration twice.
+  Signed-client save-restart equivalence now holds its food-resume clock fixed.
+
+Validation: focused original-APK lifecycle and asset tests, real-rule game tests,
+round trips and package-content/signature checks. With original APK and built
+fixture: 692 supported tests pass (32 skipped); the full run retains three known
+root-account runtime-access errors. See
+apk_revival/meego/LIFECYCLE_RULES.md. Known root-account runtime-access tests need
+non-root CI; GUI/device-specific tests remain separate. No installation or live
+Android rendering check performed on the user's Deck. Next: GitHub build/release
+and on-device confirmation after updating app/plugin and reopening the game.
+
 ## 0.9.4 half-speed offline aging and Meego audit — committed
 
 2026-10-18, Codex. Branch codex/meego-offline-aging. Commit: the commit containing

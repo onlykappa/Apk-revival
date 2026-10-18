@@ -1,4 +1,4 @@
-"""Strict CCBI v3 reader for the reviewed Meego countdown panel.
+"""Strict CCBI v3 reader for reviewed Meego countdown and stats panels.
 
 Format reference: https://github.com/cocos2d/CCBReader/blob/master/CCBReader/CCBReader.m
 Original implementation; preserves raw property data and refuses unknown layouts.
@@ -45,11 +45,25 @@ class Reader:
   return dict(type=t,name=name,platform=platform,value=v,raw=self.b[start:self.p])
  def node(self,depth=0):
   start=self.p;cls=self.string();atype=self.integer();name=self.string() if atype else ''
-  seq=self.integer();assert seq==0,(self.p,seq)
+  seqstart=self.p;seq=self.integer()
+  for _ in range(seq):
+   self.integer();num_props=self.integer()
+   for _ in range(num_props):
+    self.string();kind=self.integer()
+    for _ in range(self.integer()):
+     self.flt();easing=self.integer()
+     if easing in (2,3,4,5,6,7):self.flt()
+     if kind in (9,12):self.byte()
+     elif kind==13:self.take(3)
+     elif kind==5:self.flt()
+     elif kind in (0,4,27):self.flt();self.flt()
+     elif kind==10:self.string();self.string()
+     else:raise ValueError('Unsupported animated CCB property: '+str(kind))
+  animations=self.b[seqstart:self.p]
   reg=self.integer();extra=self.integer()
   props=[self.prop() for _ in range(reg+extra)]
   n=self.integer();children=[self.node(depth+1) for _ in range(n)]
-  return dict(cls=cls,name=name,assignment=atype,props=props,extra=extra,children=children)
+  return dict(cls=cls,name=name,assignment=atype,props=props,extra=extra,animations=animations,children=children)
  def read(self):
   assert self.take(4)==b'ibcc';version=self.integer();assert version==3
   n=self.integer()
@@ -81,12 +95,13 @@ class Reader:
    elif t in (5,7):data=flt(v)
    elif t in (9,12):data=bytes([v])
    elif t in (17,18,19,24):data=string(v)
+   elif t==21:data=string(v[0])+integer(v[1])
    else:raise ValueError('Writing unsupported CCB property')
    return integer(t)+string(p['name'])+bytes([p['platform']])+data
   def node(n):
    head=string(n['cls'])+integer(n['assignment'])
    if n['assignment']:head+=string(n['name'])
-   head+=integer(0)+integer(len(n['props'])-n['extra'])+integer(n['extra'])
+   head+=n.get('animations',integer(0))+integer(len(n['props'])-n['extra'])+integer(n['extra'])
    return head+b''.join(prop(p) for p in n['props'])+integer(len(n['children']))+b''.join(node(c) for c in n['children'])
   body=node(tree)
   cache=b''.join(struct.pack('>H',len(s.encode()))+s.encode() for s in self.cache)

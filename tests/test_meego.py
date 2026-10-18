@@ -1,5 +1,6 @@
 """Opt-in real APK tests. Android gameplay is not mocked into a passing claim."""
 import copy,json,os,pathlib,socket,tempfile,unittest,urllib.error,urllib.parse,urllib.request,zipfile
+from unittest.mock import patch
 from apk_revival.store import Store
 from apk_revival.launcher.service import Launcher
 from apk_revival.meego.adapter import ORIGINAL_SHA,PACKAGE
@@ -23,6 +24,10 @@ class RealMeegoTests(unittest.TestCase):
         with urllib.request.urlopen(urllib.request.Request(f'http://127.0.0.1:{self.backend.port}/'+path,data=data),timeout=10) as r:return json.load(r)
     def test_real_signed_client_and_protocol_save_export(self):
         self.assertEqual(self.p['apk_sha256'],ORIGINAL_SHA);self.assertEqual(self.p['restoration']['client_package'],PACKAGE);self.assertTrue(self.p['restoration']['signature_verified']);artifact=self.store.directory(self.game)/self.p['restoration']['artifact'];self.assertIn('Verifies',command([tool('apksigner'),'verify','--verbose',artifact]))
+        from apk_revival.meego import lifecycle_mod
+        with zipfile.ZipFile(artifact) as signed,zipfile.ZipFile(os.environ['APKR_MEEGO_APK']) as original:
+            for asset in lifecycle_mod.ASSETS:
+                self.assertEqual(signed.read(asset),lifecycle_mod.patched_panel(asset,original.read(asset)))
         self.start();self.assertEqual(self.request('health')['token'],self.backend.token)
         login=self.request('game/login/oauth')
         self.assertEqual(len(login['game_state']['all_villagers']),2)
@@ -35,7 +40,11 @@ class RealMeegoTests(unittest.TestCase):
         before=copy.deepcopy(self.backend.server.state.data);self.request('game/village/place_building',{'building_type_id':5,'location':676,'orientation':1});after=copy.deepcopy(self.backend.server.state.data);self.assertGreater(len(after['game_state']['buildings']),len(before['game_state']['buildings']))
         with self.assertRaises(urllib.error.HTTPError) as rejected:self.request('game/village/unknown')
         self.assertEqual(rejected.exception.code,501);self.assertIn('exception',json.load(rejected.exception))
-        saved=copy.deepcopy(self.backend.server.state.data);self.backend.stop();self.start();self.assertEqual(self.backend.server.state.data,saved);self.backend.stop()
+        saved=copy.deepcopy(self.backend.server.state.data);self.backend.stop()
+        # Restart resumes food bookkeeping at the actual startup clock. Hold
+        # that clock fixed when asserting byte-for-byte save equivalence.
+        with patch('apk_revival.meego.engine.server.time.time',return_value=saved['local_food']['last_charged_at']):self.start()
+        self.assertEqual(self.backend.server.state.data,saved);self.backend.stop()
         backup=Saves(self.store).backup(self.game);changed=copy.deepcopy(saved);changed['game_user']['username']='temporary';atomic_json(self.store.directory(self.game)/'saves/village.json',changed);self.assertTrue(Saves(self.store).restore(self.game,backup)['previous_backup'])
         out=self.root/'export.zip';self.launcher.jobs.run('export',lambda c:self.launcher.export(self.game,out,c))
         with zipfile.ZipFile(out) as z:

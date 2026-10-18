@@ -19,8 +19,8 @@ MOVE_REJECTION_FIXED = bytes.fromhex('0c00001a')
 
 def configuration(hz=60):
     frame_pacing.validate_hz(hz)
-    from . import timer_mod
-    return {'revision': REVISION, 'timer_hz': hz, 'native_timer_mod': timer_mod.REVISION}
+    from . import timer_mod, lifecycle_mod
+    return {'revision': REVISION, 'timer_hz': hz, 'native_timer_mod': timer_mod.REVISION, 'native_lifecycle_mod': lifecycle_mod.REVISION}
 
 
 def prepared(restoration, hz=60):

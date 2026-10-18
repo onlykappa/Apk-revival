@@ -2,6 +2,29 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.9.5] - 2026-10-18
+
+Meego stats now include **Return to age 20**, with a free confirmation that keeps
+all earned stats, equipment, birthsigns, identity and skill progress. The same
+flow revives dead Meego at twenty without stat loss. Living adults retain their
+current work; revived villagers return idle with fresh model timestamps and
+clean death jobs. Repeated revival callbacks are safe to retry.
+
+Death confirmation now honors the native alive flag: clearing a tombstone removes
+it with an explicit native cache deletion instead of accidentally reviving it.
+Living Meego cannot be cleared. Phone/tablet stats panels and the confirmation
+panel are rebuilt from exact original assets at the next normal Play; existing
+signing identity and village data are preserved. Offline aging remains half speed.
+
+### Verification scope
+
+Original APK assets, native callback selectors, age/stat preservation, retries,
+removal projection, signed package contents and real-rule game regressions are
+checked locally. Old original-APK resource test expectations were brought up to
+the 250-stock/five-node/20-plus-carry rules. Root-account runtime-access tests and
+GUI/device-dependent checks retain their existing environment limitations.
+No Android device or Steam Deck gameplay/rendering certification is claimed.
+
 ## [0.9.4] - 2026-10-18
 
 Closed-session villager aging now runs at half the previous rate: 24 hours away

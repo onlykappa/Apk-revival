@@ -46,7 +46,7 @@ def redact(params):
         else:result[key]=redact(value)
     return result
 
-def native_payload(value, game_state=None, depleted_nodes=()):
+def native_payload(value, game_state=None, depleted_nodes=(), removed_villagers=()):
     """Project saved building timers onto the native no-expiry wire contract.
 
     JMBuilding treats a missing expire_date as NSDate.distantFuture. Sending
@@ -57,7 +57,7 @@ def native_payload(value, game_state=None, depleted_nodes=()):
     if isinstance(value, dict):
         if {'all_villagers', 'buildings'} <= value.keys():game_state=value
         elif isinstance(value.get('game_state'), dict):game_state=value['game_state']
-        result = {key: native_payload(item, game_state, depleted_nodes) for key, item in value.items()}
+        result = {key: native_payload(item, game_state, depleted_nodes, removed_villagers) for key, item in value.items()}
         if 'villager_id' in value and isinstance(value.get('stats'), dict):
             signs = value['stats'].get('birthsigns')
             if isinstance(signs, list):
@@ -87,6 +87,11 @@ def native_payload(value, game_state=None, depleted_nodes=()):
             for ident in depleted_nodes:
                 if ident not in value['buildings']:
                     result['buildings'][ident] = None
+        if ({'all_villagers', 'buildings'} <= value.keys()
+                and value.get('name') in ('village','local')):
+            for ident in removed_villagers:
+                if ident not in value['all_villagers']:
+                    result['all_villagers'][ident] = None
         if {'all_villagers', 'buildings'} <= value.keys() and value.get('name') == 'village':
             # JMGameState.localInstance is registered as "local". Login assigns
             # that name explicitly, but JMDungeonPacket.onPostModelUpdate binds
@@ -120,7 +125,7 @@ def native_payload(value, game_state=None, depleted_nodes=()):
                     job['gather_rate']=count
         return result
     if isinstance(value, list):
-        return [native_payload(item, game_state, depleted_nodes) for item in value]
+        return [native_payload(item, game_state, depleted_nodes, removed_villagers) for item in value]
     return value
 
 def initial_village(seed, when=None, rules=None):
@@ -408,7 +413,8 @@ class Handler(BaseHTTPRequestHandler):
     def reply(self, code, value):
         state=getattr(getattr(self,'server',None),'state',None)
         if state is not None:
-            with state.lock:projected=native_payload(value,state.data['game_state'],relocation.removed_nodes(state.data))
+            with state.lock:projected=native_payload(value,state.data['game_state'],relocation.removed_nodes(state.data),
+                                                         tuple(state.data.get('local_removed_villagers', {})))
         else:projected=native_payload(value)
         body = json.dumps(projected, separators=(',', ':')).encode()
         self.send_response(code); self.send_header('Content-Type', 'application/json')
