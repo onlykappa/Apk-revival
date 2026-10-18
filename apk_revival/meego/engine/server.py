@@ -253,7 +253,8 @@ class State:
             if self.food_needs_resume or not self.food_session_active:
                 baseline = copy.deepcopy(self.data)
                 food.resume(baseline, now)
-            current = advance(baseline, now, food_active=not (self.food_needs_resume or not self.food_session_active))
+            current = advance(baseline, now, food_active=not (self.food_needs_resume or not self.food_session_active),
+                              offline=self.food_needs_resume or not self.food_session_active)
             new, title = mods.skip(current, token, now)
             self.persist(new)
             return title
@@ -267,7 +268,7 @@ class State:
             if not food_active:
                 baseline = copy.deepcopy(self.data)
                 food.resume(baseline, now)
-            current = advance(baseline, now, food_active=food_active)
+            current = advance(baseline, now, food_active=food_active, offline=not food_active)
             if current != self.data:
                 self.persist(current)
             self.food_needs_resume = False

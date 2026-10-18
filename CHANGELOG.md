@@ -2,6 +2,27 @@
 
 Product milestones V1 and V2 correspond to early software versions 0.1.0 and 0.2.0. Releases remain previews until Steam Deck / Android hardware verification is complete.
 
+## [0.9.4] - 2026-10-18
+
+Closed-session villager aging now runs at half the previous rate: 24 hours away
+adds 12 hours of age. Active play keeps its existing rate. Birthday and deathday
+shift together, preserving total lifespan and matching nursing/childhood timers.
+Already settled age and dead villagers are not rolled back or resurrected.
+
+The Meego audit fixed explicit native removal markers for deleted structures and
+resource nodes, immediately stopped jobs using removed sources/depots, and fixed
+resource-capacity records during moves so partially harvested nodes do not gain
+extra material again. The Mods respawn label now says five per kind and uses
+current burg capacity. Growth skip tokens remain valid across offline age shifts.
+
+### Verification scope
+
+Aging/session, native model-removal and resource-move regressions pass locally.
+New audit regressions reproduce the defects on 0.9.3. The full local unit run has
+only the three known runtime-access errors requiring a non-root home account.
+Original Android APK, GUI fixture and Steam Deck rendering are unavailable here;
+the user's specific graphical artifact still needs Android hardware confirmation.
+
 ## [0.9.3] - 2026-10-18
 
 Trees, rocks and bushes now hold 250 materials at completed burg level 1,

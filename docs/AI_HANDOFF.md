@@ -1,3 +1,25 @@
+## 0.9.4 half-speed offline aging and Meego audit — committed
+
+2026-10-18, Codex. Branch codex/meego-offline-aging. Commit: the commit containing
+this entry (then merged into main).
+
+- Offline aging is 50 percent of its former wall-clock rate; active play is
+  unchanged. Birth/death dates shift together before work catch-up clipping.
+  Existing server startup/logout/login boundaries select offline mode; owned
+  travel/adventure dates and baby timers agree, and growth skip tokens stay valid.
+  Already settled ages and dead villagers are preserved.
+- Audit fixes: explicit native null removals on manual node/structure deletion;
+  immediate cleanup of source/depot jobs; capacity records follow moved resource
+  nodes without re-awarding material; Mods respawn label/current burg stock fixed.
+- Findings, scope and remaining graphical verification: docs/MEEGO_AUDIT_0.9.4.md.
+
+Validation: 45 focused aging/audit/ecology/wire tests pass. Five audit regressions
+fail on 0.9.3 and pass with this change. Full local suite: 691 tests, only three
+known non-root-account runtime-access errors, 178 skipped. Excluding that module,
+681 tests pass with 176 skipped (private APK/GUI fixture not available). No installation or real Android rendering check on the Deck.
+Next: GitHub CI/release validation, update app and Meego plugin, then confirm
+half-rate absence aging and the reported graphical glitch on hardware.
+
 ## 0.9.3 Meego resource abundance — committed
 
 2026-10-18, Codex. Branch codex/meego-resource-abundance, commit identified by

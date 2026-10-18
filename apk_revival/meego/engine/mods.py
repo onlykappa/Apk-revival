@@ -78,7 +78,7 @@ def timers(data, now):
         age = simulation.SETTINGS['baby_age' if jid == 1 else 'adult_age']
         deadline = person['birthday'] + age * 3600 * simulation.SETTINGS['hours_per_age']
         add('growth', ident, f"{person['name']}: {'baby to child' if jid == 1 else 'child to adult'}",
-            deadline - now, [person['birthday'], jid])
+            deadline - now, [round(float(person['birthday'] - person.get('local_offline_age_seconds', 0)), 6), jid])
     for key, entry in data.get(effects.STATE_KEY, {}).get('cooldowns', {}).items():
         name = g.RULES.get('items', {}).get(str(entry['item_id']), {}).get('name', str(entry['item_id']))
         add('cooldown', key, f'{name}: cooldown (owner {entry["owner"]})',
@@ -87,7 +87,7 @@ def timers(data, now):
     if eco and any(sum(b['building_type'] == kind for b in gs['buildings'].values()) < cap
                    and any(s['kind'] == kind and ecology._available(s, gs['buildings'], g.RULES)
                            for s in eco.get('sites', [])) for kind, cap in ecology.RESOURCE_LIMITS.items()):
-        add('respawn', 'resources', 'Next resource respawn (six-per-kind cap applies)',
+        add('respawn', 'resources', 'Next resource respawn (five-per-kind cap applies)',
             eco['next_due'] - now, [eco['next_due'], eco['replenishment_count']])
     return result
 
@@ -133,7 +133,7 @@ def skip(data, token, now):
         effects.advance(new, now, g.RULES)
     elif kind == 'respawn':
         new[ecology.STATE_KEY].update(next_due=now, last_checked_at=now - 0.001)
-        ecology.advance(new, now, rules=g.RULES, stocks=simulation.SETTINGS['resource_stocks'])
+        ecology.advance(new, now, rules=g.RULES, stocks=ecology.resource_stocks(new, g.RULES))
     g.synchronize(new, now)
     history = new.setdefault('local_mod_history', [])
     history.append(dict(mod='skip_timer', target=selected['title'], token=token, time=now))
